@@ -31,7 +31,21 @@ export function formatContextWindow(tokens: number | undefined): string | null {
 
 export function estimateTokens(text: string): number {
   if (!text) return 0;
-  return Math.max(1, Math.ceil(text.length / 4));
+  let n = 0;
+  const pieces = text.split(/(\s+)/);
+  for (const piece of pieces) {
+    if (!piece || /^\s+$/.test(piece)) continue;
+    const cjk = piece.match(/[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]/g)?.length ?? 0;
+    if (cjk) n += cjk;
+    const rest = piece.replace(/[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]/g, "");
+    if (!rest) continue;
+    const bits = rest.split(/([.,!?;:()[\]{}'"“”‘’`])/).filter(Boolean);
+    for (const bit of bits) {
+      if (bit.length <= 3) n += 1;
+      else n += Math.ceil(bit.length / 3.6);
+    }
+  }
+  return Math.max(1, Math.round(n));
 }
 
 export function greetingForNow(date = new Date()): string {

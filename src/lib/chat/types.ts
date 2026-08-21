@@ -21,6 +21,8 @@ export type Message = {
   content: string;
   modelId?: string;
   createdAt: number;
+  parentId?: string | null;
+  selectedChildId?: string | null;
 };
 
 export type Conversation = {
@@ -31,6 +33,7 @@ export type Conversation = {
   createdAt: number;
   updatedAt: number;
   pinned?: boolean;
+  activeRootId?: string | null;
   promptTokens: number;
   completionTokens: number;
   contextTokens: number;

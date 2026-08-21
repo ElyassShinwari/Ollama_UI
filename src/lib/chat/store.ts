@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { linkLinearMessages, visibleMessages } from "./tree";
 import type { Conversation, Message, ModelRef, Settings, TokenUsage } from "./types";
 
 const defaultSettings: Settings = {
@@ -24,8 +25,12 @@ function emptyUsage() {
 }
 
 function normalizeConversation(c: Conversation): Conversation {
+  const messages = linkLinearMessages(c.messages ?? []);
+  const roots = messages.filter((m) => !m.parentId);
   return {
     ...c,
+    messages,
+    activeRootId: c.activeRootId ?? roots[0]?.id ?? null,
     promptTokens: c.promptTokens ?? 0,
     completionTokens: c.completionTokens ?? 0,
     contextTokens: c.contextTokens ?? 0,
@@ -39,6 +44,11 @@ function pendingModel(): ModelRef {
     provider: "ollama",
     transport: "server",
   };
+}
+
+function selectOnParent(messages: Message[], parentId: string | null, childId: string): Message[] {
+  if (!parentId) return messages;
+  return messages.map((m) => (m.id === parentId ? { ...m, selectedChildId: childId } : m));
 }
 
 type ChatState = {
@@ -58,13 +68,14 @@ type ChatState = {
   renameConversation: (id: string, title: string) => void;
   togglePin: (id: string) => void;
   addUserMessage: (content: string) => { conversationId: string; user: Message };
-  startAssistantMessage: (conversationId: string, model: ModelRef) => string;
+  startAssistantMessage: (conversationId: string, model: ModelRef, parentId: string) => string;
   appendToMessage: (conversationId: string, messageId: string, chunk: string) => void;
   finishMessage: (conversationId: string, messageId: string) => void;
   removeMessage: (conversationId: string, messageId: string) => void;
   replaceMessageContent: (conversationId: string, messageId: string, content: string) => void;
   dropAfter: (conversationId: string, messageId: string) => void;
-  editUserMessage: (conversationId: string, messageId: string, content: string) => void;
+  forkUserMessage: (conversationId: string, messageId: string, content: string) => Message;
+  selectSibling: (conversationId: string, messageId: string) => void;
   setUsage: (conversationId: string, usage: TokenUsage, exceeded?: boolean) => void;
   resetUsage: (conversationId: string) => void;
   markContextExceeded: (conversationId: string) => void;
@@ -102,6 +113,7 @@ export const useChatStore = create<ChatState>()(
                     ...c,
                     model: model ?? c.model,
                     ...emptyUsage(),
+                    activeRootId: null,
                     updatedAt: Date.now(),
                   }
                 : c,
@@ -117,6 +129,7 @@ export const useChatStore = create<ChatState>()(
           messages: [],
           createdAt: now,
           updatedAt: now,
+          activeRootId: null,
           ...emptyUsage(),
         };
         set((s) => ({
@@ -159,28 +172,34 @@ export const useChatStore = create<ChatState>()(
         })),
       addUserMessage: (content) => {
         const now = Date.now();
-        const user: Message = {
-          id: uid(),
-          role: "user",
-          content,
-          createdAt: now,
-        };
         let conversationId = get().activeId;
         const existing = get().conversations.find((c) => c.id === conversationId);
         if (!conversationId || !existing) {
           conversationId = get().newChat();
         }
+        const conv = get().conversations.find((c) => c.id === conversationId)!;
+        const visible = visibleMessages(conv.messages, conv.activeRootId);
+        const parent = visible[visible.length - 1];
+        const user: Message = {
+          id: uid(),
+          role: "user",
+          content,
+          createdAt: now,
+          parentId: parent?.id ?? null,
+          selectedChildId: null,
+        };
         set((s) => ({
           conversations: s.conversations.map((c) => {
             if (c.id !== conversationId) return c;
             const titled =
-              c.messages.length === 0 && c.title === "New chat"
-                ? titleFrom(content)
-                : c.title;
+              visible.length === 0 && c.title === "New chat" ? titleFrom(content) : c.title;
+            let messages = [...c.messages, user];
+            messages = selectOnParent(messages, parent?.id ?? null, user.id);
             return {
               ...c,
               title: titled,
-              messages: [...c.messages, user],
+              messages,
+              activeRootId: parent ? c.activeRootId : user.id,
               updatedAt: now,
               model: s.selectedModel ?? c.model,
             };
@@ -189,7 +208,7 @@ export const useChatStore = create<ChatState>()(
         }));
         return { conversationId: conversationId!, user };
       },
-      startAssistantMessage: (conversationId, model) => {
+      startAssistantMessage: (conversationId, model, parentId) => {
         const id = uid();
         const now = Date.now();
         const message: Message = {
@@ -198,13 +217,18 @@ export const useChatStore = create<ChatState>()(
           content: "",
           modelId: model.id,
           createdAt: now,
+          parentId,
+          selectedChildId: null,
         };
         set((s) => ({
-          conversations: s.conversations.map((c) =>
-            c.id === conversationId
-              ? { ...c, messages: [...c.messages, message], updatedAt: now }
-              : c,
-          ),
+          conversations: s.conversations.map((c) => {
+            if (c.id !== conversationId) return c;
+            return {
+              ...c,
+              messages: selectOnParent([...c.messages, message], parentId, id),
+              updatedAt: now,
+            };
+          }),
         }));
         return id;
       },
@@ -266,31 +290,61 @@ export const useChatStore = create<ChatState>()(
         set((s) => ({
           conversations: s.conversations.map((c) => {
             if (c.id !== conversationId) return c;
-            const idx = c.messages.findIndex((m) => m.id === messageId);
-            if (idx < 0) return c;
+            const msg = c.messages.find((m) => m.id === messageId);
+            if (!msg) return c;
             return {
               ...c,
-              messages: c.messages.slice(0, idx + 1),
+              messages: c.messages.map((m) =>
+                m.id === messageId ? { ...m, selectedChildId: null } : m,
+              ),
               updatedAt: Date.now(),
               contextExceeded: false,
             };
           }),
         })),
-      editUserMessage: (conversationId, messageId, content) =>
+      forkUserMessage: (conversationId, messageId, content) => {
+        const conv = get().conversations.find((c) => c.id === conversationId);
+        const old = conv?.messages.find((m) => m.id === messageId);
+        const user: Message = {
+          id: uid(),
+          role: "user",
+          content,
+          createdAt: Date.now(),
+          parentId: old?.parentId ?? null,
+          selectedChildId: null,
+        };
         set((s) => ({
           conversations: s.conversations.map((c) => {
             if (c.id !== conversationId) return c;
-            const idx = c.messages.findIndex((m) => m.id === messageId);
-            if (idx < 0) return c;
-            const kept = c.messages.slice(0, idx + 1).map((m) =>
-              m.id === messageId ? { ...m, content } : m,
-            );
+            let messages = [...c.messages, user];
+            messages = selectOnParent(messages, user.parentId ?? null, user.id);
+            const first = visibleMessages(c.messages, c.activeRootId)[0];
             return {
               ...c,
-              messages: kept,
-              title: idx === 0 ? titleFrom(content) : c.title,
+              messages,
+              activeRootId: user.parentId ? c.activeRootId : user.id,
+              title:
+                !user.parentId || first?.id === messageId ? titleFrom(content) : c.title,
               updatedAt: Date.now(),
               contextExceeded: false,
+            };
+          }),
+        }));
+        return user;
+      },
+      selectSibling: (conversationId, messageId) =>
+        set((s) => ({
+          conversations: s.conversations.map((c) => {
+            if (c.id !== conversationId) return c;
+            const msg = c.messages.find((m) => m.id === messageId);
+            if (!msg) return c;
+            if (!msg.parentId) {
+              return { ...c, activeRootId: msg.id, updatedAt: Date.now() };
+            }
+            return {
+              ...c,
+              messages: selectOnParent(c.messages, msg.parentId, msg.id),
+              updatedAt: Date.now(),
             };
           }),
         })),
@@ -307,7 +361,6 @@ export const useChatStore = create<ChatState>()(
               contextTokens,
               contextExceeded:
                 exceeded ?? (limit != null && contextTokens >= limit),
-              updatedAt: Date.now(),
             };
           }),
         })),

@@ -8,8 +8,11 @@ import { MessageBubble } from "@/components/chat/message-bubble";
 import { ModelPicker } from "@/components/chat/model-picker";
 import { estimateTokens, greetingForNow, isContextOverflowError } from "@/lib/utils";
 import { selectActiveConversation, useChatStore } from "@/lib/chat/store";
+import { siblingsOf, visibleMessages } from "@/lib/chat/tree";
 import { streamChat } from "@/lib/llm/catalog";
-import type { ModelRef } from "@/lib/chat/types";
+import { repetitionCutoff } from "@/lib/llm/repeat";
+import { countModelTokens, formatChatPrompt } from "@/lib/llm/tokens";
+import type { Message, ModelRef } from "@/lib/chat/types";
 
 const SUGGESTIONS = [
   "Explain a hard idea in plain language",
@@ -36,9 +39,9 @@ export function ChatView({
   const addUserMessage = useChatStore((s) => s.addUserMessage);
   const startAssistantMessage = useChatStore((s) => s.startAssistantMessage);
   const appendToMessage = useChatStore((s) => s.appendToMessage);
-  const removeMessage = useChatStore((s) => s.removeMessage);
-  const dropAfter = useChatStore((s) => s.dropAfter);
-  const editUserMessage = useChatStore((s) => s.editUserMessage);
+  const replaceMessageContent = useChatStore((s) => s.replaceMessageContent);
+  const forkUserMessage = useChatStore((s) => s.forkUserMessage);
+  const selectSibling = useChatStore((s) => s.selectSibling);
   const setUsage = useChatStore((s) => s.setUsage);
   const markContextExceeded = useChatStore((s) => s.markContextExceeded);
   const [draft, setDraft] = useState("");
@@ -47,14 +50,22 @@ export function ChatView({
   const scrollerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
+  const promptTokensRef = useRef(0);
+  const completionTokensRef = useRef(0);
+  const tokenTimerRef = useRef<number | null>(null);
 
-  const messages = conversation?.messages ?? [];
+  const allMessages = conversation?.messages ?? [];
+  const messages = conversation
+    ? visibleMessages(conversation.messages, conversation.activeRootId)
+    : [];
   const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
   const contextLimit = selectedModel?.contextLength ?? conversation?.model.contextLength;
   const contextUsed = conversation?.contextTokens ?? 0;
   const contextFull =
     Boolean(conversation?.contextExceeded) ||
     (contextLimit != null && contextUsed >= contextLimit);
+
+  const visibleKey = messages.map((m) => m.id).join(">");
 
   useEffect(() => {
     if (!stickToBottomRef.current) return;
@@ -63,29 +74,114 @@ export function ChatView({
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [messages, streamingId]);
 
+  useEffect(() => {
+    if (!conversation || streamingId) return;
+    const model = useChatStore.getState().selectedModel;
+    if (!model) return;
+    const visible = visibleMessages(conversation.messages, conversation.activeRootId);
+    if (visible.length === 0) {
+      useChatStore.getState().resetUsage(conversation.id);
+      return;
+    }
+    const last = visible[visible.length - 1];
+    const promptMsgs =
+      last?.role === "assistant" ? visible.slice(0, -1) : visible;
+    const completionText = last?.role === "assistant" ? last.content : "";
+    let cancelled = false;
+    void (async () => {
+      const prompt = formatChatPrompt(
+        useChatStore.getState().settings.systemPrompt,
+        promptMsgs.map((m) => ({ role: m.role, content: m.content })),
+      );
+      const [promptTokens, completionTokens] = await Promise.all([
+        countModelTokens({
+          host: useChatStore.getState().settings.ollamaHost,
+          model: model.id,
+          text: prompt,
+          transport: model.transport,
+        }),
+        completionText
+          ? countModelTokens({
+              host: useChatStore.getState().settings.ollamaHost,
+              model: model.id,
+              text: completionText,
+              transport: model.transport,
+            })
+          : Promise.resolve(0),
+      ]);
+      if (cancelled) return;
+      promptTokensRef.current = promptTokens;
+      completionTokensRef.current = completionTokens;
+      setUsage(conversation.id, { promptTokens, completionTokens });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [conversation?.id, visibleKey, streamingId, setUsage]);
+
   const greeting = useMemo(() => greetingForNow(), []);
 
-  async function runCompletion(conversationId: string, history: { role: string; content: string }[]) {
+  function publishUsage(conversationId: string, promptTokens: number, completionTokens: number) {
+    promptTokensRef.current = promptTokens;
+    completionTokensRef.current = completionTokens;
+    setUsage(conversationId, { promptTokens, completionTokens });
+  }
+
+  function scheduleCompletionCount(
+    conversationId: string,
+    model: ModelRef,
+    assistantText: string,
+  ) {
+    if (tokenTimerRef.current) window.clearTimeout(tokenTimerRef.current);
+    tokenTimerRef.current = window.setTimeout(() => {
+      void countModelTokens({
+        host: useChatStore.getState().settings.ollamaHost,
+        model: model.id,
+        text: assistantText,
+        transport: model.transport,
+      }).then((n) => {
+        if (abortRef.current) publishUsage(conversationId, promptTokensRef.current, n);
+      });
+    }, 120);
+  }
+
+  async function runCompletion(
+    conversationId: string,
+    history: { role: string; content: string }[],
+    parentId: string,
+  ) {
     const model = useChatStore.getState().selectedModel;
     if (!model) {
       toast.error("Choose a model first");
       return;
     }
-    const promptEstimate = estimateTokens(
-      [settings.systemPrompt, ...history.map((m) => m.content)].join("\n"),
-    );
+    const promptText = formatChatPrompt(settings.systemPrompt, history);
+    const promptEstimate = estimateTokens(promptText);
     const limit = model.contextLength;
     if (limit && promptEstimate >= limit) {
       markContextExceeded(conversationId);
       toast.error("This model's context window is full");
       return;
     }
-    setUsage(conversationId, { promptTokens: promptEstimate, completionTokens: 0 });
-    const assistantId = startAssistantMessage(conversationId, model);
+    publishUsage(conversationId, promptEstimate, 0);
+    void countModelTokens({
+      host: settings.ollamaHost,
+      model: model.id,
+      text: promptText,
+      transport: model.transport,
+    }).then((n) => {
+      if (limit && n >= limit) {
+        markContextExceeded(conversationId);
+        return;
+      }
+      publishUsage(conversationId, n, completionTokensRef.current);
+    });
+
+    const assistantId = startAssistantMessage(conversationId, model, parentId);
     setStreamingId(assistantId);
     const controller = new AbortController();
     abortRef.current = controller;
-    let gotUsage = false;
+    let stoppedLoop = false;
     try {
       await streamChat(
         {
@@ -98,28 +194,36 @@ export function ChatView({
           systemPrompt: settings.systemPrompt,
           contextLength: model.contextLength,
         },
-        (chunk) => appendToMessage(conversationId, assistantId, chunk),
+        (chunk) => {
+          const current = useChatStore
+            .getState()
+            .conversations.find((c) => c.id === conversationId)
+            ?.messages.find((m) => m.id === assistantId);
+          const next = `${current?.content ?? ""}${chunk}`;
+          const cut = repetitionCutoff(next);
+          if (cut != null) {
+            stoppedLoop = true;
+            replaceMessageContent(conversationId, assistantId, next.slice(0, cut).trimEnd());
+            controller.abort();
+            return;
+          }
+          appendToMessage(conversationId, assistantId, chunk);
+          completionTokensRef.current += Math.max(1, estimateTokens(chunk));
+          publishUsage(conversationId, promptTokensRef.current, completionTokensRef.current);
+          scheduleCompletionCount(conversationId, model, next);
+        },
         controller.signal,
         (usage) => {
-          gotUsage = true;
-          setUsage(conversationId, usage);
+          publishUsage(conversationId, usage.promptTokens, usage.completionTokens);
         },
       );
-      if (!gotUsage) {
-        const conv = useChatStore.getState().conversations.find((c) => c.id === conversationId);
-        const text = conv?.messages.map((m) => m.content).join("\n") ?? "";
-        const promptTokens = estimateTokens(history.map((m) => m.content).join("\n"));
-        const completionTokens = estimateTokens(
-          conv?.messages.find((m) => m.id === assistantId)?.content ?? "",
-        );
-        setUsage(conversationId, { promptTokens, completionTokens });
-        const limit = model.contextLength;
-        if (limit && promptTokens + completionTokens >= limit) {
-          markContextExceeded(conversationId);
-        }
-      }
     } catch (err) {
-      if ((err as { name?: string }).name === "AbortError") return;
+      if ((err as { name?: string }).name === "AbortError") {
+        if (stoppedLoop) {
+          toast("Stopped a repeating reply");
+        }
+        return;
+      }
       const message = err instanceof Error ? err.message : "The model failed to reply";
       if (isContextOverflowError(message)) {
         markContextExceeded(conversationId);
@@ -141,8 +245,22 @@ export function ChatView({
         toast.error(message);
       }
     } finally {
+      if (tokenTimerRef.current) window.clearTimeout(tokenTimerRef.current);
       setStreamingId(null);
       abortRef.current = null;
+      const text =
+        useChatStore
+          .getState()
+          .conversations.find((c) => c.id === conversationId)
+          ?.messages.find((m) => m.id === assistantId)?.content ?? "";
+      if (text && model) {
+        void countModelTokens({
+          host: settings.ollamaHost,
+          model: model.id,
+          text,
+          transport: model.transport,
+        }).then((n) => publishUsage(conversationId, promptTokensRef.current, n));
+      }
     }
   }
 
@@ -156,13 +274,13 @@ export function ChatView({
     setDraft("");
     stickToBottomRef.current = true;
     const { conversationId, user } = addUserMessage(trimmed);
-    const history = [
-      ...(useChatStore.getState().conversations.find((c) => c.id === conversationId)?.messages ?? [])
-        .filter((m) => m.id !== user.id && (m.role === "user" || m.role === "assistant"))
-        .map((m) => ({ role: m.role, content: m.content })),
-      { role: "user", content: trimmed },
-    ];
-    await runCompletion(conversationId, history);
+    const conv = useChatStore.getState().conversations.find((c) => c.id === conversationId);
+    const history = conv
+      ? visibleMessages(conv.messages, conv.activeRootId)
+          .filter((m) => m.role === "user" || m.role === "assistant")
+          .map((m) => ({ role: m.role, content: m.content }))
+      : [{ role: "user", content: trimmed }];
+    await runCompletion(conversationId, history, user.id);
   }
 
   function stop() {
@@ -171,40 +289,61 @@ export function ChatView({
 
   async function regenerate() {
     if (!conversation || streamingId) return;
-    const lastUser = [...conversation.messages].reverse().find((m) => m.role === "user");
-    const lastAsst = [...conversation.messages].reverse().find((m) => m.role === "assistant");
-    if (!lastUser || !lastAsst) return;
-    removeMessage(conversation.id, lastAsst.id);
-    const history = conversation.messages
-      .filter((m) => m.id !== lastAsst.id)
+    const lastUser = [...messages].reverse().find((m) => m.role === "user");
+    if (!lastUser) return;
+    const history = messages
+      .filter((m) => m.id !== lastAssistant?.id)
       .filter((m) => m.role === "user" || m.role === "assistant")
       .map((m) => ({ role: m.role, content: m.content }));
     stickToBottomRef.current = true;
-    await runCompletion(conversation.id, history);
+    await runCompletion(conversation.id, history, lastUser.id);
   }
 
   async function retryFrom(messageId: string) {
     if (!conversation || streamingId) return;
-    dropAfter(conversation.id, messageId);
-    const history = (
-      useChatStore.getState().conversations.find((c) => c.id === conversation.id)?.messages ?? []
-    )
-      .filter((m) => m.role === "user" || m.role === "assistant")
-      .map((m) => ({ role: m.role, content: m.content }));
+    const user = conversation.messages.find((m) => m.id === messageId);
+    if (!user || user.role !== "user") return;
+    selectSibling(conversation.id, user.id);
+    const conv = useChatStore.getState().conversations.find((c) => c.id === conversation.id);
+    if (!conv) return;
+    const path = visibleMessages(conv.messages, conv.activeRootId).filter(
+      (m) => m.role === "user" || m.role === "assistant",
+    );
+    const history = [];
+    for (const m of path) {
+      history.push({ role: m.role, content: m.content });
+      if (m.id === user.id) break;
+    }
     stickToBottomRef.current = true;
-    await runCompletion(conversation.id, history);
+    await runCompletion(conversation.id, history, user.id);
   }
 
   async function editFrom(messageId: string, content: string) {
     if (!conversation || streamingId) return;
-    editUserMessage(conversation.id, messageId, content);
-    const history = (
-      useChatStore.getState().conversations.find((c) => c.id === conversation.id)?.messages ?? []
-    )
-      .filter((m) => m.role === "user" || m.role === "assistant")
-      .map((m) => ({ role: m.role, content: m.content }));
+    const user = forkUserMessage(conversation.id, messageId, content);
+    const conv = useChatStore.getState().conversations.find((c) => c.id === conversation.id);
+    if (!conv) return;
+    const path = visibleMessages(conv.messages, conv.activeRootId).filter(
+      (m) => m.role === "user" || m.role === "assistant",
+    );
+    const history = [];
+    for (const m of path) {
+      history.push({ role: m.role, content: m.content });
+      if (m.id === user.id) break;
+    }
     stickToBottomRef.current = true;
-    await runCompletion(conversation.id, history);
+    await runCompletion(conversation.id, history, user.id);
+  }
+
+  function versionMeta(message: Message) {
+    const sibs = siblingsOf(allMessages, message);
+    const index = Math.max(0, sibs.findIndex((m) => m.id === message.id));
+    return {
+      index: index + 1,
+      count: sibs.length,
+      prevId: index > 0 ? sibs[index - 1]?.id : undefined,
+      nextId: index < sibs.length - 1 ? sibs[index + 1]?.id : undefined,
+    };
   }
 
   const empty = messages.length === 0;
@@ -268,25 +407,40 @@ export function ChatView({
           </div>
         ) : (
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6">
-            {messages.map((message) => (
-              <MessageBubble
-                key={message.id}
-                message={message}
-                streaming={streamingId === message.id}
-                showRegen={message.id === lastAssistant?.id && !streamingId}
-                onRegenerate={regenerate}
-                onRetry={
-                  message.role === "user" && !streamingId
-                    ? () => void retryFrom(message.id)
-                    : undefined
-                }
-                onEdit={
-                  message.role === "user" && !streamingId
-                    ? (content) => void editFrom(message.id, content)
-                    : undefined
-                }
-              />
-            ))}
+            {messages.map((message) => {
+              const version = versionMeta(message);
+              return (
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  streaming={streamingId === message.id}
+                  showRegen={message.id === lastAssistant?.id && !streamingId}
+                  onRegenerate={regenerate}
+                  onRetry={
+                    message.role === "user" && !streamingId
+                      ? () => void retryFrom(message.id)
+                      : undefined
+                  }
+                  onEdit={
+                    message.role === "user" && !streamingId
+                      ? (content) => void editFrom(message.id, content)
+                      : undefined
+                  }
+                  versionIndex={version.index}
+                  versionCount={version.count}
+                  onVersionPrev={
+                    version.prevId && conversation && !streamingId
+                      ? () => selectSibling(conversation.id, version.prevId!)
+                      : undefined
+                  }
+                  onVersionNext={
+                    version.nextId && conversation && !streamingId
+                      ? () => selectSibling(conversation.id, version.nextId!)
+                      : undefined
+                  }
+                />
+              );
+            })}
             <div ref={bottomRef} />
           </div>
         )}

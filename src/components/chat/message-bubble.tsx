@@ -1,4 +1,4 @@
-import { Check, Copy, Pencil, RotateCcw } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Copy, Pencil, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,6 +13,10 @@ export function MessageBubble({
   onRegenerate,
   onRetry,
   onEdit,
+  versionIndex,
+  versionCount,
+  onVersionPrev,
+  onVersionNext,
 }: {
   message: Message;
   streaming?: boolean;
@@ -20,17 +24,48 @@ export function MessageBubble({
   onRegenerate?: () => void;
   onRetry?: () => void;
   onEdit?: (content: string) => void;
+  versionIndex?: number;
+  versionCount?: number;
+  onVersionPrev?: () => void;
+  onVersionNext?: () => void;
 }) {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.content);
+  const versions = (versionCount ?? 1) > 1;
 
   async function copy() {
     await navigator.clipboard.writeText(message.content);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1400);
   }
+
+  const pager = versions ? (
+    <div className="flex items-center gap-0.5 font-mono text-xs text-muted-foreground">
+      <Button
+        size="icon-sm"
+        variant="ghost"
+        aria-label="Previous version"
+        disabled={!onVersionPrev}
+        onClick={onVersionPrev}
+      >
+        <ChevronLeft className="size-4" />
+      </Button>
+      <span className="min-w-9 text-center">
+        {versionIndex}/{versionCount}
+      </span>
+      <Button
+        size="icon-sm"
+        variant="ghost"
+        aria-label="Next version"
+        disabled={!onVersionNext}
+        onClick={onVersionNext}
+      >
+        <ChevronRight className="size-4" />
+      </Button>
+    </div>
+  ) : null;
 
   if (isUser) {
     return (
@@ -74,7 +109,13 @@ export function MessageBubble({
           </div>
         )}
         {!editing && !streaming ? (
-          <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100">
+          <div
+            className={cn(
+              "flex items-center gap-0.5",
+              versions ? "opacity-100" : "opacity-100 md:opacity-0 md:group-hover:opacity-100",
+            )}
+          >
+            {pager}
             <Button size="icon-sm" variant="ghost" aria-label="Copy" onClick={() => void copy()}>
               {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
             </Button>
@@ -131,9 +172,14 @@ export function MessageBubble({
       <div
         className={cn(
           "ml-10 flex items-center gap-0.5",
-          streaming ? "opacity-0" : "opacity-100 md:opacity-0 md:group-hover:opacity-100",
+          streaming
+            ? "opacity-0"
+            : versions
+              ? "opacity-100"
+              : "opacity-100 md:opacity-0 md:group-hover:opacity-100",
         )}
       >
+        {pager}
         <Button size="icon-sm" variant="ghost" aria-label="Copy" onClick={() => void copy()}>
           {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
         </Button>

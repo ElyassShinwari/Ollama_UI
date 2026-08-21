@@ -218,6 +218,8 @@ async function streamOllamaBrowser(
   if (opts.contextLength && opts.contextLength > 0) {
     options.num_ctx = opts.contextLength;
   }
+  options.repeat_penalty = 1.2;
+  options.repeat_last_n = 256;
   const res = await fetch(`${host}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -255,12 +257,10 @@ async function streamOllamaBrowser(
         };
         if (json.error) throw new Error(json.error);
         if (json.message?.content) onDelta(json.message.content);
-        if (json.done) {
-          const promptTokens = Number(json.prompt_eval_count) || 0;
-          const completionTokens = Number(json.eval_count) || 0;
-          if (promptTokens || completionTokens) {
-            onUsage?.({ promptTokens, completionTokens });
-          }
+        const promptTokens = Number(json.prompt_eval_count) || 0;
+        const completionTokens = Number(json.eval_count) || 0;
+        if (promptTokens || completionTokens) {
+          onUsage?.({ promptTokens, completionTokens });
         }
       } catch (err) {
         if (err instanceof SyntaxError) continue;

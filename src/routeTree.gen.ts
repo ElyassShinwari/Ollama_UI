@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiModelsRouteImport } from './routes/api/models'
 import { Route as ApiResetRouteImport } from './routes/api/reset'
+import { Route as ApiTokenizeRouteImport } from './routes/api/tokenize'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -34,18 +35,25 @@ const ApiResetRoute = ApiResetRouteImport.update({
   path: '/api/reset',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTokenizeRoute = ApiTokenizeRouteImport.update({
+  id: '/api/tokenize',
+  path: '/api/tokenize',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/chat': typeof ApiChatRoute
   '/api/models': typeof ApiModelsRoute
   '/api/reset': typeof ApiResetRoute
+  '/api/tokenize': typeof ApiTokenizeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/chat': typeof ApiChatRoute
   '/api/models': typeof ApiModelsRoute
   '/api/reset': typeof ApiResetRoute
+  '/api/tokenize': typeof ApiTokenizeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +61,20 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/api/models': typeof ApiModelsRoute
   '/api/reset': typeof ApiResetRoute
+  '/api/tokenize': typeof ApiTokenizeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/chat' | '/api/models' | '/api/reset'
+  fullPaths: '/' | '/api/chat' | '/api/models' | '/api/reset' | '/api/tokenize'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/chat' | '/api/models' | '/api/reset'
-  id: '__root__' | '/' | '/api/chat' | '/api/models' | '/api/reset'
+  to: '/' | '/api/chat' | '/api/models' | '/api/reset' | '/api/tokenize'
+  id:
+    | '__root__'
+    | '/'
+    | '/api/chat'
+    | '/api/models'
+    | '/api/reset'
+    | '/api/tokenize'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +82,7 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   ApiModelsRoute: typeof ApiModelsRoute
   ApiResetRoute: typeof ApiResetRoute
+  ApiTokenizeRoute: typeof ApiTokenizeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -99,6 +115,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiResetRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/tokenize': {
+      id: '/api/tokenize'
+      path: '/api/tokenize'
+      fullPath: '/api/tokenize'
+      preLoaderRoute: typeof ApiTokenizeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -107,6 +130,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatRoute: ApiChatRoute,
   ApiModelsRoute: ApiModelsRoute,
   ApiResetRoute: ApiResetRoute,
+  ApiTokenizeRoute: ApiTokenizeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
