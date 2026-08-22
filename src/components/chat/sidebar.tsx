@@ -88,6 +88,7 @@ export function Sidebar({
   const setSettings = useChatStore((s) => s.setSettings);
   const [renaming, setRenaming] = useState<Conversation | null>(null);
   const [title, setTitle] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -160,12 +161,20 @@ export function Sidebar({
                       >
                         {c.title}
                       </button>
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        className="text-muted-foreground hover:text-destructive"
+                        aria-label={`Delete ${c.title}`}
+                        onClick={() => setPendingDelete(c)}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
                             size="icon-sm"
                             variant="ghost"
-                            className="opacity-100 md:opacity-0 md:group-hover:opacity-100"
                             aria-label="Conversation actions"
                           >
                             <MoreHorizontal className="size-4" />
@@ -186,7 +195,7 @@ export function Sidebar({
                             {c.pinned ? "Unpin" : "Pin"}
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onSelect={() => deleteConversation(c.id)}
+                            onSelect={() => setPendingDelete(c)}
                             className="text-destructive focus:text-destructive"
                           >
                             <Trash2 className="size-4" />
@@ -259,6 +268,33 @@ export function Sidebar({
               }}
             >
               Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(pendingDelete)} onOpenChange={(o) => !o && setPendingDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete this chat?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {pendingDelete
+              ? `“${pendingDelete.title}” will be removed from history. This cannot be undone.`
+              : null}
+          </p>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setPendingDelete(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (!pendingDelete) return;
+                deleteConversation(pendingDelete.id);
+                setPendingDelete(null);
+              }}
+            >
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

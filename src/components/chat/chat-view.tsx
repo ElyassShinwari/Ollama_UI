@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Menu, PanelLeft } from "lucide-react";
+import { Menu, PanelLeft, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -61,6 +61,7 @@ export function ChatView({
   const conversation = useChatStore(selectActiveConversation);
   const selectedModel = useChatStore((s) => s.selectedModel);
   const setSelectedModel = useChatStore((s) => s.setSelectedModel);
+  const deleteConversation = useChatStore((s) => s.deleteConversation);
   const addUserMessage = useChatStore((s) => s.addUserMessage);
   const startAssistantMessage = useChatStore((s) => s.startAssistantMessage);
   const appendToMessage = useChatStore((s) => s.appendToMessage);
@@ -81,6 +82,7 @@ export function ChatView({
   const [cycles, setCycles] = useState(3);
   const [cycleNote, setCycleNote] = useState("");
   const [streamingId, setStreamingId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const cancelledRef = useRef(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -691,7 +693,17 @@ export function ChatView({
           onChange={requestSwitch}
           onBrowse={onBrowseModels}
         />
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-1">
+          {conversation && conversation.messages.length > 0 ? (
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label="Delete this chat"
+              onClick={() => setConfirmDelete(true)}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          ) : null}
           <ContextMeter used={contextUsed} limit={contextLimit} />
         </div>
       </header>
@@ -887,6 +899,32 @@ export function ChatView({
               }}
             >
               Switch anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete this chat?</DialogTitle>
+            <DialogDescription>
+              {conversation
+                ? `“${conversation.title}” will be removed from history. This cannot be undone.`
+                : "This chat will be removed from history."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (conversation) deleteConversation(conversation.id);
+                setConfirmDelete(false);
+              }}
+            >
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>
