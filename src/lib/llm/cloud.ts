@@ -88,6 +88,17 @@ export const FALLBACK_CLOUD: Record<CloudId, ModelRef[]> = {
   ],
 };
 
+export const CHATGPT_OAUTH_MODELS: ModelRef[] = [
+  { id: "gpt-5.4", name: "ChatGPT GPT-5.4", provider: "openai", transport: "server", family: "gpt", contextLength: 128000 },
+  { id: "gpt-5.3-codex", name: "ChatGPT Codex", provider: "openai", transport: "server", family: "gpt", contextLength: 128000 },
+  { id: "gpt-5.4-mini", name: "ChatGPT GPT-5.4 mini", provider: "openai", transport: "server", family: "gpt", contextLength: 128000 },
+];
+
+export function isChatGptOAuth(secret: string) {
+  const token = secret.trim();
+  return Boolean(token) && !token.startsWith("sk-") && token.split(".").length >= 3;
+}
+
 export function cloudEndpoint(provider: CloudId, secret?: string) {
   if (provider === "openai") return { url: "https://api.openai.com/v1/chat/completions", models: "https://api.openai.com/v1/models" };
   if (provider === "xai") return { url: "https://api.x.ai/v1/chat/completions", models: "https://api.x.ai/v1/models" };

@@ -110,7 +110,7 @@ Conversations stay in this browser. Default theme is light (switch in Settings).
 
 **Settings** or **Studio → Cloud base**:
 
-- **ChatGPT** — click **Sign in**. A ChatGPT window opens (normal login, not a device code). You do **not** need to enable device-code authorization in ChatGPT Security Settings. If the browser then says it cannot connect, copy the full address from the address bar (`http://localhost:1455/auth/callback?code=…`) and paste it into Cloud base, then **Finish**.
+- **ChatGPT** — click **Sign in**. A ChatGPT window opens (normal login, not a device code). You do **not** need to enable device-code authorization in ChatGPT Security Settings. If the browser then says it cannot connect, copy the full address from the address bar (`http://localhost:1455/auth/callback?code=…`) and paste it into Cloud base, then **Finish**. After you are signed in, pick a **ChatGPT** model (GPT-5.4 or Codex). That uses your ChatGPT plan. A platform API key is a separate paid bill and is not needed for sign-in.
 - **Grok** — click **Sign in**, approve in the window, enter the code if asked.
 - **Kimi** — click **Sign in**, approve in the window, enter the code if asked.
 - **Claude** and **DeepSeek** — those companies do not allow other apps to use a web login. Sign in on their site, then paste an API key.
@@ -190,6 +190,9 @@ Install one from the library search (`smollm2:135m`). If Ollama is on another ma
 
 **ChatGPT / Claude / Grok / Kimi / DeepSeek missing**  
 Open **Studio → Cloud base** (or Settings). ChatGPT, Grok, and Kimi: click **Sign in**. If ChatGPT talks about enabling device-code in Security Settings, close that tab and use **Sign in** again — this app uses the normal ChatGPT login, not device-code. Claude and DeepSeek need an API key from their console.
+
+**ChatGPT says insufficient quota**  
+That is the paid OpenAI API, not your ChatGPT plan. Sign in with ChatGPT in Cloud base (do not paste a platform API key), then pick a ChatGPT GPT-5.4 or Codex model.
 
 **GitHub authenticate failed**  
 The token needs **repo** access. Fine-grained tokens must allow the target repository. This app does not use GitHub OAuth.

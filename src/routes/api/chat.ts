@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { cloudEndpoint } from "@/lib/llm/cloud";
-import { streamAnthropicChat, streamOllamaChat, streamOpenAiCompat, streamXaiChat } from "@/lib/llm/providers.server";
+import { cloudEndpoint, isChatGptOAuth } from "@/lib/llm/cloud";
+import { streamAnthropicChat, streamCodexChat, streamOllamaChat, streamOpenAiCompat, streamXaiChat } from "@/lib/llm/providers.server";
 import type { Provider } from "@/lib/chat/types";
 
 type ChatBody = {
@@ -99,19 +99,29 @@ export const Route = createFileRoute("/api/chat")({
                         : process.env.XAI_API_KEY) ||
                   "";
                 if (!key) throw new Error("Add an API key or sign in under Studio → Cloud base");
-                const url = cloudEndpoint(provider, key).url;
-                const extraHeaders: Record<string, string> = {};
-                if (provider === "openai" && accountId) extraHeaders["ChatGPT-Account-ID"] = accountId;
-                if (provider === "kimi" && !key.startsWith("sk-")) extraHeaders["User-Agent"] = "KimiCLI/1.5";
-                iterator = streamOpenAiCompat({
-                  url,
-                  apiKey: key,
-                  model,
-                  messages: turns,
-                  temperature,
-                  signal: request.signal,
-                  extraHeaders,
-                });
+                if (provider === "openai" && isChatGptOAuth(key)) {
+                  iterator = streamCodexChat({
+                    apiKey: key,
+                    accountId,
+                    model,
+                    messages: turns,
+                    signal: request.signal,
+                  });
+                } else {
+                  const url = cloudEndpoint(provider, key).url;
+                  const extraHeaders: Record<string, string> = {};
+                  if (provider === "openai" && accountId) extraHeaders["ChatGPT-Account-ID"] = accountId;
+                  if (provider === "kimi" && !key.startsWith("sk-")) extraHeaders["User-Agent"] = "KimiCLI/1.5";
+                  iterator = streamOpenAiCompat({
+                    url,
+                    apiKey: key,
+                    model,
+                    messages: turns,
+                    temperature,
+                    signal: request.signal,
+                    extraHeaders,
+                  });
+                }
               }
               for await (const event of iterator) {
                 if (event.content) send({ content: event.content });

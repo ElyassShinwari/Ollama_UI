@@ -1,4 +1,4 @@
-import { FALLBACK_CLOUD, cloudEndpoint, type CloudId } from "@/lib/llm/cloud";
+import { CHATGPT_OAUTH_MODELS, FALLBACK_CLOUD, cloudEndpoint, isChatGptOAuth, type CloudId } from "@/lib/llm/cloud";
 import { parseOllamaCapabilities, parseOllamaContextLength, xaiContextLength } from "@/lib/llm/context";
 import { sanitizeOllamaHost } from "@/lib/utils";
 import type { ModelRef, TokenUsage } from "@/lib/chat/types";
@@ -264,6 +264,7 @@ export async function listCloudModels(
   apiKey: string,
 ): Promise<ModelRef[]> {
   if (!apiKey.trim()) return [];
+  if (provider === "openai" && isChatGptOAuth(apiKey)) return CHATGPT_OAUTH_MODELS;
   const fallback = FALLBACK_CLOUD[provider];
   try {
     const ep = cloudEndpoint(provider, apiKey);
@@ -320,6 +321,125 @@ function isCloudChatModel(provider: CloudId, id: string) {
   return l.includes("kimi") || l.includes("moonshot");
 }
 
+function chatgptAccountId(token: string, fallback?: string) {
+  if (fallback?.trim()) return fallback.trim();
+  try {
+    const part = token.split(".")[1];
+    if (!part) return "";
+    const padded = part.replace(/-/g, "+").replace(/_/g, "/") + "==".slice((part.length * 3) % 4);
+    const claims = JSON.parse(Buffer.from(padded, "base64").toString("utf8")) as Record<string, unknown>;
+    if (typeof claims.chatgpt_account_id === "string") return claims.chatgpt_account_id;
+    const auth = claims["https://api.openai.com/auth"];
+    if (auth && typeof auth === "object" && typeof (auth as { chatgpt_account_id?: unknown }).chatgpt_account_id === "string") {
+      return (auth as { chatgpt_account_id: string }).chatgpt_account_id;
+    }
+  } catch {
+    /* ignore */
+  }
+  return "";
+}
+
+function mapCodexModel(id: string) {
+  if (/gpt-5|codex|chatgpt/i.test(id) && !/^gpt-4/.test(id)) return id;
+  return "gpt-5.4";
+}
+
+export async function* streamCodexChat(opts: {
+  apiKey: string;
+  accountId?: string;
+  model: string;
+  messages: { role: string; content: string }[];
+  signal: AbortSignal;
+}): AsyncGenerator<ChatStreamEvent> {
+  const accountId = chatgptAccountId(opts.apiKey, opts.accountId);
+  const input = opts.messages.map((m) => ({
+    type: "message",
+    role: m.role === "system" ? "developer" : m.role,
+    content: m.content,
+  }));
+  const res = await fetch("https://chatgpt.com/backend-api/codex/responses", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${opts.apiKey}`,
+      ...(accountId ? { "ChatGPT-Account-ID": accountId } : {}),
+      originator: "codex_cli_rs",
+      "User-Agent": "codex_cli_rs/0.144.0",
+      version: "0.144.0",
+      Accept: "text/event-stream",
+    },
+    body: JSON.stringify({
+      model: mapCodexModel(opts.model),
+      input,
+      stream: true,
+      store: false,
+    }),
+    signal: opts.signal,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    if (/insufficient_quota|exceeded your current quota/i.test(text)) {
+      throw new Error(
+        "That request hit the paid OpenAI API instead of your ChatGPT plan. Sign out and Sign in again under Cloud base, then pick a ChatGPT model.",
+      );
+    }
+    throw new Error(text || `ChatGPT error ${res.status}`);
+  }
+  if (!res.body) throw new Error("ChatGPT returned an empty stream");
+  yield* readCodexSse(res.body);
+}
+
+async function* readCodexSse(body: ReadableStream<Uint8Array>): AsyncGenerator<ChatStreamEvent> {
+  const reader = body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop() ?? "";
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+      const data = trimmed.slice(5).trim();
+      if (!data || data === "[DONE]") continue;
+      try {
+        const json = JSON.parse(data) as {
+          type?: string;
+          delta?: unknown;
+          text?: string;
+          response?: { usage?: { input_tokens?: number; output_tokens?: number } };
+        };
+        const type = json.type || "";
+        if (type === "response.output_text.delta" || type.endsWith("output_text.delta")) {
+          const delta = json.delta;
+          const text =
+            typeof delta === "string"
+              ? delta
+              : delta && typeof delta === "object" && typeof (delta as { text?: unknown }).text === "string"
+                ? (delta as { text: string }).text
+                : typeof json.text === "string"
+                  ? json.text
+                  : "";
+          if (text) yield { content: text };
+        }
+        const usage = json.response?.usage;
+        if (usage && (type === "response.completed" || type === "response.done")) {
+          yield {
+            usage: {
+              promptTokens: Number(usage.input_tokens) || 0,
+              completionTokens: Number(usage.output_tokens) || 0,
+            },
+          };
+        }
+      } catch {
+        /* skip malformed */
+      }
+    }
+  }
+}
+
 export async function* streamOpenAiCompat(opts: {
   url: string;
   apiKey: string;
@@ -346,6 +466,11 @@ export async function* streamOpenAiCompat(opts: {
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
+    if (/insufficient_quota|exceeded your current quota/i.test(text)) {
+      throw new Error(
+        "This is the paid OpenAI API, not your ChatGPT plan. Sign in with ChatGPT under Cloud base (no API key) to use the subscription, or add billing at platform.openai.com.",
+      );
+    }
     throw new Error(text || `Cloud error ${res.status}`);
   }
   if (!res.body) throw new Error("Empty stream");
