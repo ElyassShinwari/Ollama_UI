@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, type PersistStorage } from "zustand/middleware";
 import { linkLinearMessages, visibleMessages } from "./tree";
 import type { Conversation, Message, ModelRef, Settings, TokenUsage } from "./types";
 
@@ -87,6 +87,59 @@ type ChatState = {
   setUsage: (conversationId: string, usage: TokenUsage, exceeded?: boolean) => void;
   resetUsage: (conversationId: string) => void;
   markContextExceeded: (conversationId: string) => void;
+  dropBinary: (conversationId: string) => void;
+};
+
+export const chatPersist = { enabled: true };
+
+function withoutBinary(messages: Message[]): Message[] {
+  return messages.map((m) => ({
+    ...m,
+    images: undefined,
+    documents: m.documents?.map((d) => ({ name: d.name, mime: d.mime, data: "" })),
+  }));
+}
+
+type PersistedChat = {
+  conversations: Conversation[];
+  activeId: string | null;
+  selectedModel: ModelRef | null;
+  settings: Settings;
+  sidebarCollapsed: boolean;
+};
+
+function slimPersisted(state: PersistedChat): PersistedChat {
+  return {
+    ...state,
+    conversations: state.conversations.map((c) => ({
+      ...c,
+      messages: withoutBinary(c.messages),
+    })),
+  };
+}
+
+const persistStorage: PersistStorage<PersistedChat> = {
+  getItem: (name) => {
+    try {
+      const raw = localStorage.getItem(name);
+      if (!raw) return null;
+      return JSON.parse(raw) as { state: PersistedChat; version?: number };
+    } catch {
+      return null;
+    }
+  },
+  setItem: (name, value) => {
+    if (!chatPersist.enabled) return;
+    try {
+      localStorage.setItem(
+        name,
+        JSON.stringify({ ...value, state: slimPersisted(value.state) }),
+      );
+    } catch {
+      /* quota — keep running */
+    }
+  },
+  removeItem: (name) => localStorage.removeItem(name),
 };
 
 export const useChatStore = create<ChatState>()(
@@ -395,9 +448,16 @@ export const useChatStore = create<ChatState>()(
             c.id === conversationId ? { ...c, contextExceeded: true } : c,
           ),
         })),
+      dropBinary: (conversationId) =>
+        set((s) => ({
+          conversations: s.conversations.map((c) =>
+            c.id === conversationId ? { ...c, messages: withoutBinary(c.messages) } : c,
+          ),
+        })),
     }),
     {
       name: "ollama-ui",
+      storage: persistStorage,
       partialize: (s) => ({
         conversations: s.conversations,
         activeId: s.activeId,

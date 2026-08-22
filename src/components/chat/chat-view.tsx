@@ -15,7 +15,7 @@ import { ContextMeter } from "@/components/chat/context-meter";
 import { MessageBubble } from "@/components/chat/message-bubble";
 import { ModelPicker } from "@/components/chat/model-picker";
 import { estimateTokens, greetingForNow, isContextOverflowError } from "@/lib/utils";
-import { selectActiveConversation, useChatStore } from "@/lib/chat/store";
+import { selectActiveConversation, chatPersist, useChatStore } from "@/lib/chat/store";
 import { siblingsOf, visibleMessages } from "@/lib/chat/tree";
 import { streamChat } from "@/lib/llm/catalog";
 import {
@@ -32,7 +32,6 @@ import {
   REVIEW_SYSTEM,
   cloudSecret,
   finalHandoff,
-  handoffToTester,
   handoffToWriter,
   reviewSatisfied,
 } from "@/lib/llm/cloud";
@@ -44,6 +43,29 @@ const SUGGESTIONS = [
   "Find holes in this plan",
   "Write a small function and walk through it",
 ];
+
+const MAX_TURN_CHARS = 80_000;
+
+type ChatTurn = {
+  role: string;
+  content: string;
+  images?: string[];
+  documents?: Message["documents"];
+};
+
+function clipTurn(text: string) {
+  if (text.length <= MAX_TURN_CHARS) return text;
+  return `${text.slice(0, MAX_TURN_CHARS)}\n\n[truncated]`;
+}
+
+function slimTurns(turns: ChatTurn[], withMedia = false): ChatTurn[] {
+  return turns.map((m, i) => ({
+    role: m.role,
+    content: clipTurn(m.content),
+    images: withMedia && i === 0 ? m.images : undefined,
+    documents: withMedia && i === 0 ? m.documents?.filter((d) => d.data) : undefined,
+  }));
+}
 
 export function ChatView({
   models,
@@ -62,6 +84,7 @@ export function ChatView({
   const selectedModel = useChatStore((s) => s.selectedModel);
   const setSelectedModel = useChatStore((s) => s.setSelectedModel);
   const deleteConversation = useChatStore((s) => s.deleteConversation);
+  const dropBinary = useChatStore((s) => s.dropBinary);
   const addUserMessage = useChatStore((s) => s.addUserMessage);
   const startAssistantMessage = useChatStore((s) => s.startAssistantMessage);
   const appendToMessage = useChatStore((s) => s.appendToMessage);
@@ -90,7 +113,8 @@ export function ChatView({
   const stickToBottomRef = useRef(true);
   const promptTokensRef = useRef(0);
   const completionTokensRef = useRef(0);
-  const tokenTimerRef = useRef<number | null>(null);
+  const pendingChunkRef = useRef("");
+  const flushTimerRef = useRef<number | null>(null);
 
   const allMessages = conversation?.messages ?? [];
   const messages = conversation
@@ -174,27 +198,30 @@ export function ChatView({
     setUsage(conversationId, { promptTokens, completionTokens });
   }
 
-  function scheduleCompletionCount(
-    conversationId: string,
-    model: ModelRef,
-    assistantText: string,
-  ) {
-    if (tokenTimerRef.current) window.clearTimeout(tokenTimerRef.current);
-    tokenTimerRef.current = window.setTimeout(() => {
-      void countModelTokens({
-        host: useChatStore.getState().settings.ollamaHost,
-        model: model.id,
-        text: assistantText,
-        transport: model.transport,
-      }).then((n) => {
-        if (abortRef.current) publishUsage(conversationId, promptTokensRef.current, n);
-      });
-    }, 120);
+  function flushPending(conversationId: string, assistantId: string) {
+    if (flushTimerRef.current) {
+      window.clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+    const chunk = pendingChunkRef.current;
+    if (!chunk) return;
+    pendingChunkRef.current = "";
+    appendToMessage(conversationId, assistantId, chunk);
+    const current = useChatStore
+      .getState()
+      .conversations.find((c) => c.id === conversationId)
+      ?.messages.find((m) => m.id === assistantId)?.content;
+    if (!current) return;
+    const cut = repetitionCutoff(current);
+    if (cut != null) {
+      replaceMessageContent(conversationId, assistantId, current.slice(0, cut).trimEnd());
+      abortRef.current?.abort();
+    }
   }
 
   async function runCompletion(
     conversationId: string,
-    history: { role: string; content: string; images?: string[]; documents?: Message["documents"] }[],
+    history: ChatTurn[],
     parentId: string,
     using?: ModelRef,
     extraSystem?: string,
@@ -211,28 +238,26 @@ export function ChatView({
     const systemPrompt = [settingsNow.systemPrompt, combinedInstructions(), knowledgeBlock(), extraSystem]
       .filter(Boolean)
       .join("\n\n");
-    const promptText = formatChatPrompt(systemPrompt, history);
+    const payload = slimTurns(
+      history,
+      history.some((m) => Boolean(m.images?.length || m.documents?.some((d) => d.data))),
+    );
+    dropBinary(conversationId);
+    const promptText = formatChatPrompt(systemPrompt, payload);
     const promptEstimate = estimateTokens(promptText);
     const limit = model.contextLength;
     if (limit && promptEstimate >= limit) {
       markContextExceeded(conversationId);
     }
     publishUsage(conversationId, promptEstimate, 0);
-    void countModelTokens({
-      host: settingsNow.ollamaHost,
-      model: model.id,
-      text: promptText,
-      transport: model.transport,
-    }).then((n) => {
-      if (limit && n >= limit) markContextExceeded(conversationId);
-      publishUsage(conversationId, n, completionTokensRef.current);
-    });
 
     const assistantId = startAssistantMessage(conversationId, model, parentId);
     setStreamingId(assistantId);
     const controller = new AbortController();
     abortRef.current = controller;
+    pendingChunkRef.current = "";
     let stoppedLoop = false;
+    chatPersist.enabled = false;
     try {
       await streamChat(
         {
@@ -240,7 +265,7 @@ export function ChatView({
           transport: model.transport,
           host: settingsNow.ollamaHost,
           model: model.id,
-          messages: history,
+          messages: payload,
           temperature: settingsNow.temperature,
           systemPrompt,
           contextLength: model.contextLength,
@@ -248,22 +273,25 @@ export function ChatView({
           accountId,
         },
         (chunk) => {
-          const current = useChatStore
-            .getState()
-            .conversations.find((c) => c.id === conversationId)
-            ?.messages.find((m) => m.id === assistantId);
-          const next = `${current?.content ?? ""}${chunk}`;
-          const cut = repetitionCutoff(next);
-          if (cut != null) {
+          pendingChunkRef.current += chunk;
+          if (!flushTimerRef.current) {
+            flushTimerRef.current = window.setTimeout(() => {
+              flushTimerRef.current = null;
+              flushPending(conversationId, assistantId);
+            }, 80);
+          }
+          const nextLen =
+            (useChatStore
+              .getState()
+              .conversations.find((c) => c.id === conversationId)
+              ?.messages.find((m) => m.id === assistantId)?.content.length ?? 0) + pendingChunkRef.current.length;
+          if (nextLen > 400_000) {
             stoppedLoop = true;
-            replaceMessageContent(conversationId, assistantId, next.slice(0, cut).trimEnd());
+            flushPending(conversationId, assistantId);
             controller.abort();
             return;
           }
-          appendToMessage(conversationId, assistantId, chunk);
           completionTokensRef.current += Math.max(1, estimateTokens(chunk));
-          publishUsage(conversationId, promptTokensRef.current, completionTokensRef.current);
-          scheduleCompletionCount(conversationId, model, next);
         },
         controller.signal,
         (usage) => {
@@ -281,6 +309,7 @@ export function ChatView({
           markContextExceeded(conversationId);
           toast.error("This model's context window is full");
         }
+        flushPending(conversationId, assistantId);
         const current = useChatStore
           .getState()
           .conversations.find((c) => c.id === conversationId)
@@ -298,20 +327,22 @@ export function ChatView({
         }
       }
     } finally {
-      if (tokenTimerRef.current) window.clearTimeout(tokenTimerRef.current);
+      flushPending(conversationId, assistantId);
       setStreamingId(null);
       abortRef.current = null;
+      chatPersist.enabled = true;
+      dropBinary(conversationId);
     }
     const text =
       useChatStore
         .getState()
         .conversations.find((c) => c.id === conversationId)
         ?.messages.find((m) => m.id === assistantId)?.content ?? "";
-    if (text && model) {
+    if (text && model.provider === "ollama") {
       void countModelTokens({
         host: settingsNow.ollamaHost,
         model: model.id,
-        text,
+        text: text.slice(0, MAX_TURN_CHARS),
         transport: model.transport,
       }).then((n) => publishUsage(conversationId, promptTokensRef.current, n));
     }
@@ -429,16 +460,29 @@ export function ChatView({
   async function runReview(
     conversationId: string,
     userId: string,
-    startHistory: { role: string; content: string; images?: string[]; documents?: Message["documents"] }[],
+    startHistory: ChatTurn[],
     reviewerStart: ModelRef,
     opts: { begin?: "writer" | "tester"; seedProject?: string } = {},
   ) {
     const max = Math.min(100, Math.max(1, cycles));
     let parentId = userId;
-    let history = startHistory;
     let lastProject = opts.seedProject ?? "";
+    let lastReview = "";
     let satisfied = false;
     const testerFirst = opts.begin === "tester" && Boolean(lastProject.trim());
+    const original = startHistory.find((m) => m.role === "user") ?? startHistory[0];
+    const originalText: ChatTurn = original
+      ? { role: "user", content: clipTurn(original.content) }
+      : { role: "user", content: "Review the work." };
+    const originalWithMedia: ChatTurn = original
+      ? {
+          role: "user",
+          content: clipTurn(original.content),
+          images: original.images,
+          documents: original.documents?.filter((d) => d.data),
+        }
+      : originalText;
+
     for (let i = 1; i <= max; i++) {
       if (cancelledRef.current) break;
       const author = useChatStore.getState().selectedModel;
@@ -454,7 +498,17 @@ export function ChatView({
       }
       if (!(testerFirst && i === 1)) {
         setCycleNote(`Cycle ${i}/${max} · ${author.name} writing`);
-        const written = await runCompletion(conversationId, history, parentId, author);
+        const writerTurns: ChatTurn[] =
+          i === 1 && !testerFirst
+            ? slimTurns(startHistory, true)
+            : [
+                originalText,
+                ...(lastProject ? [{ role: "assistant", content: clipTurn(lastProject) }] : []),
+                ...(lastReview
+                  ? [{ role: "user", content: clipTurn(handoffToWriter(reviewer.name, lastReview)) }]
+                  : []),
+              ];
+        const written = await runCompletion(conversationId, writerTurns, parentId, author);
         if (cancelledRef.current) {
           setCycleNote("Stopped");
           break;
@@ -468,14 +522,19 @@ export function ChatView({
       } else {
         setCycleNote(`Cycle ${i}/${max} · testing the current answer`);
       }
-      const reviewUser = addUserMessage(handoffToTester(author.name, lastProject, i, max), {
+      const reviewUser = addUserMessage(`Cycle ${i}/${max} · ${reviewer.name} testing`, {
         conversationId,
       });
       parentId = reviewUser.user.id;
       setCycleNote(`Cycle ${i}/${max} · ${reviewer.name} testing`);
+      const testerTurns: ChatTurn[] = [
+        i === 1 ? originalWithMedia : originalText,
+        { role: "assistant", content: clipTurn(lastProject) },
+        { role: "user", content: `Test the answer above. If it is good, start with SATISFIED.` },
+      ];
       const review = await runCompletion(
         conversationId,
-        visibleHistory(conversationId),
+        testerTurns,
         parentId,
         reviewer,
         REVIEW_SYSTEM,
@@ -485,6 +544,7 @@ export function ChatView({
         break;
       }
       parentId = lastAssistantId(conversationId) ?? parentId;
+      lastReview = review;
       if (reviewSatisfied(review)) {
         satisfied = true;
         setCycleNote(`Stopped on cycle ${i}: ${reviewer.name} is satisfied`);
@@ -492,19 +552,22 @@ export function ChatView({
         break;
       }
       if (i === max) break;
-      const revise = addUserMessage(handoffToWriter(reviewer.name, review), { conversationId });
+      const revise = addUserMessage(`Cycle ${i}/${max} · ${author.name} revising`, { conversationId });
       parentId = revise.user.id;
-      history = visibleHistory(conversationId);
     }
     if (!cancelledRef.current && !satisfied && lastProject.trim()) {
       const author = useChatStore.getState().selectedModel;
       const reviewer = modelFromKey(reviewerKey) ?? reviewerStart;
       if (author && reviewer && modelKey(author) !== modelKey(reviewer)) {
         setCycleNote(`${reviewer.name} writing final report`);
-        const wrap = addUserMessage(finalHandoff(author.name, lastProject), { conversationId });
+        const wrap = addUserMessage(`Final report from ${reviewer.name}`, { conversationId });
         await runCompletion(
           conversationId,
-          visibleHistory(conversationId),
+          [
+            originalText,
+            { role: "assistant", content: clipTurn(lastProject) },
+            { role: "user", content: clipTurn(finalHandoff(author.name, lastProject)) },
+          ],
           wrap.user.id,
           reviewer,
           FINAL_REVIEW_SYSTEM,
