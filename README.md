@@ -102,7 +102,7 @@ ollama list
 4. If the new model’s window is smaller than this chat, you get a warning: answers may be unexpected or inaccurate while the window is full. You can still continue, or start a new chat.
 5. Attach `.txt` files with **+** or drag and drop. Vision models also take images.
 6. Open **Studio** in the sidebar for GitHub, cloud APIs, MCP, the local API, website/WhatsApp webhooks, instructions, knowledge, and model advice. **Back to new chat** closes Studio and opens a blank conversation.
-7. Turn on **Review cycle** in a chat to have one model write and another review. Choose both models and 1–100 cycles. The cycle stops early if the reviewer starts with `SATISFIED`.
+7. Turn on **Review cycle** in a chat. The **writer** is always the model in the header (change it anytime, including between cycles). Pick a **tester** and 1–100 cycles. Each model’s full reply is passed to the other. If the tester is not satisfied when the cycles end, it posts a final report with the project and remaining errors.
 
 Conversations stay in this browser. Default theme is light (switch in Settings). API keys stay in this browser and are sent only to this computer’s server, then to the matching provider.
 
@@ -122,10 +122,12 @@ After you save, those models appear in the same menu as Ollama. You can mix them
 ## Review cycle
 
 1. Open a chat and turn on **Review cycle**.
-2. **First** is the writer. **Second** is the reviewer. They must be different models.
-3. Set **Cycles** from 1 to 100.
-4. Send a prompt. Each cycle: the writer answers, the reviewer checks it, then the writer revises from that review.
-5. If the reviewer starts its reply with `SATISFIED`, the loop stops. **Stop** cancels the rest of the run.
+2. The **writer** is the model in the header. Switch that model anytime — the next cycle uses the new one (Ollama, ChatGPT, Claude, Grok, or Kimi).
+3. **Tester** is the second model. It must be different from the writer.
+4. Set **Cycles** from 1 to 100.
+5. Send a prompt. Each cycle: the writer answers, its full reply is passed to the tester, the tester replies, and that full reply is passed back to the writer.
+6. If the tester starts with `SATISFIED`, the loop stops. **Stop** cancels the rest of the run.
+7. If the cycles finish and the tester is still not satisfied, the tester writes a **final report** that includes the current project and the remaining errors.
 
 Replies are labeled with the model that wrote them.
 
@@ -187,7 +189,7 @@ Paste the matching API key in Settings or Studio → Cloud, then wait a moment. 
 The token needs **repo** access. Fine-grained tokens must allow the target repository. This app does not use GitHub OAuth.
 
 **Review cycle does nothing**  
-Pick two different models (first and second) and turn the checkbox on before you send.
+Pick a **tester** different from the model in the header, turn the checkbox on, then send. The writer is always the header model.
 
 **Node not found**  
 Install Node.js 22+ from [nodejs.org](https://nodejs.org), then `make run`.

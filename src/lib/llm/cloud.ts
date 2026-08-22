@@ -44,4 +44,19 @@ export function reviewSatisfied(text: string) {
 }
 
 export const REVIEW_SYSTEM =
-  "You are reviewing another model's answer. If it is correct, complete, and safe, start your reply with SATISFIED on its own first line, then one short note. If it is not good enough, do not write SATISFIED. List concrete fixes the author must apply.";
+  "You are the tester. You receive another model's full answer as your input. If it solves the user's request correctly, completely, and safely, start your reply with SATISFIED on its own first line, then one short note. If it is not good enough, do not write SATISFIED. Quote the errors and list concrete fixes. Your entire reply is passed back to the writer as its next input.";
+
+export const FINAL_REVIEW_SYSTEM =
+  "The revision cycles are over and the work is still not accepted. You are the tester. Write a final report for the user that includes: (1) the current project or answer as it stands, complete enough to use, (2) remaining errors that were not fixed, (3) what still must change. Put the project first, then your feedback. Do not write SATISFIED.";
+
+export function handoffToTester(authorName: string, answer: string, cycle: number, max: number) {
+  return `Cycle ${cycle}/${max}. Here is ${authorName}'s latest answer. Test it against the original request. If it is good, start with SATISFIED. If not, send concrete fixes — your full reply will be passed back to ${authorName}.\n\n${answer}`;
+}
+
+export function handoffToWriter(testerName: string, review: string) {
+  return `Here is ${testerName}'s test of your last answer. Apply every point and reply with the complete updated work, not a patch. Your full reply will be passed back to the tester.\n\n${review}`;
+}
+
+export function finalHandoff(authorName: string, project: string) {
+  return `The cycles are finished and the errors were not fully fixed. Here is the latest version of the project from ${authorName}:\n\n${project}\n\nWrite your final test report: include this project (or a cleaned-up restatement of it) together with the remaining errors that still need to be fixed.`;
+}

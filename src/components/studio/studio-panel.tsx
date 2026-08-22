@@ -266,7 +266,7 @@ function CloudTab() {
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground text-pretty">
         Paste API keys so ChatGPT, Claude, Grok, and Kimi appear in the same model menu as Ollama.
-        Then pick two models in a chat to run a review cycle.
+        The header model is the writer in a review cycle; pick a tester in the chat bar.
       </p>
       <div className="flex flex-col gap-2">
         <Label>OpenAI · ChatGPT</Label>

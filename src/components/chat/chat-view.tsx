@@ -28,7 +28,15 @@ import {
 import { repetitionCutoff } from "@/lib/llm/repeat";
 import { countModelTokens, formatChatPrompt } from "@/lib/llm/tokens";
 import { combinedInstructions, knowledgeBlock } from "@/lib/studio/store";
-import { REVIEW_SYSTEM, reviewSatisfied } from "@/lib/llm/cloud";
+import {
+  CLOUD_LABEL,
+  FINAL_REVIEW_SYSTEM,
+  REVIEW_SYSTEM,
+  finalHandoff,
+  handoffToTester,
+  handoffToWriter,
+  reviewSatisfied,
+} from "@/lib/llm/cloud";
 import type { Message, ModelRef } from "@/lib/chat/types";
 
 const SUGGESTIONS = [
@@ -71,7 +79,6 @@ export function ChatView({
     null,
   );
   const [reviewOn, setReviewOn] = useState(false);
-  const [authorKey, setAuthorKey] = useState("");
   const [reviewerKey, setReviewerKey] = useState("");
   const [cycles, setCycles] = useState(3);
   const [cycleNote, setCycleNote] = useState("");
@@ -155,10 +162,11 @@ export function ChatView({
   const greeting = useMemo(() => greetingForNow(), []);
 
   useEffect(() => {
-    if (!selectedModel) return;
-    const key = `${selectedModel.provider}:${selectedModel.id}`;
-    setAuthorKey((cur) => cur || key);
-  }, [selectedModel]);
+    if (!selectedModel || !reviewerKey) return;
+    if (reviewerKey === `${selectedModel.provider}:${selectedModel.id}`) {
+      setReviewerKey("");
+    }
+  }, [selectedModel, reviewerKey]);
 
   function publishUsage(conversationId: string, promptTokens: number, completionTokens: number) {
     promptTokensRef.current = promptTokens;
@@ -324,6 +332,24 @@ export function ChatView({
     return models.find((m) => modelKey(m) === key);
   }
 
+  function writerLabel(model: ModelRef) {
+    const kind = model.provider === "ollama" ? "Ollama" : CLOUD_LABEL[model.provider];
+    return `${model.name} · ${kind}`;
+  }
+
+  function visibleHistory(conversationId: string) {
+    const conv = useChatStore.getState().conversations.find((c) => c.id === conversationId);
+    if (!conv) return [] as { role: string; content: string; images?: string[] }[];
+    return visibleMessages(conv.messages, conv.activeRootId)
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .map((m) => ({ role: m.role, content: m.content, images: m.images }));
+  }
+
+  function lastAssistantId(conversationId: string) {
+    const conv = useChatStore.getState().conversations.find((c) => c.id === conversationId);
+    return conv?.messages.filter((m) => m.role === "assistant").at(-1)?.id;
+  }
+
   async function send(text: string, extraFiles: PendingFile[] = files) {
     const built = buildMessageFromFiles(text, extraFiles);
     if (streamingId) return;
@@ -336,41 +362,52 @@ export function ChatView({
       images: built.images,
       attachments: built.attachments,
     });
-    const conv = useChatStore.getState().conversations.find((c) => c.id === conversationId);
-    const history = conv
-      ? visibleMessages(conv.messages, conv.activeRootId)
-          .filter((m) => m.role === "user" || m.role === "assistant")
-          .map((m) => ({ role: m.role, content: m.content, images: m.images }))
-      : [{ role: "user", content: built.content, images: built.images }];
+    const history = visibleHistory(conversationId);
+    const startHistory =
+      history.length > 0
+        ? history
+        : [{ role: "user", content: built.content, images: built.images }];
     if (reviewOn) {
-      const author = modelFromKey(authorKey) ?? selectedModel;
+      const author = useChatStore.getState().selectedModel;
       const reviewer = modelFromKey(reviewerKey);
       if (!author || !reviewer) {
-        toast.error("Pick a first model and a second model for the review cycle");
+        toast.error("Pick a tester model for the review cycle");
         return;
       }
       if (modelKey(author) === modelKey(reviewer)) {
-        toast.error("The writer and the reviewer must be different models");
+        toast.error("The tester must be a different model from the one in the header");
         return;
       }
-      await runReview(conversationId, user.id, history, author, reviewer);
+      await runReview(conversationId, user.id, startHistory, reviewer);
       return;
     }
-    await runCompletion(conversationId, history, user.id);
+    await runCompletion(conversationId, startHistory, user.id);
   }
 
   async function runReview(
     conversationId: string,
     userId: string,
     startHistory: { role: string; content: string; images?: string[] }[],
-    author: ModelRef,
-    reviewer: ModelRef,
+    reviewerStart: ModelRef,
   ) {
     const max = Math.min(100, Math.max(1, cycles));
     let parentId = userId;
     let history = startHistory;
+    let lastProject = "";
+    let satisfied = false;
     for (let i = 1; i <= max; i++) {
       if (cancelledRef.current) break;
+      const author = useChatStore.getState().selectedModel;
+      const reviewer = modelFromKey(reviewerKey) ?? reviewerStart;
+      if (!author) {
+        setCycleNote("Choose a chat model to keep writing");
+        break;
+      }
+      if (modelKey(author) === modelKey(reviewer)) {
+        toast.error("Writer and tester are the same model. Switch the chat model or pick another tester.");
+        setCycleNote("Stopped: writer and tester match");
+        break;
+      }
       setCycleNote(`Cycle ${i}/${max} · ${author.name} writing`);
       const draft = await runCompletion(conversationId, history, parentId, author);
       if (cancelledRef.current) {
@@ -381,25 +418,17 @@ export function ChatView({
         setCycleNote(`${author.name} did not finish a reply`);
         break;
       }
-      const conv = useChatStore.getState().conversations.find((c) => c.id === conversationId);
-      const last = conv?.messages.filter((m) => m.role === "assistant").at(-1);
-      parentId = last?.id ?? parentId;
-      history = conv
-        ? visibleMessages(conv.messages, conv.activeRootId)
-            .filter((m) => m.role === "user" || m.role === "assistant")
-            .map((m) => ({ role: m.role, content: m.content }))
-        : history;
-      const reviewUser = addUserMessage(
-        `Review cycle ${i}/${max}. Check the latest answer from ${author.name}. If it is good, start with SATISFIED.`,
-        { conversationId },
-      );
+      lastProject = draft;
+      parentId = lastAssistantId(conversationId) ?? parentId;
+      const reviewUser = addUserMessage(handoffToTester(author.name, draft, i, max), {
+        conversationId,
+      });
       parentId = reviewUser.user.id;
-      setCycleNote(`Cycle ${i}/${max} · ${reviewer.name} reviewing`);
+      setCycleNote(`Cycle ${i}/${max} · ${reviewer.name} testing`);
       const review = await runCompletion(
         conversationId,
         [
-          ...history,
-          { role: "user", content: reviewUser.user.content },
+          ...visibleHistory(conversationId),
         ],
         parentId,
         reviewer,
@@ -409,34 +438,38 @@ export function ChatView({
         setCycleNote("Stopped");
         break;
       }
-      const reviewMsg = useChatStore
-        .getState()
-        .conversations.find((c) => c.id === conversationId)
-        ?.messages.filter((m) => m.role === "assistant")
-        .at(-1);
-      parentId = reviewMsg?.id ?? parentId;
+      parentId = lastAssistantId(conversationId) ?? parentId;
       if (reviewSatisfied(review)) {
+        satisfied = true;
         setCycleNote(`Stopped on cycle ${i}: ${reviewer.name} is satisfied`);
         toast.success(`${reviewer.name} is satisfied after ${i} cycle${i === 1 ? "" : "s"}`);
         break;
       }
-      if (i === max) {
-        setCycleNote(`Finished ${max} cycle${max === 1 ? "" : "s"}`);
-        break;
-      }
-      const revise = addUserMessage(
-        `Revise your previous answer using this review from ${reviewer.name}:\n\n${review}`,
-        { conversationId },
-      );
+      if (i === max) break;
+      const revise = addUserMessage(handoffToWriter(reviewer.name, review), { conversationId });
       parentId = revise.user.id;
-      const conv2 = useChatStore.getState().conversations.find((c) => c.id === conversationId);
-      history = conv2
-        ? visibleMessages(conv2.messages, conv2.activeRootId)
-            .filter((m) => m.role === "user" || m.role === "assistant")
-            .map((m) => ({ role: m.role, content: m.content }))
-        : history;
+      history = visibleHistory(conversationId);
     }
-    window.setTimeout(() => setCycleNote(""), 6000);
+    if (!cancelledRef.current && !satisfied && lastProject.trim()) {
+      const author = useChatStore.getState().selectedModel;
+      const reviewer = modelFromKey(reviewerKey) ?? reviewerStart;
+      if (author && reviewer && modelKey(author) !== modelKey(reviewer)) {
+        setCycleNote(`${reviewer.name} writing final report`);
+        const wrap = addUserMessage(finalHandoff(author.name, lastProject), { conversationId });
+        await runCompletion(
+          conversationId,
+          visibleHistory(conversationId),
+          wrap.user.id,
+          reviewer,
+          FINAL_REVIEW_SYSTEM,
+        );
+        if (!cancelledRef.current) {
+          setCycleNote(`Finished ${max} cycle${max === 1 ? "" : "s"} · tester left a final report`);
+          toast.message(`${reviewer.name} left remaining issues with the project`);
+        }
+      }
+    }
+    window.setTimeout(() => setCycleNote(""), 8000);
   }
 
   function stop() {
@@ -625,43 +658,32 @@ export function ChatView({
           <input
             type="checkbox"
             checked={reviewOn}
-            onChange={(e) => {
-              const on = e.target.checked;
-              setReviewOn(on);
-              if (on && selectedModel && !authorKey) {
-                setAuthorKey(`${selectedModel.provider}:${selectedModel.id}`);
-              }
-            }}
+            onChange={(e) => setReviewOn(e.target.checked)}
           />
           Review cycle
         </label>
         {reviewOn ? (
           <>
+            <span className="text-xs text-muted-foreground">
+              Writer {selectedModel ? writerLabel(selectedModel) : "—"}
+            </span>
             <label className="flex items-center gap-1 text-xs text-muted-foreground">
-              First
-              <select
-                className="h-8 max-w-[12rem] rounded-md border border-input bg-transparent px-2 text-xs"
-                value={authorKey}
-                onChange={(e) => setAuthorKey(e.target.value)}
-              >
-                <option value="">Writer…</option>
-                {models.map((m) => (
-                  <option key={`a:${m.provider}:${m.id}`} value={`${m.provider}:${m.id}`}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-1 text-xs text-muted-foreground">
-              Second
+              Tester
               <select
                 className="h-8 max-w-[12rem] rounded-md border border-input bg-transparent px-2 text-xs"
                 value={reviewerKey}
                 onChange={(e) => setReviewerKey(e.target.value)}
               >
-                <option value="">Reviewer…</option>
+                <option value="">Testing model…</option>
                 {models
-                  .filter((m) => `${m.provider}:${m.id}` !== authorKey)
+                  .filter(
+                    (m) =>
+                      !(
+                        selectedModel &&
+                        m.id === selectedModel.id &&
+                        m.provider === selectedModel.provider
+                      ),
+                  )
                   .map((m) => (
                     <option key={`r:${m.provider}:${m.id}`} value={`${m.provider}:${m.id}`}>
                       {m.name}
