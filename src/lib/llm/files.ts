@@ -102,13 +102,19 @@ function looksLikeText(buffer: ArrayBuffer): boolean {
   return odd / bytes.length < 0.15;
 }
 
-function readAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
+function bytesToBase64(bytes: Uint8Array) {
+  if (typeof Buffer !== "undefined") return Buffer.from(bytes).toString("base64");
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(binary);
+}
+
+async function readAsDataUrl(file: File): Promise<string> {
+  const mime = file.type || "application/octet-stream";
+  const buffer = await file.arrayBuffer();
+  return `data:${mime};base64,${bytesToBase64(new Uint8Array(buffer))}`;
 }
 
 function dataFromDataUrl(dataUrl: string) {

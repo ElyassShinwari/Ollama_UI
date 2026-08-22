@@ -16,6 +16,7 @@ type Body = {
 export const Route = createFileRoute("/api/oauth")({
   server: {
     handlers: {
+      GET: async () => Response.json({ error: "Use POST" }, { status: 405 }),
       POST: async ({ request }) => {
         let body: Body;
         try {

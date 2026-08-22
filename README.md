@@ -204,7 +204,7 @@ The token needs **repo** access. Fine-grained tokens must allow the target repos
 Pick a **tester** different from the model in the header, then click **Start review**. Works on a chat that already has messages.
 
 **Review uses too much memory**  
-Grok + ChatGPT review no longer resends the whole thread and file bytes every cycle. Refresh if an old tab is still running a previous review.
+Grok + ChatGPT review no longer resends the whole thread and file bytes every cycle. Refresh if an old tab is still running a previous review. Image previews stay in the open chat; large document bytes are not kept after send.
 
 **Node not found**  
 Install Node.js 22+ from [nodejs.org](https://nodejs.org), then `make run`.

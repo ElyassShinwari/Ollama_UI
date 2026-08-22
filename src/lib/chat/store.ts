@@ -450,9 +450,17 @@ export const useChatStore = create<ChatState>()(
         })),
       dropBinary: (conversationId) =>
         set((s) => ({
-          conversations: s.conversations.map((c) =>
-            c.id === conversationId ? { ...c, messages: withoutBinary(c.messages) } : c,
-          ),
+          conversations: s.conversations.map((c) => {
+            if (c.id !== conversationId) return c;
+            const next = c.messages.map((m) => {
+              if (!m.documents?.some((d) => d.data)) return m;
+              return {
+                ...m,
+                documents: m.documents.map((d) => ({ name: d.name, mime: d.mime, data: "" })),
+              };
+            });
+            return { ...c, messages: next };
+          }),
         })),
     }),
     {
