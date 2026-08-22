@@ -193,3 +193,11 @@ Pick a **tester** different from the model in the header, turn the checkbox on, 
 
 **Node not found**  
 Install Node.js 22+ from [nodejs.org](https://nodejs.org), then `make run`.
+
+## License
+
+Copyright (c) 2026 Elyass Shinwari.
+
+Ollama_UI is free to use, copy, and modify under an MIT-style grant. See [LICENSE](LICENSE).
+
+Commercial use is free up to 1,000,000 users. If a commercial product or service that includes this software has more than 1,000,000 users, you must ask Elyass Shinwari for extra permission.
