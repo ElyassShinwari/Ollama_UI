@@ -710,29 +710,24 @@ export function ChatView({
         <span className="text-xs text-muted-foreground">
           Writer {selectedModel ? writerLabel(selectedModel) : "—"}
         </span>
-        <label className="flex items-center gap-1 text-xs text-muted-foreground">
+        <label className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
           Tester
-          <select
-            className="h-8 max-w-[12rem] rounded-md border border-input bg-transparent px-2 text-xs"
-            value={reviewerKey}
-            onChange={(e) => setReviewerKey(e.target.value)}
-          >
-            <option value="">Testing model…</option>
-            {models
-              .filter(
-                (m) =>
-                  !(
-                    selectedModel &&
-                    m.id === selectedModel.id &&
-                    m.provider === selectedModel.provider
-                  ),
-              )
-              .map((m) => (
-                <option key={`r:${m.provider}:${m.id}`} value={`${m.provider}:${m.id}`}>
-                  {m.name}
-                </option>
-              ))}
-          </select>
+          <ModelPicker
+            models={models.filter(
+              (m) =>
+                !(
+                  selectedModel &&
+                  m.id === selectedModel.id &&
+                  m.provider === selectedModel.provider
+                ),
+            )}
+            value={
+              models.find((m) => `${m.provider}:${m.id}` === reviewerKey) ?? null
+            }
+            onChange={(m) => setReviewerKey(`${m.provider}:${m.id}`)}
+            emptyLabel="Testing model…"
+            className="h-8 max-w-[14rem] px-2 text-xs"
+          />
         </label>
         <label className="flex items-center gap-1 text-xs text-muted-foreground">
           Cycles

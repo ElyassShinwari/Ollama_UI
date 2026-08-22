@@ -20,16 +20,22 @@ export function ConnectScreen({
   onChoose: (model: ModelRef) => void;
 }) {
   const [hostDraft, setHostDraft] = useState(host);
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
   const ollama = catalog.models.filter((m) => m.provider === "ollama");
   const cloudGroups: { title: string; items: ModelRef[] }[] = (
     ["openai", "anthropic", "xai", "kimi", "deepseek"] as Exclude<Provider, "ollama">[]
   )
     .map((provider) => ({
       title: CLOUD_LABEL[provider],
-      items: catalog.models.filter((m) => m.provider === provider),
+      items: catalog.models.filter((m) => {
+        if (m.provider !== provider) return false;
+        if (!q) return true;
+        return `${m.name} ${m.id} ${provider}`.toLowerCase().includes(q);
+      }),
     }))
     .filter((g) => g.items.length > 0);
-  const hasCloud = cloudGroups.length > 0;
+  const hasCloud = catalog.models.some((m) => m.provider !== "ollama");
 
   return (
     <div className="scrollbar-thin h-full overflow-y-auto">
@@ -48,23 +54,33 @@ export function ConnectScreen({
 
         {hasCloud ? (
           <div className="mb-8 flex flex-col gap-4">
-            {cloudGroups.map((group) => (
-              <div key={group.title}>
-                <p className="mb-2 text-sm font-medium">{group.title}</p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {group.items.map((model) => (
-                    <button
-                      key={`${model.provider}:${model.id}`}
-                      type="button"
-                      className="min-w-0 rounded-xl border border-border bg-card px-4 py-3 text-left text-sm transition-colors hover:bg-accent"
-                      onClick={() => onChoose(model)}
-                    >
-                      <span className="block truncate font-medium">{model.name}</span>
-                    </button>
-                  ))}
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search available models"
+              autoComplete="off"
+            />
+            {cloudGroups.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No cloud model matches that search.</p>
+            ) : (
+              cloudGroups.map((group) => (
+                <div key={group.title}>
+                  <p className="mb-2 text-sm font-medium">{group.title}</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {group.items.map((model) => (
+                      <button
+                        key={`${model.provider}:${model.id}`}
+                        type="button"
+                        className="min-w-0 rounded-xl border border-border bg-card px-4 py-3 text-left text-sm transition-colors hover:bg-accent"
+                        onClick={() => onChoose(model)}
+                      >
+                        <span className="block truncate font-medium">{model.name}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         ) : null}
 
