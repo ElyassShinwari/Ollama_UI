@@ -1,13 +1,66 @@
-import type { ModelRef, Provider } from "@/lib/chat/types";
+import type { ModelRef, Provider, Settings } from "@/lib/chat/types";
 
-export const CLOUD_LABEL: Record<Exclude<Provider, "ollama">, string> = {
+export type CloudId = Exclude<Provider, "ollama">;
+
+export const CLOUD_LABEL: Record<CloudId, string> = {
   openai: "ChatGPT",
   anthropic: "Claude",
   xai: "Grok",
   kimi: "Kimi",
+  deepseek: "DeepSeek",
 };
 
-export const FALLBACK_CLOUD: Record<Exclude<Provider, "ollama">, ModelRef[]> = {
+export const CLOUD_ACCOUNTS: {
+  id: CloudId;
+  label: string;
+  login: string;
+  keys: string;
+  setting: keyof Settings;
+  header: string;
+}[] = [
+  {
+    id: "openai",
+    label: "ChatGPT",
+    login: "https://chatgpt.com",
+    keys: "https://platform.openai.com/api-keys",
+    setting: "openaiKey",
+    header: "x-openai-key",
+  },
+  {
+    id: "anthropic",
+    label: "Claude",
+    login: "https://claude.ai",
+    keys: "https://console.anthropic.com/settings/keys",
+    setting: "anthropicKey",
+    header: "x-anthropic-key",
+  },
+  {
+    id: "xai",
+    label: "Grok",
+    login: "https://grok.com",
+    keys: "https://console.x.ai",
+    setting: "xaiKey",
+    header: "x-xai-key",
+  },
+  {
+    id: "kimi",
+    label: "Kimi",
+    login: "https://www.kimi.com",
+    keys: "https://platform.moonshot.ai/console/api-keys",
+    setting: "kimiKey",
+    header: "x-kimi-key",
+  },
+  {
+    id: "deepseek",
+    label: "DeepSeek",
+    login: "https://chat.deepseek.com",
+    keys: "https://platform.deepseek.com/api_keys",
+    setting: "deepseekKey",
+    header: "x-deepseek-key",
+  },
+];
+
+export const FALLBACK_CLOUD: Record<CloudId, ModelRef[]> = {
   openai: [
     { id: "gpt-4o", name: "GPT-4o", provider: "openai", transport: "server", family: "gpt", contextLength: 128000 },
     { id: "gpt-4o-mini", name: "GPT-4o mini", provider: "openai", transport: "server", family: "gpt", contextLength: 128000 },
@@ -29,13 +82,26 @@ export const FALLBACK_CLOUD: Record<Exclude<Provider, "ollama">, ModelRef[]> = {
     { id: "moonshot-v1-128k", name: "Moonshot 128k", provider: "kimi", transport: "server", family: "kimi", contextLength: 128000 },
     { id: "moonshot-v1-32k", name: "Moonshot 32k", provider: "kimi", transport: "server", family: "kimi", contextLength: 32000 },
   ],
+  deepseek: [
+    { id: "deepseek-chat", name: "DeepSeek Chat", provider: "deepseek", transport: "server", family: "deepseek", contextLength: 128000 },
+    { id: "deepseek-reasoner", name: "DeepSeek Reasoner", provider: "deepseek", transport: "server", family: "deepseek", contextLength: 128000 },
+  ],
 };
 
-export function cloudEndpoint(provider: Exclude<Provider, "ollama">) {
+export function cloudEndpoint(provider: CloudId) {
   if (provider === "openai") return { url: "https://api.openai.com/v1/chat/completions", models: "https://api.openai.com/v1/models" };
   if (provider === "xai") return { url: "https://api.x.ai/v1/chat/completions", models: "https://api.x.ai/v1/models" };
   if (provider === "kimi") return { url: "https://api.moonshot.ai/v1/chat/completions", models: "https://api.moonshot.ai/v1/models" };
+  if (provider === "deepseek") return { url: "https://api.deepseek.com/chat/completions", models: "https://api.deepseek.com/models" };
   return { url: "https://api.anthropic.com/v1/messages", models: "https://api.anthropic.com/v1/models" };
+}
+
+export function cloudSecret(settings: Settings, provider: Provider) {
+  if (provider === "ollama") return "";
+  const account = CLOUD_ACCOUNTS.find((item) => item.id === provider);
+  if (!account) return "";
+  const value = settings[account.setting];
+  return typeof value === "string" ? value : "";
 }
 
 export function reviewSatisfied(text: string) {

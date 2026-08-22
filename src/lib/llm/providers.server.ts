@@ -1,4 +1,4 @@
-import { FALLBACK_CLOUD, cloudEndpoint } from "@/lib/llm/cloud";
+import { FALLBACK_CLOUD, cloudEndpoint, type CloudId } from "@/lib/llm/cloud";
 import { parseOllamaCapabilities, parseOllamaContextLength, xaiContextLength } from "@/lib/llm/context";
 import { sanitizeOllamaHost } from "@/lib/utils";
 import type { ModelRef, TokenUsage } from "@/lib/chat/types";
@@ -260,7 +260,7 @@ export async function* streamXaiChat(opts: {
 }
 
 export async function listCloudModels(
-  provider: "openai" | "anthropic" | "xai" | "kimi",
+  provider: CloudId,
   apiKey: string,
 ): Promise<ModelRef[]> {
   if (!apiKey.trim()) return [];
@@ -305,7 +305,7 @@ export async function listCloudModels(
   }
 }
 
-function isCloudChatModel(provider: "openai" | "anthropic" | "xai" | "kimi", id: string) {
+function isCloudChatModel(provider: CloudId, id: string) {
   const l = id.toLowerCase();
   if (/(audio|realtime|image|imagine|video|tts|stt|whisper|embedding|moderation|transcribe)/.test(l)) {
     return false;
@@ -313,6 +313,7 @@ function isCloudChatModel(provider: "openai" | "anthropic" | "xai" | "kimi", id:
   if (provider === "openai") return /^(gpt-4|gpt-5|o[1-4]|chatgpt)/.test(l);
   if (provider === "anthropic") return l.includes("claude");
   if (provider === "xai") return l.startsWith("grok");
+  if (provider === "deepseek") return l.includes("deepseek");
   return l.includes("kimi") || l.includes("moonshot");
 }
 

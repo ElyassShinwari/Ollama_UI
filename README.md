@@ -2,7 +2,7 @@
 
 A ChatGPT-style app for models on your computer and in the cloud.
 
-Talk to Ollama models, ChatGPT, Claude, Grok, and Kimi in one window. Install Ollama and models from the app, keep chats in the browser, and send one model’s answer to another for review.
+Talk to Ollama models, ChatGPT, Claude, Grok, Kimi, and DeepSeek in one window. Install Ollama and models from the app, keep chats in the browser, and send one model’s answer to another for review.
 
 ## Requirements
 
@@ -102,30 +102,31 @@ ollama list
 4. If the new model’s window is smaller than this chat, you get a warning: answers may be unexpected or inaccurate while the window is full. You can still continue, or start a new chat.
 5. Attach `.txt` files with **+** or drag and drop. Vision models also take images.
 6. Open **Studio** in the sidebar for GitHub, cloud APIs, MCP, the local API, website/WhatsApp webhooks, instructions, knowledge, and model advice. **Back to new chat** closes Studio and opens a blank conversation.
-7. Turn on **Review cycle** in a chat. The **writer** is always the model in the header (change it anytime, including between cycles). Pick a **tester** and 1–100 cycles. Each model’s full reply is passed to the other. If the tester is not satisfied when the cycles end, it posts a final report with the project and remaining errors.
+7. Click **Start review** to run a writer/tester cycle on the current chat — including chats you already started. The **writer** is the model in the header. Pick a **tester** and 1–100 cycles. If the tester is not satisfied when the cycles end, it posts a final report with the project and remaining errors.
 
 Conversations stay in this browser. Default theme is light (switch in Settings). API keys stay in this browser and are sent only to this computer’s server, then to the matching provider.
 
-## Cloud models (ChatGPT, Claude, Grok, Kimi)
+## Cloud models (ChatGPT, Claude, Grok, Kimi, DeepSeek)
 
-Paste keys in **Settings** or **Studio → Cloud**:
+Sign in or paste a key in **Settings** or **Studio → Cloud**:
 
-| Provider | Key from | Models in the picker |
-| --- | --- | --- |
-| OpenAI | [platform.openai.com](https://platform.openai.com/api-keys) | ChatGPT / GPT |
-| Anthropic | [console.anthropic.com](https://console.anthropic.com/settings/keys) | Claude |
-| xAI | [console.x.ai](https://console.x.ai) | Grok |
-| Moonshot | [platform.moonshot.ai](https://platform.moonshot.ai) | Kimi |
+| Provider | Sign in | Key from | Models in the picker |
+| --- | --- | --- | --- |
+| OpenAI | [chatgpt.com](https://chatgpt.com) | [platform.openai.com](https://platform.openai.com/api-keys) | ChatGPT / GPT |
+| Anthropic | [claude.ai](https://claude.ai) | [console.anthropic.com](https://console.anthropic.com/settings/keys) | Claude |
+| xAI | [grok.com](https://grok.com) / [x.ai](https://x.ai) | [console.x.ai](https://console.x.ai) | Grok |
+| Moonshot | [kimi.com](https://www.kimi.com) | [platform.moonshot.ai](https://platform.moonshot.ai) | Kimi |
+| DeepSeek | [chat.deepseek.com](https://chat.deepseek.com) | [platform.deepseek.com](https://platform.deepseek.com/api_keys) | DeepSeek |
 
-After you save, those models appear in the same menu as Ollama. You can mix them in one chat, including as the two sides of a review cycle.
+After you save, those models appear in the same menu as Ollama. The same box accepts an **API key** or an **access token** from a signed-in account. These sites do not give this app your web-chat session automatically — you still paste a key or token after you sign in.
 
 ## Review cycle
 
-1. Open a chat and turn on **Review cycle**.
-2. The **writer** is the model in the header. Switch that model anytime — the next cycle uses the new one (Ollama, ChatGPT, Claude, Grok, or Kimi).
-3. **Tester** is the second model. It must be different from the writer.
-4. Set **Cycles** from 1 to 100.
-5. Send a prompt. Each cycle: the writer answers, its full reply is passed to the tester, the tester replies, and that full reply is passed back to the writer.
+1. Open any chat (new or already started) and pick a **tester** different from the model in the header.
+2. The **writer** is the model in the header. Switch that model anytime — the next cycle uses the new one (Ollama, ChatGPT, Claude, Grok, Kimi, or DeepSeek).
+3. Set **Cycles** from 1 to 100.
+4. Click **Start review**. If the last message is already an answer, the tester reviews it first. If you typed a prompt, that is sent, then the cycle runs. Works mid-conversation.
+5. Each cycle: the writer’s full reply is passed to the tester, the tester’s full reply is passed back to the writer.
 6. If the tester starts with `SATISFIED`, the loop stops. **Stop** cancels the rest of the run.
 7. If the cycles finish and the tester is still not satisfied, the tester writes a **final report** that includes the current project and the remaining errors.
 
@@ -182,14 +183,14 @@ The app needs permission to install software. Use the manual steps above, then c
 **No local models listed**  
 Install one from the library search (`smollm2:135m`). If Ollama is on another machine, set the host in Settings (`http://127.0.0.1:11434` by default).
 
-**ChatGPT / Claude / Grok / Kimi missing**  
-Paste the matching API key in Settings or Studio → Cloud, then wait a moment. Bad or empty keys are not listed.
+**ChatGPT / Claude / Grok / Kimi / DeepSeek missing**  
+Sign in on their site, then paste an API key or access token in Settings or Studio → Cloud.
 
 **GitHub authenticate failed**  
 The token needs **repo** access. Fine-grained tokens must allow the target repository. This app does not use GitHub OAuth.
 
 **Review cycle does nothing**  
-Pick a **tester** different from the model in the header, turn the checkbox on, then send. The writer is always the header model.
+Pick a **tester** different from the model in the header, then click **Start review**. Works on a chat that already has messages.
 
 **Node not found**  
 Install Node.js 22+ from [nodejs.org](https://nodejs.org), then `make run`.

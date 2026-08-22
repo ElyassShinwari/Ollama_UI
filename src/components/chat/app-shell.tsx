@@ -30,6 +30,7 @@ const emptyCatalog: ModelCatalog = {
     openai: false,
     anthropic: false,
     kimi: false,
+    deepseek: false,
   },
 };
 
@@ -59,6 +60,7 @@ export function ChatApp() {
       anthropic: useChatStore.getState().settings.anthropicKey,
       xai: useChatStore.getState().settings.xaiKey,
       kimi: useChatStore.getState().settings.kimiKey,
+      deepseek: useChatStore.getState().settings.deepseekKey,
     });
     setCatalog(next);
     const current = useChatStore.getState().selectedModel;
@@ -91,7 +93,7 @@ export function ChatApp() {
     void refresh();
     const id = window.setInterval(() => void refresh(), 30000);
     return () => window.clearInterval(id);
-  }, [refresh, settings.ollamaHost, settings.openaiKey, settings.anthropicKey, settings.xaiKey, settings.kimiKey, hydrated]);
+  }, [refresh, settings.ollamaHost, settings.openaiKey, settings.anthropicKey, settings.xaiKey, settings.kimiKey, settings.deepseekKey, hydrated]);
 
   function startFreshChat() {
     const id = newChat();

@@ -32,6 +32,7 @@ import {
   CLOUD_LABEL,
   FINAL_REVIEW_SYSTEM,
   REVIEW_SYSTEM,
+  cloudSecret,
   finalHandoff,
   handoffToTester,
   handoffToWriter,
@@ -78,7 +79,6 @@ export function ChatView({
   const [switchWarn, setSwitchWarn] = useState<{ name: string; used: number; limit: number } | null>(
     null,
   );
-  const [reviewOn, setReviewOn] = useState(false);
   const [reviewerKey, setReviewerKey] = useState("");
   const [cycles, setCycles] = useState(3);
   const [cycleNote, setCycleNote] = useState("");
@@ -205,16 +205,7 @@ export function ChatView({
       return "";
     }
     const settingsNow = useChatStore.getState().settings;
-    const apiKey =
-      model.provider === "openai"
-        ? settingsNow.openaiKey
-        : model.provider === "anthropic"
-          ? settingsNow.anthropicKey
-          : model.provider === "xai"
-            ? settingsNow.xaiKey
-            : model.provider === "kimi"
-              ? settingsNow.kimiKey
-              : undefined;
+    const apiKey = cloudSecret(settingsNow, model.provider) || undefined;
     const systemPrompt = [settingsNow.systemPrompt, combinedInstructions(), knowledgeBlock(), extraSystem]
       .filter(Boolean)
       .join("\n\n");
@@ -367,21 +358,67 @@ export function ChatView({
       history.length > 0
         ? history
         : [{ role: "user", content: built.content, images: built.images }];
-    if (reviewOn) {
-      const author = useChatStore.getState().selectedModel;
-      const reviewer = modelFromKey(reviewerKey);
-      if (!author || !reviewer) {
-        toast.error("Pick a tester model for the review cycle");
-        return;
-      }
-      if (modelKey(author) === modelKey(reviewer)) {
-        toast.error("The tester must be a different model from the one in the header");
-        return;
-      }
-      await runReview(conversationId, user.id, startHistory, reviewer);
+    await runCompletion(conversationId, startHistory, user.id);
+  }
+
+  async function startReview() {
+    if (streamingId) return;
+    const author = useChatStore.getState().selectedModel;
+    const reviewer = modelFromKey(reviewerKey);
+    if (!author) {
+      toast.error("Choose a chat model first");
       return;
     }
-    await runCompletion(conversationId, startHistory, user.id);
+    if (!reviewer) {
+      toast.error("Pick a tester model");
+      return;
+    }
+    if (modelKey(author) === modelKey(reviewer)) {
+      toast.error("The tester must be a different model from the one in the header");
+      return;
+    }
+    cancelledRef.current = false;
+    stickToBottomRef.current = true;
+    const pending = buildMessageFromFiles(draft, files);
+    if (pending.content.trim() || pending.images?.length) {
+      setDraft("");
+      setFiles([]);
+      const { conversationId, user } = addUserMessage(pending.content, {
+        images: pending.images,
+        attachments: pending.attachments,
+      });
+      await runReview(conversationId, user.id, visibleHistory(conversationId), reviewer, {
+        begin: "writer",
+      });
+      return;
+    }
+    const conversationId = conversation?.id;
+    if (!conversationId) {
+      toast.error("Open a chat or type a prompt, then Start review");
+      return;
+    }
+    const hist = visibleHistory(conversationId);
+    if (hist.length === 0) {
+      toast.error("Write something first, or type a prompt and click Start review");
+      return;
+    }
+    const path = visibleMessages(
+      useChatStore.getState().conversations.find((c) => c.id === conversationId)?.messages ?? [],
+      useChatStore.getState().conversations.find((c) => c.id === conversationId)?.activeRootId,
+    );
+    const lastMsg = path.at(-1);
+    if (!lastMsg) {
+      toast.error("Write something first, or type a prompt and click Start review");
+      return;
+    }
+    if (lastMsg.role === "assistant" && lastMsg.content.trim()) {
+      await runReview(conversationId, lastMsg.id, hist, reviewer, {
+        begin: "tester",
+        seedProject: lastMsg.content,
+      });
+      return;
+    }
+    await runReview(conversationId, lastMsg.id, hist, reviewer, { begin: "writer" });
   }
 
   async function runReview(
@@ -389,12 +426,14 @@ export function ChatView({
     userId: string,
     startHistory: { role: string; content: string; images?: string[] }[],
     reviewerStart: ModelRef,
+    opts: { begin?: "writer" | "tester"; seedProject?: string } = {},
   ) {
     const max = Math.min(100, Math.max(1, cycles));
     let parentId = userId;
     let history = startHistory;
-    let lastProject = "";
+    let lastProject = opts.seedProject ?? "";
     let satisfied = false;
+    const testerFirst = opts.begin === "tester" && Boolean(lastProject.trim());
     for (let i = 1; i <= max; i++) {
       if (cancelledRef.current) break;
       const author = useChatStore.getState().selectedModel;
@@ -408,28 +447,30 @@ export function ChatView({
         setCycleNote("Stopped: writer and tester match");
         break;
       }
-      setCycleNote(`Cycle ${i}/${max} · ${author.name} writing`);
-      const draft = await runCompletion(conversationId, history, parentId, author);
-      if (cancelledRef.current) {
-        setCycleNote("Stopped");
-        break;
+      if (!(testerFirst && i === 1)) {
+        setCycleNote(`Cycle ${i}/${max} · ${author.name} writing`);
+        const written = await runCompletion(conversationId, history, parentId, author);
+        if (cancelledRef.current) {
+          setCycleNote("Stopped");
+          break;
+        }
+        if (!written.trim()) {
+          setCycleNote(`${author.name} did not finish a reply`);
+          break;
+        }
+        lastProject = written;
+        parentId = lastAssistantId(conversationId) ?? parentId;
+      } else {
+        setCycleNote(`Cycle ${i}/${max} · testing the current answer`);
       }
-      if (!draft.trim()) {
-        setCycleNote(`${author.name} did not finish a reply`);
-        break;
-      }
-      lastProject = draft;
-      parentId = lastAssistantId(conversationId) ?? parentId;
-      const reviewUser = addUserMessage(handoffToTester(author.name, draft, i, max), {
+      const reviewUser = addUserMessage(handoffToTester(author.name, lastProject, i, max), {
         conversationId,
       });
       parentId = reviewUser.user.id;
       setCycleNote(`Cycle ${i}/${max} · ${reviewer.name} testing`);
       const review = await runCompletion(
         conversationId,
-        [
-          ...visibleHistory(conversationId),
-        ],
+        visibleHistory(conversationId),
         parentId,
         reviewer,
         REVIEW_SYSTEM,
@@ -654,57 +695,54 @@ export function ChatView({
         </div>
       </header>
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
-        <label className="flex items-center gap-2 text-xs">
-          <input
-            type="checkbox"
-            checked={reviewOn}
-            onChange={(e) => setReviewOn(e.target.checked)}
-          />
-          Review cycle
+        {streamingId ? (
+          <Button size="sm" variant="secondary" onClick={stop}>
+            Stop
+          </Button>
+        ) : (
+          <Button size="sm" onClick={() => void startReview()} disabled={!selectedModel}>
+            Start review
+          </Button>
+        )}
+        <span className="text-xs text-muted-foreground">
+          Writer {selectedModel ? writerLabel(selectedModel) : "—"}
+        </span>
+        <label className="flex items-center gap-1 text-xs text-muted-foreground">
+          Tester
+          <select
+            className="h-8 max-w-[12rem] rounded-md border border-input bg-transparent px-2 text-xs"
+            value={reviewerKey}
+            onChange={(e) => setReviewerKey(e.target.value)}
+          >
+            <option value="">Testing model…</option>
+            {models
+              .filter(
+                (m) =>
+                  !(
+                    selectedModel &&
+                    m.id === selectedModel.id &&
+                    m.provider === selectedModel.provider
+                  ),
+              )
+              .map((m) => (
+                <option key={`r:${m.provider}:${m.id}`} value={`${m.provider}:${m.id}`}>
+                  {m.name}
+                </option>
+              ))}
+          </select>
         </label>
-        {reviewOn ? (
-          <>
-            <span className="text-xs text-muted-foreground">
-              Writer {selectedModel ? writerLabel(selectedModel) : "—"}
-            </span>
-            <label className="flex items-center gap-1 text-xs text-muted-foreground">
-              Tester
-              <select
-                className="h-8 max-w-[12rem] rounded-md border border-input bg-transparent px-2 text-xs"
-                value={reviewerKey}
-                onChange={(e) => setReviewerKey(e.target.value)}
-              >
-                <option value="">Testing model…</option>
-                {models
-                  .filter(
-                    (m) =>
-                      !(
-                        selectedModel &&
-                        m.id === selectedModel.id &&
-                        m.provider === selectedModel.provider
-                      ),
-                  )
-                  .map((m) => (
-                    <option key={`r:${m.provider}:${m.id}`} value={`${m.provider}:${m.id}`}>
-                      {m.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-1 text-xs text-muted-foreground">
-              Cycles
-              <input
-                type="number"
-                min={1}
-                max={100}
-                className="h-8 w-16 rounded-md border border-input bg-transparent px-2 text-xs"
-                value={cycles}
-                onChange={(e) => setCycles(Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
-              />
-            </label>
-            {cycleNote ? <span className="text-xs text-muted-foreground">{cycleNote}</span> : null}
-          </>
-        ) : null}
+        <label className="flex items-center gap-1 text-xs text-muted-foreground">
+          Cycles
+          <input
+            type="number"
+            min={1}
+            max={100}
+            className="h-8 w-16 rounded-md border border-input bg-transparent px-2 text-xs"
+            value={cycles}
+            onChange={(e) => setCycles(Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
+          />
+        </label>
+        {cycleNote ? <span className="text-xs text-muted-foreground">{cycleNote}</span> : null}
       </div>
 
       <div

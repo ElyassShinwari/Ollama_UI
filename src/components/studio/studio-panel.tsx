@@ -9,6 +9,7 @@ import { randomKey, syncStudio, useStudio } from "@/lib/studio/store";
 import type { McpServerConfig } from "@/lib/studio/types";
 import { useChatStore } from "@/lib/chat/store";
 import type { ModelRef } from "@/lib/chat/types";
+import { CloudConnect } from "@/components/chat/cloud-connect";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -255,48 +256,14 @@ function GitHubTab() {
 }
 
 function CloudTab() {
-  const settings = useChatStore((s) => s.settings);
-  const setSettings = useChatStore((s) => s.setSettings);
-  const [openai, setOpenai] = useState(settings.openaiKey);
-  const [anthropic, setAnthropic] = useState(settings.anthropicKey);
-  const [xai, setXai] = useState(settings.xaiKey);
-  const [kimi, setKimi] = useState(settings.kimiKey);
-
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground text-pretty">
-        Paste API keys so ChatGPT, Claude, Grok, and Kimi appear in the same model menu as Ollama.
-        The header model is the writer in a review cycle; pick a tester in the chat bar.
+        Sign in or paste an API key / access token so ChatGPT, Claude, Grok, Kimi, and DeepSeek
+        appear in the same model menu as Ollama. The header model is the writer in a review cycle;
+        pick a tester and click Start review.
       </p>
-      <div className="flex flex-col gap-2">
-        <Label>OpenAI · ChatGPT</Label>
-        <Input type="password" value={openai} onChange={(e) => setOpenai(e.target.value)} placeholder="sk-…" autoComplete="off" />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label>Anthropic · Claude</Label>
-        <Input type="password" value={anthropic} onChange={(e) => setAnthropic(e.target.value)} placeholder="sk-ant-…" autoComplete="off" />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label>xAI · Grok</Label>
-        <Input type="password" value={xai} onChange={(e) => setXai(e.target.value)} placeholder="xai-…" autoComplete="off" />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label>Moonshot · Kimi</Label>
-        <Input type="password" value={kimi} onChange={(e) => setKimi(e.target.value)} placeholder="sk-…" autoComplete="off" />
-      </div>
-      <Button
-        onClick={() => {
-          setSettings({
-            openaiKey: openai.trim(),
-            anthropicKey: anthropic.trim(),
-            xaiKey: xai.trim(),
-            kimiKey: kimi.trim(),
-          });
-          toast.success("Cloud keys saved. Those models appear in the same menu as Ollama.");
-        }}
-      >
-        Save keys
-      </Button>
+      <CloudConnect />
     </div>
   );
 }

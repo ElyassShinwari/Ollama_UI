@@ -11,6 +11,7 @@ export const Route = createFileRoute("/api/models")({
         const anthropicKey = request.headers.get("x-anthropic-key") || "";
         const xaiKey = request.headers.get("x-xai-key") || process.env.XAI_API_KEY || "";
         const kimiKey = request.headers.get("x-kimi-key") || "";
+        const deepseekKey = request.headers.get("x-deepseek-key") || "";
 
         const ollama = await listOllamaModels(host)
           .then((models) => ({ ok: true as const, models }))
@@ -20,20 +21,22 @@ export const Route = createFileRoute("/api/models")({
             error: err instanceof Error ? err.message : "Ollama unreachable",
           }));
 
-        const [openai, anthropic, xai, kimi] = await Promise.all([
+        const [openai, anthropic, xai, kimi, deepseek] = await Promise.all([
           listCloudModels("openai", openaiKey),
           listCloudModels("anthropic", anthropicKey),
           listCloudModels("xai", xaiKey),
           listCloudModels("kimi", kimiKey),
+          listCloudModels("deepseek", deepseekKey),
         ]);
 
         return Response.json({
-          models: [...ollama.models, ...openai, ...anthropic, ...xai, ...kimi],
+          models: [...ollama.models, ...openai, ...anthropic, ...xai, ...kimi, ...deepseek],
           ollama: ollama.ok,
           openai: openai.length > 0,
           anthropic: anthropic.length > 0,
           xai: xai.length > 0,
           kimi: kimi.length > 0,
+          deepseek: deepseek.length > 0,
           error: ollama.ok ? undefined : ollama.error,
         });
       },

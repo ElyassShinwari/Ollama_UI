@@ -8,6 +8,7 @@ type ServerCatalog = {
   openai?: boolean;
   anthropic?: boolean;
   kimi?: boolean;
+  deepseek?: boolean;
   error?: string;
 };
 
@@ -91,13 +92,14 @@ function mergeModels(browser: ModelRef[], server: ModelRef[]): ModelRef[] {
 export async function fetchCatalog(
   host: string,
   browserModels: ModelRef[] = [],
-  keys: { openai?: string; anthropic?: string; xai?: string; kimi?: string } = {},
+  keys: { openai?: string; anthropic?: string; xai?: string; kimi?: string; deepseek?: string } = {},
 ): Promise<ModelCatalog> {
   const headers: Record<string, string> = {};
   if (keys.openai) headers["x-openai-key"] = keys.openai;
   if (keys.anthropic) headers["x-anthropic-key"] = keys.anthropic;
   if (keys.xai) headers["x-xai-key"] = keys.xai;
   if (keys.kimi) headers["x-kimi-key"] = keys.kimi;
+  if (keys.deepseek) headers["x-deepseek-key"] = keys.deepseek;
   const serverRes = await fetch(`/api/models?host=${encodeURIComponent(host)}`, { headers })
     .then(async (r) => {
       if (!r.ok) {
@@ -108,6 +110,7 @@ export async function fetchCatalog(
           anthropic: false,
           xai: false,
           kimi: false,
+          deepseek: false,
           error: `Catalog ${r.status}`,
         } satisfies ServerCatalog;
       }
@@ -122,6 +125,7 @@ export async function fetchCatalog(
           anthropic: false,
           xai: false,
           kimi: false,
+          deepseek: false,
           error: "Could not reach the model catalog",
         }) satisfies ServerCatalog,
     );
@@ -136,6 +140,7 @@ export async function fetchCatalog(
       openai: Boolean(serverRes.openai),
       anthropic: Boolean(serverRes.anthropic),
       kimi: Boolean(serverRes.kimi),
+      deepseek: Boolean(serverRes.deepseek),
       error: serverRes.error,
     },
   };

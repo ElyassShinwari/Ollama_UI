@@ -28,7 +28,8 @@ export const Route = createFileRoute("/api/chat")({
           body.provider === "openai" ||
           body.provider === "anthropic" ||
           body.provider === "xai" ||
-          body.provider === "kimi"
+          body.provider === "kimi" ||
+          body.provider === "deepseek"
             ? body.provider
             : "ollama";
         const model = typeof body.model === "string" ? body.model : "";
@@ -91,7 +92,9 @@ export const Route = createFileRoute("/api/chat")({
                     ? process.env.OPENAI_API_KEY
                     : provider === "kimi"
                       ? process.env.MOONSHOT_API_KEY
-                      : process.env.XAI_API_KEY) ||
+                      : provider === "deepseek"
+                        ? process.env.DEEPSEEK_API_KEY
+                        : process.env.XAI_API_KEY) ||
                   "";
                 if (!key) throw new Error("Add an API key in Settings or Studio → Cloud");
                 const url = cloudEndpoint(provider).url;

@@ -1,4 +1,4 @@
-export type Provider = "ollama" | "openai" | "anthropic" | "xai" | "kimi";
+export type Provider = "ollama" | "openai" | "anthropic" | "xai" | "kimi" | "deepseek";
 export type Transport = "browser" | "server";
 export type ThemeMode = "light" | "dark" | "system";
 
@@ -58,6 +58,7 @@ export type Settings = {
   anthropicKey: string;
   xaiKey: string;
   kimiKey: string;
+  deepseekKey: string;
 };
 
 export type CatalogStatus = {
@@ -68,6 +69,7 @@ export type CatalogStatus = {
   openai: boolean;
   anthropic: boolean;
   kimi: boolean;
+  deepseek: boolean;
   error?: string;
 };
 

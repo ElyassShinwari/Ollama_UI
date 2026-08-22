@@ -33,6 +33,7 @@ export function ModelPicker({
     { title: CLOUD_LABEL.anthropic, items: models.filter((m) => m.provider === "anthropic") },
     { title: CLOUD_LABEL.xai, items: models.filter((m) => m.provider === "xai") },
     { title: CLOUD_LABEL.kimi, items: models.filter((m) => m.provider === "kimi") },
+    { title: CLOUD_LABEL.deepseek, items: models.filter((m) => m.provider === "deepseek") },
   ].filter((g) => g.items.length > 0);
   const label = value?.name ?? "Choose a model";
 

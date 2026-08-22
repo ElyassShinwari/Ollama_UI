@@ -22,7 +22,7 @@ export function ConnectScreen({
   const [hostDraft, setHostDraft] = useState(host);
   const ollama = catalog.models.filter((m) => m.provider === "ollama");
   const cloudGroups: { title: string; items: ModelRef[] }[] = (
-    ["openai", "anthropic", "xai", "kimi"] as Exclude<Provider, "ollama">[]
+    ["openai", "anthropic", "xai", "kimi", "deepseek"] as Exclude<Provider, "ollama">[]
   )
     .map((provider) => ({
       title: CLOUD_LABEL[provider],
@@ -41,8 +41,8 @@ export function ConnectScreen({
           </h1>
           <p className="mt-3 max-w-lg text-base text-muted-foreground text-pretty">
             {hasCloud
-              ? "Chat with a model on this computer, or with ChatGPT, Claude, Grok, or Kimi from the same window."
-              : "Install Ollama if needed, then search the library and install a model with one click. Add ChatGPT, Claude, Grok, or Kimi keys in Settings or Studio."}
+              ? "Chat with a model on this computer, or with ChatGPT, Claude, Grok, Kimi, or DeepSeek from the same window."
+              : "Install Ollama if needed, then search the library and install a model with one click. Add ChatGPT, Claude, Grok, Kimi, or DeepSeek in Settings or Studio."}
           </p>
         </div>
 

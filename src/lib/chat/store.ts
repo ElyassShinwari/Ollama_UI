@@ -12,6 +12,7 @@ const defaultSettings: Settings = {
   anthropicKey: "",
   xaiKey: "",
   kimiKey: "",
+  deepseekKey: "",
 };
 
 function uid() {
