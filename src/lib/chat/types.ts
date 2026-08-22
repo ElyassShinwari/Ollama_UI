@@ -49,6 +49,14 @@ export type Conversation = {
   contextExceeded?: boolean;
 };
 
+export type OAuthSession = {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number;
+  email?: string;
+  accountId?: string;
+};
+
 export type Settings = {
   ollamaHost: string;
   temperature: number;
@@ -59,6 +67,8 @@ export type Settings = {
   xaiKey: string;
   kimiKey: string;
   deepseekKey: string;
+  openaiOAuth: OAuthSession | null;
+  xaiOAuth: OAuthSession | null;
 };
 
 export type CatalogStatus = {

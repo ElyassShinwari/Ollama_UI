@@ -206,6 +206,8 @@ export function ChatView({
     }
     const settingsNow = useChatStore.getState().settings;
     const apiKey = cloudSecret(settingsNow, model.provider) || undefined;
+    const accountId =
+      model.provider === "openai" ? settingsNow.openaiOAuth?.accountId : undefined;
     const systemPrompt = [settingsNow.systemPrompt, combinedInstructions(), knowledgeBlock(), extraSystem]
       .filter(Boolean)
       .join("\n\n");
@@ -243,6 +245,7 @@ export function ChatView({
           systemPrompt,
           contextLength: model.contextLength,
           apiKey,
+          accountId,
         },
         (chunk) => {
           const current = useChatStore

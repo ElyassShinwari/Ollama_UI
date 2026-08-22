@@ -324,12 +324,14 @@ export async function* streamOpenAiCompat(opts: {
   messages: { role: string; content: string }[];
   temperature: number;
   signal: AbortSignal;
+  extraHeaders?: Record<string, string>;
 }): AsyncGenerator<ChatStreamEvent> {
   const res = await fetch(opts.url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${opts.apiKey}`,
+      ...opts.extraHeaders,
     },
     body: JSON.stringify({
       model: opts.model,

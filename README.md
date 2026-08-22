@@ -108,17 +108,20 @@ Conversations stay in this browser. Default theme is light (switch in Settings).
 
 ## Cloud models (ChatGPT, Claude, Grok, Kimi, DeepSeek)
 
-Sign in or paste a key in **Settings** or **Studio → Cloud**:
+**Settings** or **Studio → Cloud**:
 
-| Provider | Sign in | Key from | Models in the picker |
-| --- | --- | --- | --- |
-| OpenAI | [chatgpt.com](https://chatgpt.com) | [platform.openai.com](https://platform.openai.com/api-keys) | ChatGPT / GPT |
-| Anthropic | [claude.ai](https://claude.ai) | [console.anthropic.com](https://console.anthropic.com/settings/keys) | Claude |
-| xAI | [grok.com](https://grok.com) / [x.ai](https://x.ai) | [console.x.ai](https://console.x.ai) | Grok |
-| Moonshot | [kimi.com](https://www.kimi.com) | [platform.moonshot.ai](https://platform.moonshot.ai) | Kimi |
-| DeepSeek | [chat.deepseek.com](https://chat.deepseek.com) | [platform.deepseek.com](https://platform.deepseek.com/api_keys) | DeepSeek |
+- **ChatGPT** and **Grok**: click **Sign in** in this app, finish login in the window that opens, then those models work here for chat and review. No API key required after that.
+- **Claude, Kimi, DeepSeek**: those companies do not allow other apps to use a web login. Sign in on their site, then paste an API key.
 
-After you save, those models appear in the same menu as Ollama. The same box accepts an **API key** or an **access token** from a signed-in account. These sites do not give this app your web-chat session automatically — you still paste a key or token after you sign in.
+| Provider | In-app sign-in | API key |
+| --- | --- | --- |
+| ChatGPT | Yes — Sign in in Studio / Settings | Optional, [platform.openai.com](https://platform.openai.com/api-keys) |
+| Grok | Yes — Sign in in Studio / Settings | Optional, [console.x.ai](https://console.x.ai) |
+| Claude | No (Anthropic policy) | [console.anthropic.com](https://console.anthropic.com/settings/keys) |
+| Kimi | No | [platform.moonshot.ai](https://platform.moonshot.ai) |
+| DeepSeek | No | [platform.deepseek.com](https://platform.deepseek.com/api_keys) |
+
+Signed-in accounts and keys stay in this browser. Review cycles can use any connected model as writer or tester.
 
 ## Review cycle
 
@@ -184,7 +187,7 @@ The app needs permission to install software. Use the manual steps above, then c
 Install one from the library search (`smollm2:135m`). If Ollama is on another machine, set the host in Settings (`http://127.0.0.1:11434` by default).
 
 **ChatGPT / Claude / Grok / Kimi / DeepSeek missing**  
-Sign in on their site, then paste an API key or access token in Settings or Studio → Cloud.
+ChatGPT and Grok: click **Sign in** in Settings or Studio → Cloud. Claude, Kimi, and DeepSeek need an API key from their console.
 
 **GitHub authenticate failed**  
 The token needs **repo** access. Fine-grained tokens must allow the target repository. This app does not use GitHub OAuth.

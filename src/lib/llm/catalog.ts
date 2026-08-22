@@ -1,4 +1,5 @@
 import { parseOllamaCapabilities, parseOllamaContextLength, xaiContextLength } from "@/lib/llm/context";
+import { ensureCloudAuth } from "@/lib/llm/oauth-client";
 import type { ModelCatalog, ModelRef, TokenUsage, Transport } from "@/lib/chat/types";
 
 type ServerCatalog = {
@@ -94,6 +95,7 @@ export async function fetchCatalog(
   browserModels: ModelRef[] = [],
   keys: { openai?: string; anthropic?: string; xai?: string; kimi?: string; deepseek?: string } = {},
 ): Promise<ModelCatalog> {
+  await ensureCloudAuth();
   const headers: Record<string, string> = {};
   if (keys.openai) headers["x-openai-key"] = keys.openai;
   if (keys.anthropic) headers["x-anthropic-key"] = keys.anthropic;
@@ -162,6 +164,7 @@ export type ChatRequestBody = {
   systemPrompt?: string;
   contextLength?: number;
   apiKey?: string;
+  accountId?: string;
 };
 
 function withSystem(messages: ChatTurn[], systemPrompt?: string): ChatTurn[] {
@@ -175,6 +178,7 @@ export async function streamChat(
   signal: AbortSignal,
   onUsage?: (usage: TokenUsage) => void,
 ) {
+  await ensureCloudAuth();
   const messages = withSystem(body.messages, body.systemPrompt);
 
   if (body.provider === "ollama" && body.transport === "browser") {
@@ -204,6 +208,7 @@ export async function streamChat(
       temperature: body.temperature,
       contextLength: body.contextLength,
       apiKey: body.apiKey,
+      accountId: body.accountId,
     }),
     signal,
   });

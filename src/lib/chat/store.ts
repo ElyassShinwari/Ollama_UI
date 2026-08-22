@@ -13,6 +13,8 @@ const defaultSettings: Settings = {
   xaiKey: "",
   kimiKey: "",
   deepseekKey: "",
+  openaiOAuth: null,
+  xaiOAuth: null,
 };
 
 function uid() {

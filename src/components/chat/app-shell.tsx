@@ -15,6 +15,7 @@ import { StudioPanel } from "@/components/studio/studio-panel";
 import { SettingsDialog } from "@/components/chat/settings-dialog";
 import { FlameMark, Sidebar } from "@/components/chat/sidebar";
 import { fetchCatalog, resetModelContext } from "@/lib/llm/catalog";
+import { cloudSecret } from "@/lib/llm/cloud";
 import { applyTheme, resolvedTheme } from "@/lib/theme";
 import { useChatStore } from "@/lib/chat/store";
 import type { ModelCatalog, ModelRef } from "@/lib/chat/types";
@@ -55,12 +56,13 @@ export function ChatApp() {
     setCatalog((c) =>
       c.models.length > 0 ? c : { ...c, status: { ...c.status, loading: true } },
     );
-    const next = await fetchCatalog(useChatStore.getState().settings.ollamaHost, localModels, {
-      openai: useChatStore.getState().settings.openaiKey,
-      anthropic: useChatStore.getState().settings.anthropicKey,
-      xai: useChatStore.getState().settings.xaiKey,
-      kimi: useChatStore.getState().settings.kimiKey,
-      deepseek: useChatStore.getState().settings.deepseekKey,
+    const s = useChatStore.getState().settings;
+    const next = await fetchCatalog(s.ollamaHost, localModels, {
+      openai: cloudSecret(s, "openai"),
+      anthropic: cloudSecret(s, "anthropic"),
+      xai: cloudSecret(s, "xai"),
+      kimi: cloudSecret(s, "kimi"),
+      deepseek: cloudSecret(s, "deepseek"),
     });
     setCatalog(next);
     const current = useChatStore.getState().selectedModel;
@@ -93,7 +95,7 @@ export function ChatApp() {
     void refresh();
     const id = window.setInterval(() => void refresh(), 30000);
     return () => window.clearInterval(id);
-  }, [refresh, settings.ollamaHost, settings.openaiKey, settings.anthropicKey, settings.xaiKey, settings.kimiKey, settings.deepseekKey, hydrated]);
+  }, [refresh, settings.ollamaHost, settings.openaiKey, settings.anthropicKey, settings.xaiKey, settings.kimiKey, settings.deepseekKey, settings.openaiOAuth, settings.xaiOAuth, hydrated]);
 
   function startFreshChat() {
     const id = newChat();

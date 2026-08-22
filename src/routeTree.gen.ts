@@ -19,6 +19,7 @@ import { Route as ApiGithubPullRouteImport } from './routes/api/github-pull'
 import { Route as ApiLibraryRouteImport } from './routes/api/library'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as ApiModelsRouteImport } from './routes/api/models'
+import { Route as ApiOauthRouteImport } from './routes/api/oauth'
 import { Route as ApiPullRouteImport } from './routes/api/pull'
 import { Route as ApiResetRouteImport } from './routes/api/reset'
 import { Route as ApiSetupRouteImport } from './routes/api/setup'
@@ -78,6 +79,11 @@ const ApiModelsRoute = ApiModelsRouteImport.update({
   path: '/api/models',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOauthRoute = ApiOauthRouteImport.update({
+  id: '/api/oauth',
+  path: '/api/oauth',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPullRoute = ApiPullRouteImport.update({
   id: '/api/pull',
   path: '/api/pull',
@@ -130,6 +136,7 @@ export interface FileRoutesByFullPath {
   '/api/library': typeof ApiLibraryRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/models': typeof ApiModelsRoute
+  '/api/oauth': typeof ApiOauthRoute
   '/api/pull': typeof ApiPullRoute
   '/api/reset': typeof ApiResetRoute
   '/api/setup': typeof ApiSetupRoute
@@ -150,6 +157,7 @@ export interface FileRoutesByTo {
   '/api/library': typeof ApiLibraryRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/models': typeof ApiModelsRoute
+  '/api/oauth': typeof ApiOauthRoute
   '/api/pull': typeof ApiPullRoute
   '/api/reset': typeof ApiResetRoute
   '/api/setup': typeof ApiSetupRoute
@@ -171,6 +179,7 @@ export interface FileRoutesById {
   '/api/library': typeof ApiLibraryRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/models': typeof ApiModelsRoute
+  '/api/oauth': typeof ApiOauthRoute
   '/api/pull': typeof ApiPullRoute
   '/api/reset': typeof ApiResetRoute
   '/api/setup': typeof ApiSetupRoute
@@ -193,6 +202,7 @@ export interface FileRouteTypes {
     | '/api/library'
     | '/api/mcp'
     | '/api/models'
+    | '/api/oauth'
     | '/api/pull'
     | '/api/reset'
     | '/api/setup'
@@ -213,6 +223,7 @@ export interface FileRouteTypes {
     | '/api/library'
     | '/api/mcp'
     | '/api/models'
+    | '/api/oauth'
     | '/api/pull'
     | '/api/reset'
     | '/api/setup'
@@ -233,6 +244,7 @@ export interface FileRouteTypes {
     | '/api/library'
     | '/api/mcp'
     | '/api/models'
+    | '/api/oauth'
     | '/api/pull'
     | '/api/reset'
     | '/api/setup'
@@ -254,6 +266,7 @@ export interface RootRouteChildren {
   ApiLibraryRoute: typeof ApiLibraryRoute
   ApiMcpRoute: typeof ApiMcpRoute
   ApiModelsRoute: typeof ApiModelsRoute
+  ApiOauthRoute: typeof ApiOauthRoute
   ApiPullRoute: typeof ApiPullRoute
   ApiResetRoute: typeof ApiResetRoute
   ApiSetupRoute: typeof ApiSetupRoute
@@ -336,6 +349,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiModelsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/oauth': {
+      id: '/api/oauth'
+      path: '/api/oauth'
+      fullPath: '/api/oauth'
+      preLoaderRoute: typeof ApiOauthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/pull': {
       id: '/api/pull'
       path: '/api/pull'
@@ -406,6 +426,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiLibraryRoute: ApiLibraryRoute,
   ApiMcpRoute: ApiMcpRoute,
   ApiModelsRoute: ApiModelsRoute,
+  ApiOauthRoute: ApiOauthRoute,
   ApiPullRoute: ApiPullRoute,
   ApiResetRoute: ApiResetRoute,
   ApiSetupRoute: ApiSetupRoute,

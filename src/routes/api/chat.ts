@@ -11,6 +11,7 @@ type ChatBody = {
   temperature?: number;
   contextLength?: number;
   apiKey?: string;
+  accountId?: string;
 };
 
 export const Route = createFileRoute("/api/chat")({
@@ -44,6 +45,7 @@ export const Route = createFileRoute("/api/chat")({
             ? body.contextLength
             : undefined;
         const apiKey = typeof body.apiKey === "string" ? body.apiKey : "";
+        const accountId = typeof body.accountId === "string" ? body.accountId : "";
 
         if (!model) return Response.json({ error: "Model is required" }, { status: 400 });
         if (messages.length === 0) {
@@ -98,6 +100,8 @@ export const Route = createFileRoute("/api/chat")({
                   "";
                 if (!key) throw new Error("Add an API key in Settings or Studio → Cloud");
                 const url = cloudEndpoint(provider).url;
+                const extraHeaders: Record<string, string> = {};
+                if (provider === "openai" && accountId) extraHeaders["ChatGPT-Account-ID"] = accountId;
                 iterator = streamOpenAiCompat({
                   url,
                   apiKey: key,
@@ -105,6 +109,7 @@ export const Route = createFileRoute("/api/chat")({
                   messages: turns,
                   temperature,
                   signal: request.signal,
+                  extraHeaders,
                 });
               }
               for await (const event of iterator) {

@@ -97,11 +97,41 @@ export function cloudEndpoint(provider: CloudId) {
 }
 
 export function cloudSecret(settings: Settings, provider: Provider) {
+  if (provider === "openai") {
+    if (settings.openaiOAuth?.accessToken) return settings.openaiOAuth.accessToken;
+    return settings.openaiKey;
+  }
+  if (provider === "xai") {
+    if (settings.xaiOAuth?.accessToken) return settings.xaiOAuth.accessToken;
+    return settings.xaiKey;
+  }
   if (provider === "ollama") return "";
   const account = CLOUD_ACCOUNTS.find((item) => item.id === provider);
   if (!account) return "";
   const value = settings[account.setting];
   return typeof value === "string" ? value : "";
+}
+
+export function isCloudSignedIn(settings: Settings, provider: Provider) {
+  if (provider === "openai") return Boolean(settings.openaiOAuth?.accessToken);
+  if (provider === "xai") return Boolean(settings.xaiOAuth?.accessToken);
+  return Boolean(cloudSecret(settings, provider));
+}
+
+export function oauthNote(provider: CloudId) {
+  if (provider === "openai") {
+    return "Sign in with your ChatGPT account in this app. After you approve, ChatGPT is available for chat and review.";
+  }
+  if (provider === "xai") {
+    return "Sign in with your Grok / SuperGrok account in this app. After you approve, Grok is available for chat and review.";
+  }
+  if (provider === "anthropic") {
+    return "Anthropic does not allow other apps to sign in with Claude.ai. Paste an API key from the Anthropic console.";
+  }
+  if (provider === "kimi") {
+    return "Kimi does not offer in-app login for other apps. Paste a Moonshot API key.";
+  }
+  return "DeepSeek does not offer in-app login for other apps. Paste a DeepSeek API key.";
 }
 
 export function reviewSatisfied(text: string) {
