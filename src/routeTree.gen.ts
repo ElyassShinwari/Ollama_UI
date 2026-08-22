@@ -10,19 +10,30 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiChannelRouteImport } from './routes/api/channel'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiGithubCloneRouteImport } from './routes/api/github-clone'
+import { Route as ApiGithubPullRouteImport } from './routes/api/github-pull'
 import { Route as ApiLibraryRouteImport } from './routes/api/library'
+import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as ApiModelsRouteImport } from './routes/api/models'
 import { Route as ApiPullRouteImport } from './routes/api/pull'
 import { Route as ApiResetRouteImport } from './routes/api/reset'
 import { Route as ApiSetupRouteImport } from './routes/api/setup'
 import { Route as ApiSetupInstallRouteImport } from './routes/api/setup-install'
 import { Route as ApiSetupStartRouteImport } from './routes/api/setup-start'
+import { Route as ApiStudioRouteImport } from './routes/api/studio'
 import { Route as ApiTokenizeRouteImport } from './routes/api/tokenize'
+import { Route as ApiV1ChatCompletionsRouteImport } from './routes/api/v1.chat.completions'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiChannelRoute = ApiChannelRouteImport.update({
+  id: '/api/channel',
+  path: '/api/channel',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiChatRoute = ApiChatRouteImport.update({
@@ -30,9 +41,24 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGithubCloneRoute = ApiGithubCloneRouteImport.update({
+  id: '/api/github-clone',
+  path: '/api/github-clone',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGithubPullRoute = ApiGithubPullRouteImport.update({
+  id: '/api/github-pull',
+  path: '/api/github-pull',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiLibraryRoute = ApiLibraryRouteImport.update({
   id: '/api/library',
   path: '/api/library',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpRoute = ApiMcpRouteImport.update({
+  id: '/api/mcp',
+  path: '/api/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiModelsRoute = ApiModelsRouteImport.update({
@@ -65,99 +91,151 @@ const ApiSetupStartRoute = ApiSetupStartRouteImport.update({
   path: '/api/setup-start',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiStudioRoute = ApiStudioRouteImport.update({
+  id: '/api/studio',
+  path: '/api/studio',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTokenizeRoute = ApiTokenizeRouteImport.update({
   id: '/api/tokenize',
   path: '/api/tokenize',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1ChatCompletionsRoute = ApiV1ChatCompletionsRouteImport.update({
+  id: '/api/v1/chat/completions',
+  path: '/api/v1/chat/completions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/channel': typeof ApiChannelRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/github-clone': typeof ApiGithubCloneRoute
+  '/api/github-pull': typeof ApiGithubPullRoute
   '/api/library': typeof ApiLibraryRoute
+  '/api/mcp': typeof ApiMcpRoute
   '/api/models': typeof ApiModelsRoute
   '/api/pull': typeof ApiPullRoute
   '/api/reset': typeof ApiResetRoute
   '/api/setup': typeof ApiSetupRoute
   '/api/setup-install': typeof ApiSetupInstallRoute
   '/api/setup-start': typeof ApiSetupStartRoute
+  '/api/studio': typeof ApiStudioRoute
   '/api/tokenize': typeof ApiTokenizeRoute
+  '/api/v1/chat/completions': typeof ApiV1ChatCompletionsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/channel': typeof ApiChannelRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/github-clone': typeof ApiGithubCloneRoute
+  '/api/github-pull': typeof ApiGithubPullRoute
   '/api/library': typeof ApiLibraryRoute
+  '/api/mcp': typeof ApiMcpRoute
   '/api/models': typeof ApiModelsRoute
   '/api/pull': typeof ApiPullRoute
   '/api/reset': typeof ApiResetRoute
   '/api/setup': typeof ApiSetupRoute
   '/api/setup-install': typeof ApiSetupInstallRoute
   '/api/setup-start': typeof ApiSetupStartRoute
+  '/api/studio': typeof ApiStudioRoute
   '/api/tokenize': typeof ApiTokenizeRoute
+  '/api/v1/chat/completions': typeof ApiV1ChatCompletionsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/channel': typeof ApiChannelRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/github-clone': typeof ApiGithubCloneRoute
+  '/api/github-pull': typeof ApiGithubPullRoute
   '/api/library': typeof ApiLibraryRoute
+  '/api/mcp': typeof ApiMcpRoute
   '/api/models': typeof ApiModelsRoute
   '/api/pull': typeof ApiPullRoute
   '/api/reset': typeof ApiResetRoute
   '/api/setup': typeof ApiSetupRoute
   '/api/setup-install': typeof ApiSetupInstallRoute
   '/api/setup-start': typeof ApiSetupStartRoute
+  '/api/studio': typeof ApiStudioRoute
   '/api/tokenize': typeof ApiTokenizeRoute
+  '/api/v1/chat/completions': typeof ApiV1ChatCompletionsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/api/channel'
     | '/api/chat'
+    | '/api/github-clone'
+    | '/api/github-pull'
     | '/api/library'
+    | '/api/mcp'
     | '/api/models'
     | '/api/pull'
     | '/api/reset'
     | '/api/setup'
     | '/api/setup-install'
     | '/api/setup-start'
+    | '/api/studio'
     | '/api/tokenize'
+    | '/api/v1/chat/completions'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/api/channel'
     | '/api/chat'
+    | '/api/github-clone'
+    | '/api/github-pull'
     | '/api/library'
+    | '/api/mcp'
     | '/api/models'
     | '/api/pull'
     | '/api/reset'
     | '/api/setup'
     | '/api/setup-install'
     | '/api/setup-start'
+    | '/api/studio'
     | '/api/tokenize'
+    | '/api/v1/chat/completions'
   id:
     | '__root__'
     | '/'
+    | '/api/channel'
     | '/api/chat'
+    | '/api/github-clone'
+    | '/api/github-pull'
     | '/api/library'
+    | '/api/mcp'
     | '/api/models'
     | '/api/pull'
     | '/api/reset'
     | '/api/setup'
     | '/api/setup-install'
     | '/api/setup-start'
+    | '/api/studio'
     | '/api/tokenize'
+    | '/api/v1/chat/completions'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiChannelRoute: typeof ApiChannelRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiGithubCloneRoute: typeof ApiGithubCloneRoute
+  ApiGithubPullRoute: typeof ApiGithubPullRoute
   ApiLibraryRoute: typeof ApiLibraryRoute
+  ApiMcpRoute: typeof ApiMcpRoute
   ApiModelsRoute: typeof ApiModelsRoute
   ApiPullRoute: typeof ApiPullRoute
   ApiResetRoute: typeof ApiResetRoute
   ApiSetupRoute: typeof ApiSetupRoute
   ApiSetupInstallRoute: typeof ApiSetupInstallRoute
   ApiSetupStartRoute: typeof ApiSetupStartRoute
+  ApiStudioRoute: typeof ApiStudioRoute
   ApiTokenizeRoute: typeof ApiTokenizeRoute
+  ApiV1ChatCompletionsRoute: typeof ApiV1ChatCompletionsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -169,6 +247,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/channel': {
+      id: '/api/channel'
+      path: '/api/channel'
+      fullPath: '/api/channel'
+      preLoaderRoute: typeof ApiChannelRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/chat': {
       id: '/api/chat'
       path: '/api/chat'
@@ -176,11 +261,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/github-clone': {
+      id: '/api/github-clone'
+      path: '/api/github-clone'
+      fullPath: '/api/github-clone'
+      preLoaderRoute: typeof ApiGithubCloneRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/github-pull': {
+      id: '/api/github-pull'
+      path: '/api/github-pull'
+      fullPath: '/api/github-pull'
+      preLoaderRoute: typeof ApiGithubPullRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/library': {
       id: '/api/library'
       path: '/api/library'
       fullPath: '/api/library'
       preLoaderRoute: typeof ApiLibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp': {
+      id: '/api/mcp'
+      path: '/api/mcp'
+      fullPath: '/api/mcp'
+      preLoaderRoute: typeof ApiMcpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/models': {
@@ -225,6 +331,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSetupStartRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/studio': {
+      id: '/api/studio'
+      path: '/api/studio'
+      fullPath: '/api/studio'
+      preLoaderRoute: typeof ApiStudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/tokenize': {
       id: '/api/tokenize'
       path: '/api/tokenize'
@@ -232,20 +345,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTokenizeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/chat/completions': {
+      id: '/api/v1/chat/completions'
+      path: '/api/v1/chat/completions'
+      fullPath: '/api/v1/chat/completions'
+      preLoaderRoute: typeof ApiV1ChatCompletionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiChannelRoute: ApiChannelRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiGithubCloneRoute: ApiGithubCloneRoute,
+  ApiGithubPullRoute: ApiGithubPullRoute,
   ApiLibraryRoute: ApiLibraryRoute,
+  ApiMcpRoute: ApiMcpRoute,
   ApiModelsRoute: ApiModelsRoute,
   ApiPullRoute: ApiPullRoute,
   ApiResetRoute: ApiResetRoute,
   ApiSetupRoute: ApiSetupRoute,
   ApiSetupInstallRoute: ApiSetupInstallRoute,
   ApiSetupStartRoute: ApiSetupStartRoute,
+  ApiStudioRoute: ApiStudioRoute,
   ApiTokenizeRoute: ApiTokenizeRoute,
+  ApiV1ChatCompletionsRoute: ApiV1ChatCompletionsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

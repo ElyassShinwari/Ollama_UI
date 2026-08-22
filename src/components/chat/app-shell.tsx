@@ -11,6 +11,7 @@ import {
 import { ChatView } from "@/components/chat/chat-view";
 import { ConnectScreen } from "@/components/chat/connect-screen";
 import { ModelHub } from "@/components/chat/model-hub";
+import { StudioPanel } from "@/components/studio/studio-panel";
 import { SettingsDialog } from "@/components/chat/settings-dialog";
 import { FlameMark, Sidebar } from "@/components/chat/sidebar";
 import { fetchCatalog, resetModelContext } from "@/lib/llm/catalog";
@@ -43,6 +44,7 @@ export function ChatApp() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hubOpen, setHubOpen] = useState(false);
+  const [studioOpen, setStudioOpen] = useState(false);
   const [hydrated, setHydrated] = useState(() => useChatStore.persist.hasHydrated());
 
   const refresh = useCallback(async (localModels = browserModels) => {
@@ -108,6 +110,10 @@ export function ChatApp() {
         setSettingsOpen(true);
         setMobileOpen(false);
       }}
+      onOpenStudio={() => {
+        setStudioOpen(true);
+        setMobileOpen(false);
+      }}
       onNavigate={() => setMobileOpen(false)}
     />
   );
@@ -140,7 +146,9 @@ export function ChatApp() {
         </Sheet>
 
         <main className="flex min-w-0 flex-1 flex-col">
-          {selectedModel ? (
+          {studioOpen ? (
+            <StudioPanel models={catalog.models} onClose={() => setStudioOpen(false)} />
+          ) : selectedModel ? (
             <ChatView
               models={catalog.models}
               onOpenSidebar={() => setMobileOpen(true)}

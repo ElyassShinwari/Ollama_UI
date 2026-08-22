@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import {
+  Blocks,
   Moon,
   MoreHorizontal,
   Pencil,
@@ -66,11 +67,13 @@ export function Sidebar({
   className,
   onNewChat,
   onOpenSettings,
+  onOpenStudio,
   onNavigate,
 }: {
   className?: string;
   onNewChat: () => void;
   onOpenSettings: () => void;
+  onOpenStudio?: () => void;
   onNavigate?: () => void;
 }) {
   const conversations = useChatStore((s) => s.conversations);
@@ -211,6 +214,14 @@ export function Sidebar({
         >
           {resolvedTheme(theme) === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
           {resolvedTheme(theme) === "dark" ? "Light mode" : "Dark mode"}
+        </Button>
+        <Button
+          variant="ghost"
+          className="h-10 w-full justify-start gap-2"
+          onClick={onOpenStudio}
+        >
+          <Blocks className="size-4" />
+          Studio
         </Button>
         <Button
           variant="ghost"

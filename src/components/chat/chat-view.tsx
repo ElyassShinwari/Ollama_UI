@@ -27,6 +27,7 @@ import {
 } from "@/lib/llm/files";
 import { repetitionCutoff } from "@/lib/llm/repeat";
 import { countModelTokens, formatChatPrompt } from "@/lib/llm/tokens";
+import { combinedInstructions, knowledgeBlock } from "@/lib/studio/store";
 import type { Message, ModelRef } from "@/lib/chat/types";
 
 const SUGGESTIONS = [
@@ -114,7 +115,9 @@ export function ChatView({
     let cancelled = false;
     void (async () => {
       const prompt = formatChatPrompt(
-        useChatStore.getState().settings.systemPrompt,
+        [useChatStore.getState().settings.systemPrompt, combinedInstructions(), knowledgeBlock()]
+          .filter(Boolean)
+          .join("\n\n"),
         promptMsgs.map((m) => ({ role: m.role, content: m.content })),
       );
       const [promptTokens, completionTokens] = await Promise.all([
@@ -179,7 +182,10 @@ export function ChatView({
       toast.error("Choose a model first");
       return;
     }
-    const promptText = formatChatPrompt(settings.systemPrompt, history);
+    const systemPrompt = [settings.systemPrompt, combinedInstructions(), knowledgeBlock()]
+      .filter(Boolean)
+      .join("\n\n");
+    const promptText = formatChatPrompt(systemPrompt, history);
     const promptEstimate = estimateTokens(promptText);
     const limit = model.contextLength;
     if (limit && promptEstimate >= limit) {
@@ -210,7 +216,7 @@ export function ChatView({
           model: model.id,
           messages: history,
           temperature: settings.temperature,
-          systemPrompt: settings.systemPrompt,
+          systemPrompt,
           contextLength: model.contextLength,
         },
         (chunk) => {

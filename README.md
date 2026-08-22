@@ -101,8 +101,44 @@ ollama list
 3. Chat. Switch models from the header. The full conversation is sent to the new model, and the context meter updates to that model's window.
 4. If the new model’s window is smaller than this chat, you get a warning: answers may be unexpected or inaccurate while the window is full. You can still continue, or start a new chat.
 5. Attach `.txt` files with **+** or drag and drop. Vision models also take images.
+6. Open **Studio** in the sidebar for GitHub, MCP, the local API, website/WhatsApp webhooks, instructions, knowledge, and model advice.
 
 Conversations stay in this browser. Default theme is light (switch in Settings).
+
+## Studio
+
+Studio is for connecting this computer to other software. It does **not** log into Instagram or WhatsApp for you, and Ollama **cannot fine-tune weights while you chat**.
+
+### GitHub
+
+Paste `owner/repo` or a GitHub URL and click **Pull repository**. Private repos need a token. git must be installed. Copies land in `data/repos`.
+
+### MCP
+
+Add an MCP server (stdio command or HTTP URL), or **Create an MCP server** to write a starter `server.js`. Tool-calling models: qwen2.5, llama3.1, llama3.2. Tiny chat models usually cannot use tools.
+
+### Local API
+
+Enable the OpenAI-style endpoint so other programs can call your model:
+
+`POST /api/v1/chat/completions`
+
+Use the API key from Studio. Example is shown in the app.
+
+### Website, WhatsApp, Instagram
+
+Studio gives a website snippet and a webhook at `/api/channel`. Point Meta WhatsApp Cloud API (and Instagram Messaging, same shape) at that URL with the verify token. The machine running Ollama_UI must be reachable, or use a tunnel. Weak models are a poor public bot — Advisor lists stronger ones.
+
+### Instructions and training
+
+Enabled instruction presets are prepended to every reply (chat, API, and channels).
+
+**Training:** Ollama does not train in place. You can:
+
+- Save text or chats as **knowledge** (RAG — shown to the model as context)
+- **Export chats as JSONL** and fine-tune Llama / Qwen / Phi / Gemma / SmolLM2 with Unsloth or LLaMA-Factory, then import a GGUF
+
+Vision models cannot be trained here. Advisor lists which model to pull for chat, code, images, tools, and tiny PCs.
 
 ## Troubleshooting
 
