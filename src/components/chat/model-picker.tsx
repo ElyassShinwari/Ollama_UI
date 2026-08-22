@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Cloud, Cpu } from "lucide-react";
+import { Check, ChevronDown, Cloud, Cpu, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,12 +15,14 @@ export function ModelPicker({
   models,
   value,
   onChange,
+  onBrowse,
   align = "start",
   className,
 }: {
   models: ModelRef[];
   value: ModelRef | null;
   onChange: (model: ModelRef) => void;
+  onBrowse?: () => void;
   align?: "start" | "center" | "end";
   className?: string;
 }) {
@@ -75,6 +77,15 @@ export function ModelPicker({
             )}
           </>
         )}
+        {onBrowse ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onBrowse} className="py-2.5">
+              <Plus className="size-4" />
+              <span>Install a model</span>
+            </DropdownMenuItem>
+          </>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );

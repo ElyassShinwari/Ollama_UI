@@ -1,12 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
-import { toast, Toaster } from "sonner";
+import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ChatView } from "@/components/chat/chat-view";
 import { ConnectScreen } from "@/components/chat/connect-screen";
+import { ModelHub } from "@/components/chat/model-hub";
 import { SettingsDialog } from "@/components/chat/settings-dialog";
 import { FlameMark, Sidebar } from "@/components/chat/sidebar";
-import { fetchCatalog, probeBrowserOllama, resetModelContext } from "@/lib/llm/catalog";
+import { fetchCatalog, resetModelContext } from "@/lib/llm/catalog";
 import { applyTheme, resolvedTheme } from "@/lib/theme";
 import { useChatStore } from "@/lib/chat/store";
 import type { ModelCatalog, ModelRef } from "@/lib/chat/types";
@@ -35,6 +42,7 @@ export function ChatApp() {
   const [browserModels, setBrowserModels] = useState<ModelRef[]>([]);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [hubOpen, setHubOpen] = useState(false);
   const [hydrated, setHydrated] = useState(() => useChatStore.persist.hasHydrated());
 
   const refresh = useCallback(async (localModels = browserModels) => {
@@ -50,6 +58,7 @@ export function ChatApp() {
       );
       if (match) setSelectedModel(match);
     }
+    return next.models;
   }, [browserModels, setSelectedModel]);
 
   useEffect(() => {
@@ -88,18 +97,7 @@ export function ChatApp() {
     setSelectedModel(model);
     const state = useChatStore.getState();
     if (!state.activeId) state.newChat();
-  }
-
-  async function scanThisComputer() {
-    const host = useChatStore.getState().settings.ollamaHost;
-    const found = await probeBrowserOllama(host);
-    setBrowserModels(found);
-    await refresh(found);
-    if (found.length === 0) {
-      toast.error("No Ollama models on this computer yet");
-    } else {
-      toast.success(`Found ${found.length} local model${found.length === 1 ? "" : "s"}`);
-    }
+    setHubOpen(false);
   }
 
   const sidebar = (
@@ -148,6 +146,7 @@ export function ChatApp() {
               onOpenSidebar={() => setMobileOpen(true)}
               onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
               onNewChat={startFreshChat}
+              onBrowseModels={() => setHubOpen(true)}
             />
           ) : (
             <ConnectScreen
@@ -156,13 +155,25 @@ export function ChatApp() {
               onHostCommit={(host) => {
                 setSettings({ ollamaHost: host });
               }}
-              onRefresh={() => void refresh()}
-              onScanLocal={() => void scanThisComputer()}
+              onRefresh={() => refresh()}
               onChoose={chooseModel}
             />
           )}
         </main>
       </div>
+      <Dialog open={hubOpen} onOpenChange={setHubOpen}>
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Install a model</DialogTitle>
+          </DialogHeader>
+          <ModelHub
+            host={settings.ollamaHost}
+            localModels={catalog.models.filter((m) => m.provider === "ollama")}
+            onChoose={chooseModel}
+            onRefreshLocal={() => refresh()}
+          />
+        </DialogContent>
+      </Dialog>
       <SettingsDialog
         open={settingsOpen}
         onOpenChange={setSettingsOpen}

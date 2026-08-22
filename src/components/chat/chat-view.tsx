@@ -2,6 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Menu, PanelLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Composer } from "@/components/chat/composer";
 import { ContextMeter } from "@/components/chat/context-meter";
 import { MessageBubble } from "@/components/chat/message-bubble";
@@ -33,11 +41,13 @@ export function ChatView({
   onOpenSidebar,
   onToggleSidebar,
   onNewChat,
+  onBrowseModels,
 }: {
   models: ModelRef[];
   onOpenSidebar: () => void;
   onToggleSidebar: () => void;
   onNewChat: () => void;
+  onBrowseModels?: () => void;
 }) {
   const conversation = useChatStore(selectActiveConversation);
   const selectedModel = useChatStore((s) => s.selectedModel);
@@ -55,6 +65,10 @@ export function ChatView({
   const [files, setFiles] = useState<PendingFile[]>([]);
   const [fileHint, setFileHint] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [pendingModel, setPendingModel] = useState<ModelRef | null>(null);
+  const [switchWarn, setSwitchWarn] = useState<{ name: string; used: number; limit: number } | null>(
+    null,
+  );
   const [streamingId, setStreamingId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -316,6 +330,41 @@ export function ChatView({
 
   const fileAccept = selectedModel ? acceptedExtensions(selectedModel).join(",") : ".txt";
 
+  function applyModel(model: ModelRef) {
+    const used = conversation?.contextTokens ?? 0;
+    const limit = model.contextLength;
+    const hasChat = (conversation?.messages.length ?? 0) > 0;
+    setSelectedModel(model);
+    if (hasChat && limit && used >= limit) {
+      markContextExceeded(conversation!.id);
+      setSwitchWarn({ name: model.name, used, limit });
+    } else {
+      setSwitchWarn(null);
+      if (conversation) {
+        setUsage(
+          conversation.id,
+          {
+            promptTokens: conversation.promptTokens,
+            completionTokens: conversation.completionTokens,
+          },
+          false,
+        );
+      }
+    }
+  }
+
+  function requestSwitch(model: ModelRef) {
+    if (model.id === selectedModel?.id && model.provider === selectedModel.provider) return;
+    const used = conversation?.contextTokens ?? 0;
+    const limit = model.contextLength;
+    const hasChat = (conversation?.messages.length ?? 0) > 0;
+    if (hasChat && limit && used > limit) {
+      setPendingModel(model);
+      return;
+    }
+    applyModel(model);
+  }
+
   async function regenerate() {
     if (!conversation || streamingId) return;
     const lastUser = [...messages].reverse().find((m) => m.role === "user");
@@ -424,7 +473,12 @@ export function ChatView({
         >
           <PanelLeft className="size-5" />
         </Button>
-        <ModelPicker models={models} value={selectedModel} onChange={setSelectedModel} />
+        <ModelPicker
+          models={models}
+          value={selectedModel}
+          onChange={requestSwitch}
+          onBrowse={onBrowseModels}
+        />
         <div className="ml-auto">
           <ContextMeter used={contextUsed} limit={contextLimit} />
         </div>
@@ -501,13 +555,29 @@ export function ChatView({
         )}
       </div>
 
+      {switchWarn ? (
+        <div className="mx-auto mb-2 w-full max-w-3xl px-3 md:px-4">
+          <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-pretty">
+              {switchWarn.name} has a smaller context window ({switchWarn.used.toLocaleString()}{" "}
+              tokens in this chat, {switchWarn.limit.toLocaleString()} available). The full
+              conversation is still passed over, but answers may be unexpected or inaccurate while
+              the window is full.
+            </p>
+            <Button className="h-10 shrink-0" onClick={onNewChat}>
+              New chat
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       {fileHint ? (
         <div className="mx-auto mb-2 w-full max-w-3xl px-3 md:px-4">
           <p className="rounded-2xl border border-border bg-card px-4 py-3 text-sm">{fileHint}</p>
         </div>
       ) : null}
 
-      {contextFull ? (
+      {contextFull && !switchWarn ? (
         <div className="mx-auto mb-2 w-full max-w-3xl px-3 md:px-4">
           <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-pretty">
@@ -539,6 +609,31 @@ export function ChatView({
           if (list) void ingestFiles(list);
         }}
       />
+      <Dialog open={Boolean(pendingModel)} onOpenChange={(open) => !open && setPendingModel(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>This model has a smaller context window</DialogTitle>
+            <DialogDescription>
+              {pendingModel
+                ? `${pendingModel.name} can hold about ${(pendingModel.contextLength ?? 0).toLocaleString()} tokens. This chat is already using ${(conversation?.contextTokens ?? 0).toLocaleString()} tokens. The whole conversation will still be sent, but answers may be unexpected or inaccurate because the new context window is full.`
+                : null}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setPendingModel(null)}>
+              Keep current model
+            </Button>
+            <Button
+              onClick={() => {
+                if (pendingModel) applyModel(pendingModel);
+                setPendingModel(null);
+              }}
+            >
+              Switch anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

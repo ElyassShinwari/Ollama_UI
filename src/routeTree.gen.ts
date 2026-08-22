@@ -11,8 +11,13 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiLibraryRouteImport } from './routes/api/library'
 import { Route as ApiModelsRouteImport } from './routes/api/models'
+import { Route as ApiPullRouteImport } from './routes/api/pull'
 import { Route as ApiResetRouteImport } from './routes/api/reset'
+import { Route as ApiSetupRouteImport } from './routes/api/setup'
+import { Route as ApiSetupInstallRouteImport } from './routes/api/setup-install'
+import { Route as ApiSetupStartRouteImport } from './routes/api/setup-start'
 import { Route as ApiTokenizeRouteImport } from './routes/api/tokenize'
 
 const IndexRoute = IndexRouteImport.update({
@@ -25,14 +30,39 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiLibraryRoute = ApiLibraryRouteImport.update({
+  id: '/api/library',
+  path: '/api/library',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiModelsRoute = ApiModelsRouteImport.update({
   id: '/api/models',
   path: '/api/models',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPullRoute = ApiPullRouteImport.update({
+  id: '/api/pull',
+  path: '/api/pull',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiResetRoute = ApiResetRouteImport.update({
   id: '/api/reset',
   path: '/api/reset',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSetupRoute = ApiSetupRouteImport.update({
+  id: '/api/setup',
+  path: '/api/setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSetupInstallRoute = ApiSetupInstallRouteImport.update({
+  id: '/api/setup-install',
+  path: '/api/setup-install',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSetupStartRoute = ApiSetupStartRouteImport.update({
+  id: '/api/setup-start',
+  path: '/api/setup-start',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTokenizeRoute = ApiTokenizeRouteImport.update({
@@ -44,44 +74,89 @@ const ApiTokenizeRoute = ApiTokenizeRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/library': typeof ApiLibraryRoute
   '/api/models': typeof ApiModelsRoute
+  '/api/pull': typeof ApiPullRoute
   '/api/reset': typeof ApiResetRoute
+  '/api/setup': typeof ApiSetupRoute
+  '/api/setup-install': typeof ApiSetupInstallRoute
+  '/api/setup-start': typeof ApiSetupStartRoute
   '/api/tokenize': typeof ApiTokenizeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/library': typeof ApiLibraryRoute
   '/api/models': typeof ApiModelsRoute
+  '/api/pull': typeof ApiPullRoute
   '/api/reset': typeof ApiResetRoute
+  '/api/setup': typeof ApiSetupRoute
+  '/api/setup-install': typeof ApiSetupInstallRoute
+  '/api/setup-start': typeof ApiSetupStartRoute
   '/api/tokenize': typeof ApiTokenizeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/library': typeof ApiLibraryRoute
   '/api/models': typeof ApiModelsRoute
+  '/api/pull': typeof ApiPullRoute
   '/api/reset': typeof ApiResetRoute
+  '/api/setup': typeof ApiSetupRoute
+  '/api/setup-install': typeof ApiSetupInstallRoute
+  '/api/setup-start': typeof ApiSetupStartRoute
   '/api/tokenize': typeof ApiTokenizeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/chat' | '/api/models' | '/api/reset' | '/api/tokenize'
+  fullPaths:
+    | '/'
+    | '/api/chat'
+    | '/api/library'
+    | '/api/models'
+    | '/api/pull'
+    | '/api/reset'
+    | '/api/setup'
+    | '/api/setup-install'
+    | '/api/setup-start'
+    | '/api/tokenize'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/chat' | '/api/models' | '/api/reset' | '/api/tokenize'
+  to:
+    | '/'
+    | '/api/chat'
+    | '/api/library'
+    | '/api/models'
+    | '/api/pull'
+    | '/api/reset'
+    | '/api/setup'
+    | '/api/setup-install'
+    | '/api/setup-start'
+    | '/api/tokenize'
   id:
     | '__root__'
     | '/'
     | '/api/chat'
+    | '/api/library'
     | '/api/models'
+    | '/api/pull'
     | '/api/reset'
+    | '/api/setup'
+    | '/api/setup-install'
+    | '/api/setup-start'
     | '/api/tokenize'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiLibraryRoute: typeof ApiLibraryRoute
   ApiModelsRoute: typeof ApiModelsRoute
+  ApiPullRoute: typeof ApiPullRoute
   ApiResetRoute: typeof ApiResetRoute
+  ApiSetupRoute: typeof ApiSetupRoute
+  ApiSetupInstallRoute: typeof ApiSetupInstallRoute
+  ApiSetupStartRoute: typeof ApiSetupStartRoute
   ApiTokenizeRoute: typeof ApiTokenizeRoute
 }
 
@@ -101,6 +176,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/library': {
+      id: '/api/library'
+      path: '/api/library'
+      fullPath: '/api/library'
+      preLoaderRoute: typeof ApiLibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/models': {
       id: '/api/models'
       path: '/api/models'
@@ -108,11 +190,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiModelsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/pull': {
+      id: '/api/pull'
+      path: '/api/pull'
+      fullPath: '/api/pull'
+      preLoaderRoute: typeof ApiPullRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/reset': {
       id: '/api/reset'
       path: '/api/reset'
       fullPath: '/api/reset'
       preLoaderRoute: typeof ApiResetRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/setup': {
+      id: '/api/setup'
+      path: '/api/setup'
+      fullPath: '/api/setup'
+      preLoaderRoute: typeof ApiSetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/setup-install': {
+      id: '/api/setup-install'
+      path: '/api/setup-install'
+      fullPath: '/api/setup-install'
+      preLoaderRoute: typeof ApiSetupInstallRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/setup-start': {
+      id: '/api/setup-start'
+      path: '/api/setup-start'
+      fullPath: '/api/setup-start'
+      preLoaderRoute: typeof ApiSetupStartRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/tokenize': {
@@ -128,8 +238,13 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiLibraryRoute: ApiLibraryRoute,
   ApiModelsRoute: ApiModelsRoute,
+  ApiPullRoute: ApiPullRoute,
   ApiResetRoute: ApiResetRoute,
+  ApiSetupRoute: ApiSetupRoute,
+  ApiSetupInstallRoute: ApiSetupInstallRoute,
+  ApiSetupStartRoute: ApiSetupStartRoute,
   ApiTokenizeRoute: ApiTokenizeRoute,
 }
 export const routeTree = rootRouteImport

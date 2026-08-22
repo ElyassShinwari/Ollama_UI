@@ -97,9 +97,16 @@ export const useChatStore = create<ChatState>()(
       setSelectedModel: (model) =>
         set((s) => ({
           selectedModel: model,
-          conversations: s.conversations.map((c) =>
-            c.id === s.activeId ? { ...c, model } : c,
-          ),
+          conversations: s.conversations.map((c) => {
+            if (c.id !== s.activeId) return c;
+            const limit = model.contextLength;
+            const used = c.contextTokens ?? 0;
+            return {
+              ...c,
+              model,
+              contextExceeded: limit != null && used >= limit,
+            };
+          }),
         })),
       newChat: () => {
         const model = get().selectedModel;
