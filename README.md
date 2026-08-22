@@ -13,7 +13,7 @@ Ollama is required to chat. You can install it from the app, or by hand as shown
 ## Install and run Ollama_UI
 
 ```bash
-git clone https://github.com/YOUR_USER/Ollama_UI.git
+git clone https://github.com/ElyassShinwari/Ollama_UI.git
 cd Ollama_UI
 make run
 ```
