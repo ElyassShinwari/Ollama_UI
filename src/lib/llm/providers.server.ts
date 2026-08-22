@@ -41,20 +41,128 @@ function mimeFromDataUrl(value: string, fallback: string) {
 }
 
 function toOpenAiContent(m: ChatTurnIn) {
-  const hasMedia = Boolean(m.images?.length || m.documents?.length);
-  if (!hasMedia) return m.content;
+  if (!m.images?.length) return m.content;
   const parts: Record<string, unknown>[] = [];
   if (m.content.trim()) parts.push({ type: "text", text: m.content });
   for (const img of m.images ?? []) {
     parts.push({ type: "image_url", image_url: { url: asDataUrl(img, "image/png") } });
   }
-  for (const doc of m.documents ?? []) {
-    parts.push({
-      type: "file",
-      file: { filename: doc.name, file_data: `data:${doc.mime};base64,${doc.data}` },
+  return parts;
+}
+
+function hasDocuments(messages: ChatTurnIn[]) {
+  return messages.some((m) => Boolean(m.documents?.length));
+}
+
+async function uploadProviderFile(
+  filesUrl: string,
+  apiKey: string,
+  doc: { name: string; mime: string; data: string },
+  purpose: string,
+  extraHeaders?: Record<string, string>,
+) {
+  const bytes = Buffer.from(doc.data, "base64");
+  const form = new FormData();
+  form.append("purpose", purpose);
+  form.append("file", new Blob([new Uint8Array(bytes)], { type: doc.mime || "application/octet-stream" }), doc.name);
+  const res = await fetch(filesUrl, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, ...extraHeaders },
+    body: form,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `Could not upload ${doc.name}`);
+  }
+  const body = (await res.json()) as { id?: string };
+  if (!body.id) throw new Error(`Upload of ${doc.name} did not return a file id`);
+  return body.id;
+}
+
+async function toResponsesInput(opts: {
+  messages: ChatTurnIn[];
+  filesUrl: string;
+  apiKey: string;
+  purpose: string;
+  extraHeaders?: Record<string, string>;
+}) {
+  const input: Record<string, unknown>[] = [];
+  for (const m of opts.messages) {
+    if (m.role === "system") continue;
+    const content: Record<string, unknown>[] = [];
+    if (m.content.trim()) content.push({ type: "input_text", text: m.content });
+    for (const img of m.images ?? []) {
+      content.push({ type: "input_image", image_url: asDataUrl(img, "image/png") });
+    }
+    for (const doc of m.documents ?? []) {
+      const fileId = await uploadProviderFile(opts.filesUrl, opts.apiKey, doc, opts.purpose, opts.extraHeaders);
+      content.push({ type: "input_file", file_id: fileId });
+    }
+    input.push({
+      type: "message",
+      role: m.role === "assistant" ? "assistant" : "user",
+      content: content.length ? content : [{ type: "input_text", text: "" }],
     });
   }
-  return parts;
+  return input;
+}
+
+export async function* streamResponsesApi(opts: {
+  url: string;
+  filesUrl: string;
+  apiKey: string;
+  model: string;
+  messages: ChatTurnIn[];
+  temperature?: number;
+  signal: AbortSignal;
+  extraHeaders?: Record<string, string>;
+  purpose?: string;
+}): AsyncGenerator<ChatStreamEvent> {
+  const instructions = opts.messages
+    .filter((m) => m.role === "system")
+    .map((m) => m.content)
+    .join("\n")
+    .trim();
+  const input = await toResponsesInput({
+    messages: opts.messages,
+    filesUrl: opts.filesUrl,
+    apiKey: opts.apiKey,
+    purpose: opts.purpose || "assistants",
+    extraHeaders: opts.extraHeaders,
+  });
+  const res = await fetch(opts.url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${opts.apiKey}`,
+      ...opts.extraHeaders,
+    },
+    body: JSON.stringify({
+      model: opts.model,
+      input,
+      stream: true,
+      store: false,
+      ...(instructions ? { instructions } : {}),
+      ...(typeof opts.temperature === "number" ? { temperature: opts.temperature } : {}),
+    }),
+    signal: opts.signal,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(fileError(text, res.status, "Responses error"));
+  }
+  if (!res.body) throw new Error("Empty stream");
+  yield* readCodexSse(res.body);
+}
+
+function responsesUrls(chatUrl: string) {
+  if (chatUrl.includes("api.x.ai")) {
+    return { url: "https://api.x.ai/v1/responses", filesUrl: "https://api.x.ai/v1/files", purpose: "assistants" };
+  }
+  if (chatUrl.includes("api.openai.com")) {
+    return { url: "https://api.openai.com/v1/responses", filesUrl: "https://api.openai.com/v1/files", purpose: "user_data" };
+  }
+  return null;
 }
 
 function toAnthropicContent(m: ChatTurnIn) {
@@ -310,6 +418,19 @@ export async function* streamXaiChat(opts: {
 }): AsyncGenerator<ChatStreamEvent> {
   const apiKey = process.env.XAI_API_KEY;
   if (!apiKey) throw new Error("Cloud models are not available in this environment");
+  if (hasDocuments(opts.messages)) {
+    yield* streamResponsesApi({
+      url: "https://api.x.ai/v1/responses",
+      filesUrl: "https://api.x.ai/v1/files",
+      apiKey,
+      model: opts.model,
+      messages: opts.messages,
+      temperature: opts.temperature,
+      signal: opts.signal,
+      purpose: "assistants",
+    });
+    return;
+  }
   const res = await fetch("https://api.x.ai/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -546,6 +667,21 @@ export async function* streamOpenAiCompat(opts: {
   signal: AbortSignal;
   extraHeaders?: Record<string, string>;
 }): AsyncGenerator<ChatStreamEvent> {
+  const viaResponses = hasDocuments(opts.messages) ? responsesUrls(opts.url) : null;
+  if (viaResponses) {
+    yield* streamResponsesApi({
+      url: viaResponses.url,
+      filesUrl: viaResponses.filesUrl,
+      apiKey: opts.apiKey,
+      model: opts.model,
+      messages: opts.messages,
+      temperature: opts.temperature,
+      signal: opts.signal,
+      extraHeaders: opts.extraHeaders,
+      purpose: viaResponses.purpose,
+    });
+    return;
+  }
   const res = await fetch(opts.url, {
     method: "POST",
     headers: {
