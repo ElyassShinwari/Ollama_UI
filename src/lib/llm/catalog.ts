@@ -5,6 +5,9 @@ type ServerCatalog = {
   models: ModelRef[];
   ollama: boolean;
   xai: boolean;
+  openai?: boolean;
+  anthropic?: boolean;
+  kimi?: boolean;
   error?: string;
 };
 
@@ -85,14 +88,26 @@ function mergeModels(browser: ModelRef[], server: ModelRef[]): ModelRef[] {
   return out;
 }
 
-export async function fetchCatalog(host: string, browserModels: ModelRef[] = []): Promise<ModelCatalog> {
-  const serverRes = await fetch(`/api/models?host=${encodeURIComponent(host)}`)
+export async function fetchCatalog(
+  host: string,
+  browserModels: ModelRef[] = [],
+  keys: { openai?: string; anthropic?: string; xai?: string; kimi?: string } = {},
+): Promise<ModelCatalog> {
+  const headers: Record<string, string> = {};
+  if (keys.openai) headers["x-openai-key"] = keys.openai;
+  if (keys.anthropic) headers["x-anthropic-key"] = keys.anthropic;
+  if (keys.xai) headers["x-xai-key"] = keys.xai;
+  if (keys.kimi) headers["x-kimi-key"] = keys.kimi;
+  const serverRes = await fetch(`/api/models?host=${encodeURIComponent(host)}`, { headers })
     .then(async (r) => {
       if (!r.ok) {
         return {
           models: [],
           ollama: false,
+          openai: false,
+          anthropic: false,
           xai: false,
+          kimi: false,
           error: `Catalog ${r.status}`,
         } satisfies ServerCatalog;
       }
@@ -103,7 +118,10 @@ export async function fetchCatalog(host: string, browserModels: ModelRef[] = [])
         ({
           models: [],
           ollama: false,
+          openai: false,
+          anthropic: false,
           xai: false,
+          kimi: false,
           error: "Could not reach the model catalog",
         }) satisfies ServerCatalog,
     );
@@ -115,6 +133,9 @@ export async function fetchCatalog(host: string, browserModels: ModelRef[] = [])
       ollamaBrowser: browserModels.length > 0,
       ollamaServer: Boolean(serverRes.ollama),
       xai: Boolean(serverRes.xai),
+      openai: Boolean(serverRes.openai),
+      anthropic: Boolean(serverRes.anthropic),
+      kimi: Boolean(serverRes.kimi),
       error: serverRes.error,
     },
   };
@@ -127,7 +148,7 @@ export type ChatTurn = {
 };
 
 export type ChatRequestBody = {
-  provider: "ollama" | "xai";
+  provider: ModelRef["provider"];
   transport: "browser" | "server";
   host: string;
   model: string;
@@ -135,6 +156,7 @@ export type ChatRequestBody = {
   temperature: number;
   systemPrompt?: string;
   contextLength?: number;
+  apiKey?: string;
 };
 
 function withSystem(messages: ChatTurn[], systemPrompt?: string): ChatTurn[] {
@@ -176,6 +198,7 @@ export async function streamChat(
       messages,
       temperature: body.temperature,
       contextLength: body.contextLength,
+      apiKey: body.apiKey,
     }),
     signal,
   });
@@ -188,7 +211,7 @@ export async function streamChat(
 
 export async function resetModelContext(
   host: string,
-  model: { id: string; provider: "ollama" | "xai"; transport: Transport },
+  model: { id: string; provider: ModelRef["provider"]; transport: Transport },
 ) {
   if (model.provider !== "ollama") return;
   if (model.transport === "browser") {

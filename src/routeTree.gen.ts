@@ -12,7 +12,9 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiChannelRouteImport } from './routes/api/channel'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiGithubAuthRouteImport } from './routes/api/github-auth'
 import { Route as ApiGithubCloneRouteImport } from './routes/api/github-clone'
+import { Route as ApiGithubPrRouteImport } from './routes/api/github-pr'
 import { Route as ApiGithubPullRouteImport } from './routes/api/github-pull'
 import { Route as ApiLibraryRouteImport } from './routes/api/library'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
@@ -41,9 +43,19 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGithubAuthRoute = ApiGithubAuthRouteImport.update({
+  id: '/api/github-auth',
+  path: '/api/github-auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiGithubCloneRoute = ApiGithubCloneRouteImport.update({
   id: '/api/github-clone',
   path: '/api/github-clone',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGithubPrRoute = ApiGithubPrRouteImport.update({
+  id: '/api/github-pr',
+  path: '/api/github-pr',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiGithubPullRoute = ApiGithubPullRouteImport.update({
@@ -111,7 +123,9 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/channel': typeof ApiChannelRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/github-auth': typeof ApiGithubAuthRoute
   '/api/github-clone': typeof ApiGithubCloneRoute
+  '/api/github-pr': typeof ApiGithubPrRoute
   '/api/github-pull': typeof ApiGithubPullRoute
   '/api/library': typeof ApiLibraryRoute
   '/api/mcp': typeof ApiMcpRoute
@@ -129,7 +143,9 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/channel': typeof ApiChannelRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/github-auth': typeof ApiGithubAuthRoute
   '/api/github-clone': typeof ApiGithubCloneRoute
+  '/api/github-pr': typeof ApiGithubPrRoute
   '/api/github-pull': typeof ApiGithubPullRoute
   '/api/library': typeof ApiLibraryRoute
   '/api/mcp': typeof ApiMcpRoute
@@ -148,7 +164,9 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/api/channel': typeof ApiChannelRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/github-auth': typeof ApiGithubAuthRoute
   '/api/github-clone': typeof ApiGithubCloneRoute
+  '/api/github-pr': typeof ApiGithubPrRoute
   '/api/github-pull': typeof ApiGithubPullRoute
   '/api/library': typeof ApiLibraryRoute
   '/api/mcp': typeof ApiMcpRoute
@@ -168,7 +186,9 @@ export interface FileRouteTypes {
     | '/'
     | '/api/channel'
     | '/api/chat'
+    | '/api/github-auth'
     | '/api/github-clone'
+    | '/api/github-pr'
     | '/api/github-pull'
     | '/api/library'
     | '/api/mcp'
@@ -186,7 +206,9 @@ export interface FileRouteTypes {
     | '/'
     | '/api/channel'
     | '/api/chat'
+    | '/api/github-auth'
     | '/api/github-clone'
+    | '/api/github-pr'
     | '/api/github-pull'
     | '/api/library'
     | '/api/mcp'
@@ -204,7 +226,9 @@ export interface FileRouteTypes {
     | '/'
     | '/api/channel'
     | '/api/chat'
+    | '/api/github-auth'
     | '/api/github-clone'
+    | '/api/github-pr'
     | '/api/github-pull'
     | '/api/library'
     | '/api/mcp'
@@ -223,7 +247,9 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiChannelRoute: typeof ApiChannelRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiGithubAuthRoute: typeof ApiGithubAuthRoute
   ApiGithubCloneRoute: typeof ApiGithubCloneRoute
+  ApiGithubPrRoute: typeof ApiGithubPrRoute
   ApiGithubPullRoute: typeof ApiGithubPullRoute
   ApiLibraryRoute: typeof ApiLibraryRoute
   ApiMcpRoute: typeof ApiMcpRoute
@@ -261,11 +287,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/github-auth': {
+      id: '/api/github-auth'
+      path: '/api/github-auth'
+      fullPath: '/api/github-auth'
+      preLoaderRoute: typeof ApiGithubAuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/github-clone': {
       id: '/api/github-clone'
       path: '/api/github-clone'
       fullPath: '/api/github-clone'
       preLoaderRoute: typeof ApiGithubCloneRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/github-pr': {
+      id: '/api/github-pr'
+      path: '/api/github-pr'
+      fullPath: '/api/github-pr'
+      preLoaderRoute: typeof ApiGithubPrRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/github-pull': {
@@ -359,7 +399,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiChannelRoute: ApiChannelRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiGithubAuthRoute: ApiGithubAuthRoute,
   ApiGithubCloneRoute: ApiGithubCloneRoute,
+  ApiGithubPrRoute: ApiGithubPrRoute,
   ApiGithubPullRoute: ApiGithubPullRoute,
   ApiLibraryRoute: ApiLibraryRoute,
   ApiMcpRoute: ApiMcpRoute,

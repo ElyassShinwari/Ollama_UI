@@ -1,4 +1,4 @@
-export type Provider = "ollama" | "xai";
+export type Provider = "ollama" | "openai" | "anthropic" | "xai" | "kimi";
 export type Transport = "browser" | "server";
 export type ThemeMode = "light" | "dark" | "system";
 
@@ -26,6 +26,7 @@ export type Message = {
   role: Role;
   content: string;
   modelId?: string;
+  modelName?: string;
   createdAt: number;
   parentId?: string | null;
   selectedChildId?: string | null;
@@ -53,6 +54,10 @@ export type Settings = {
   temperature: number;
   systemPrompt: string;
   theme: ThemeMode;
+  openaiKey: string;
+  anthropicKey: string;
+  xaiKey: string;
+  kimiKey: string;
 };
 
 export type CatalogStatus = {
@@ -60,6 +65,9 @@ export type CatalogStatus = {
   ollamaBrowser: boolean;
   ollamaServer: boolean;
   xai: boolean;
+  openai: boolean;
+  anthropic: boolean;
+  kimi: boolean;
   error?: string;
 };
 

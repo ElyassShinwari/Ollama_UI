@@ -1,16 +1,16 @@
 # Ollama_UI
 
-A chat app for Ollama models on your computer.
+A ChatGPT-style app for models on your computer and in the cloud.
 
-It can install Ollama for you, search the model library, and download a model with one click. You can switch models in the middle of a chat. Conversations, context use, light/dark theme, and file attachments (.txt always, images on vision models) stay in the browser.
+Talk to Ollama models, ChatGPT, Claude, Grok, and Kimi in one window. Install Ollama and models from the app, keep chats in the browser, and send one model’s answer to another for review.
 
 ## Requirements
 
 - [Node.js](https://nodejs.org) 22 or newer (includes npm)
 
-Ollama is required to chat. You can install it from the app, or by hand as shown below.
+Ollama is required for **local** models. Cloud models only need an API key (OpenAI, Anthropic, xAI, or Moonshot).
 
-## Install and run Ollama_UI
+## Install and run
 
 ```bash
 git clone https://github.com/ElyassShinwari/Ollama_UI.git
@@ -96,14 +96,38 @@ ollama list
 
 ## Use it
 
-1. Open Ollama_UI and wait until Ollama is running.
-2. Search the library, install a model, or pick one already on this computer.
+1. Open Ollama_UI. Install Ollama if you want local models, or skip to a cloud model.
+2. Pick a model from the library, from this computer, or from ChatGPT / Claude / Grok / Kimi.
 3. Chat. Switch models from the header. The full conversation is sent to the new model, and the context meter updates to that model's window.
 4. If the new model’s window is smaller than this chat, you get a warning: answers may be unexpected or inaccurate while the window is full. You can still continue, or start a new chat.
 5. Attach `.txt` files with **+** or drag and drop. Vision models also take images.
-6. Open **Studio** in the sidebar for GitHub, MCP, the local API, website/WhatsApp webhooks, instructions, knowledge, and model advice.
+6. Open **Studio** in the sidebar for GitHub, cloud APIs, MCP, the local API, website/WhatsApp webhooks, instructions, knowledge, and model advice. **Back to new chat** closes Studio and opens a blank conversation.
+7. Turn on **Review cycle** in a chat to have one model write and another review. Choose both models and 1–100 cycles. The cycle stops early if the reviewer starts with `SATISFIED`.
 
-Conversations stay in this browser. Default theme is light (switch in Settings).
+Conversations stay in this browser. Default theme is light (switch in Settings). API keys stay in this browser and are sent only to this computer’s server, then to the matching provider.
+
+## Cloud models (ChatGPT, Claude, Grok, Kimi)
+
+Paste keys in **Settings** or **Studio → Cloud**:
+
+| Provider | Key from | Models in the picker |
+| --- | --- | --- |
+| OpenAI | [platform.openai.com](https://platform.openai.com/api-keys) | ChatGPT / GPT |
+| Anthropic | [console.anthropic.com](https://console.anthropic.com/settings/keys) | Claude |
+| xAI | [console.x.ai](https://console.x.ai) | Grok |
+| Moonshot | [platform.moonshot.ai](https://platform.moonshot.ai) | Kimi |
+
+After you save, those models appear in the same menu as Ollama. You can mix them in one chat, including as the two sides of a review cycle.
+
+## Review cycle
+
+1. Open a chat and turn on **Review cycle**.
+2. **First** is the writer. **Second** is the reviewer. They must be different models.
+3. Set **Cycles** from 1 to 100.
+4. Send a prompt. Each cycle: the writer answers, the reviewer checks it, then the writer revises from that review.
+5. If the reviewer starts its reply with `SATISFIED`, the loop stops. **Stop** cancels the rest of the run.
+
+Replies are labeled with the model that wrote them.
 
 ## Studio
 
@@ -111,7 +135,12 @@ Studio is for connecting this computer to other software. It does **not** log in
 
 ### GitHub
 
-Paste `owner/repo` or a GitHub URL and click **Pull repository**. Private repos need a token. git must be installed. Copies land in `data/repos`.
+1. Create a token at [github.com/settings/tokens](https://github.com/settings/tokens) with **repo** access (`ghp_…` or `github_pat_…`).
+2. Paste it in **Studio → GitHub** and click **Authenticate**.
+3. Paste `owner/repo` or a GitHub URL and click **Pull repository**. git must be installed. Copies land in `data/repos`.
+4. To open a pull request, fill owner, repo, head branch, base branch, and title, then **Open pull request**. Use **Use for PR** on a cloned repo to fill owner and repo.
+
+This app does not do GitHub OAuth in the browser. The token stays in this browser and is sent only to GitHub.
 
 ### MCP
 
@@ -148,8 +177,17 @@ Ollama_UI skips a busy port. To force another: `PORT=3000 make run`.
 **Install Ollama failed**  
 The app needs permission to install software. Use the manual steps above, then click **Start Ollama**.
 
-**No models listed**  
+**No local models listed**  
 Install one from the library search (`smollm2:135m`). If Ollama is on another machine, set the host in Settings (`http://127.0.0.1:11434` by default).
+
+**ChatGPT / Claude / Grok / Kimi missing**  
+Paste the matching API key in Settings or Studio → Cloud, then wait a moment. Bad or empty keys are not listed.
+
+**GitHub authenticate failed**  
+The token needs **repo** access. Fine-grained tokens must allow the target repository. This app does not use GitHub OAuth.
+
+**Review cycle does nothing**  
+Pick two different models (first and second) and turn the checkbox on before you send.
 
 **Node not found**  
 Install Node.js 22+ from [nodejs.org](https://nodejs.org), then `make run`.

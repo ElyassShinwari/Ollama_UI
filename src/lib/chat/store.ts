@@ -8,6 +8,10 @@ const defaultSettings: Settings = {
   temperature: 0.7,
   systemPrompt: "",
   theme: "light",
+  openaiKey: "",
+  anthropicKey: "",
+  xaiKey: "",
+  kimiKey: "",
 };
 
 function uid() {
@@ -67,7 +71,7 @@ type ChatState = {
   deleteConversation: (id: string) => void;
   renameConversation: (id: string, title: string) => void;
   togglePin: (id: string) => void;
-  addUserMessage: (content: string, extra?: { images?: string[]; attachments?: Message["attachments"] }) => { conversationId: string; user: Message };
+  addUserMessage: (content: string, extra?: { images?: string[]; attachments?: Message["attachments"]; conversationId?: string }) => { conversationId: string; user: Message };
   startAssistantMessage: (conversationId: string, model: ModelRef, parentId: string) => string;
   appendToMessage: (conversationId: string, messageId: string, chunk: string) => void;
   finishMessage: (conversationId: string, messageId: string) => void;
@@ -179,7 +183,7 @@ export const useChatStore = create<ChatState>()(
         })),
       addUserMessage: (content, extra) => {
         const now = Date.now();
-        let conversationId = get().activeId;
+        let conversationId = extra?.conversationId ?? get().activeId;
         const existing = get().conversations.find((c) => c.id === conversationId);
         if (!conversationId || !existing) {
           conversationId = get().newChat();
@@ -225,6 +229,7 @@ export const useChatStore = create<ChatState>()(
           role: "assistant",
           content: "",
           modelId: model.id,
+          modelName: model.name,
           createdAt: now,
           parentId,
           selectedChildId: null,

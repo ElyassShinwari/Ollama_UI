@@ -168,6 +168,9 @@ export function MessageBubble({
           </svg>
         </div>
         <div className="min-w-0 flex-1 pt-0.5 text-[15px] leading-7">
+          {message.modelName ? (
+            <p className="mb-1 text-xs text-muted-foreground">{message.modelName}</p>
+          ) : null}
           {message.content ? (
             <MessageMarkdown content={message.content} />
           ) : (

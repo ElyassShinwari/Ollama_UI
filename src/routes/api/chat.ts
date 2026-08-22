@@ -1,13 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { streamOllamaChat, streamXaiChat } from "@/lib/llm/providers.server";
+import { cloudEndpoint } from "@/lib/llm/cloud";
+import { streamAnthropicChat, streamOllamaChat, streamOpenAiCompat, streamXaiChat } from "@/lib/llm/providers.server";
+import type { Provider } from "@/lib/chat/types";
 
 type ChatBody = {
-  provider?: "ollama" | "xai";
+  provider?: Provider;
   host?: string;
   model?: string;
   messages?: { role: string; content: string; images?: string[] }[];
   temperature?: number;
   contextLength?: number;
+  apiKey?: string;
 };
 
 export const Route = createFileRoute("/api/chat")({
@@ -21,7 +24,13 @@ export const Route = createFileRoute("/api/chat")({
           return Response.json({ error: "Invalid JSON" }, { status: 400 });
         }
 
-        const provider = body.provider === "xai" ? "xai" : "ollama";
+        const provider: Provider =
+          body.provider === "openai" ||
+          body.provider === "anthropic" ||
+          body.provider === "xai" ||
+          body.provider === "kimi"
+            ? body.provider
+            : "ollama";
         const model = typeof body.model === "string" ? body.model : "";
         const messages = Array.isArray(body.messages) ? body.messages : [];
         const temperature =
@@ -33,6 +42,7 @@ export const Route = createFileRoute("/api/chat")({
           typeof body.contextLength === "number" && Number.isFinite(body.contextLength)
             ? body.contextLength
             : undefined;
+        const apiKey = typeof body.apiKey === "string" ? body.apiKey : "";
 
         if (!model) return Response.json({ error: "Model is required" }, { status: 400 });
         if (messages.length === 0) {
@@ -46,22 +56,54 @@ export const Route = createFileRoute("/api/chat")({
               controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
             };
             try {
-              const iterator =
-                provider === "xai"
-                  ? streamXaiChat({
-                      model,
-                      messages,
-                      temperature,
-                      signal: request.signal,
-                    })
-                  : streamOllamaChat({
-                      host,
-                      model,
-                      messages,
-                      temperature,
-                      contextLength,
-                      signal: request.signal,
-                    });
+              const turns = messages.map((m) => ({ role: m.role, content: m.content }));
+              let iterator: AsyncGenerator<{ content?: string; usage?: { promptTokens: number; completionTokens: number } }>;
+              if (provider === "ollama") {
+                iterator = streamOllamaChat({
+                  host,
+                  model,
+                  messages,
+                  temperature,
+                  contextLength,
+                  signal: request.signal,
+                });
+              } else if (provider === "anthropic") {
+                const key = apiKey || process.env.ANTHROPIC_API_KEY || "";
+                if (!key) throw new Error("Add a Claude API key in Settings or Studio → Cloud");
+                iterator = streamAnthropicChat({
+                  apiKey: key,
+                  model,
+                  messages: turns,
+                  temperature,
+                  signal: request.signal,
+                });
+              } else if (provider === "xai" && !apiKey && process.env.XAI_API_KEY) {
+                iterator = streamXaiChat({
+                  model,
+                  messages: turns,
+                  temperature,
+                  signal: request.signal,
+                });
+              } else {
+                const key =
+                  apiKey ||
+                  (provider === "openai"
+                    ? process.env.OPENAI_API_KEY
+                    : provider === "kimi"
+                      ? process.env.MOONSHOT_API_KEY
+                      : process.env.XAI_API_KEY) ||
+                  "";
+                if (!key) throw new Error("Add an API key in Settings or Studio → Cloud");
+                const url = cloudEndpoint(provider).url;
+                iterator = streamOpenAiCompat({
+                  url,
+                  apiKey: key,
+                  model,
+                  messages: turns,
+                  temperature,
+                  signal: request.signal,
+                });
+              }
               for await (const event of iterator) {
                 if (event.content) send({ content: event.content });
                 if (event.usage) send({ usage: event.usage });

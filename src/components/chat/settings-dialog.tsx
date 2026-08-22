@@ -37,6 +37,10 @@ export function SettingsDialog({
   const [temperature, setTemperature] = useState(String(settings.temperature));
   const [systemPrompt, setSystemPrompt] = useState(settings.systemPrompt);
   const [theme, setTheme] = useState<ThemeMode>(settings.theme);
+  const [openaiKey, setOpenaiKey] = useState(settings.openaiKey);
+  const [anthropicKey, setAnthropicKey] = useState(settings.anthropicKey);
+  const [xaiKey, setXaiKey] = useState(settings.xaiKey);
+  const [kimiKey, setKimiKey] = useState(settings.kimiKey);
 
   return (
     <Dialog
@@ -47,6 +51,10 @@ export function SettingsDialog({
           setTemperature(String(settings.temperature));
           setSystemPrompt(settings.systemPrompt);
           setTheme(settings.theme);
+          setOpenaiKey(settings.openaiKey);
+          setAnthropicKey(settings.anthropicKey);
+          setXaiKey(settings.xaiKey);
+          setKimiKey(settings.kimiKey);
         }
         onOpenChange(next);
       }}
@@ -105,6 +113,16 @@ export function SettingsDialog({
             />
           </div>
           <div className="flex flex-col gap-2">
+            <Label>Cloud API keys</Label>
+            <Input type="password" value={openaiKey} onChange={(e) => setOpenaiKey(e.target.value)} placeholder="ChatGPT · OpenAI" autoComplete="off" />
+            <Input type="password" value={anthropicKey} onChange={(e) => setAnthropicKey(e.target.value)} placeholder="Claude · Anthropic" autoComplete="off" />
+            <Input type="password" value={xaiKey} onChange={(e) => setXaiKey(e.target.value)} placeholder="Grok · xAI" autoComplete="off" />
+            <Input type="password" value={kimiKey} onChange={(e) => setKimiKey(e.target.value)} placeholder="Kimi · Moonshot" autoComplete="off" />
+            <p className="text-xs text-muted-foreground">
+              Keys stay in this browser and are sent only to this computer’s server.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
             <Label htmlFor="system-prompt">System prompt</Label>
             <Textarea
               id="system-prompt"
@@ -132,6 +150,10 @@ export function SettingsDialog({
                 ollamaHost: host.trim() || "http://127.0.0.1:11434",
                 temperature: Number.isFinite(parsed) ? parsed : 0.7,
                 systemPrompt,
+                openaiKey: openaiKey.trim(),
+                anthropicKey: anthropicKey.trim(),
+                xaiKey: xaiKey.trim(),
+                kimiKey: kimiKey.trim(),
                 theme,
               });
               applyTheme(theme);

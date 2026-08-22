@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FlameMark } from "@/components/chat/sidebar";
 import { ModelHub } from "@/components/chat/model-hub";
-import type { ModelCatalog, ModelRef } from "@/lib/chat/types";
+import { CLOUD_LABEL } from "@/lib/llm/cloud";
+import type { ModelCatalog, ModelRef, Provider } from "@/lib/chat/types";
 
 export function ConnectScreen({
   catalog,
@@ -20,6 +21,15 @@ export function ConnectScreen({
 }) {
   const [hostDraft, setHostDraft] = useState(host);
   const ollama = catalog.models.filter((m) => m.provider === "ollama");
+  const cloudGroups: { title: string; items: ModelRef[] }[] = (
+    ["openai", "anthropic", "xai", "kimi"] as Exclude<Provider, "ollama">[]
+  )
+    .map((provider) => ({
+      title: CLOUD_LABEL[provider],
+      items: catalog.models.filter((m) => m.provider === provider),
+    }))
+    .filter((g) => g.items.length > 0);
+  const hasCloud = cloudGroups.length > 0;
 
   return (
     <div className="scrollbar-thin h-full overflow-y-auto">
@@ -27,13 +37,36 @@ export function ConnectScreen({
         <div className="mb-8">
           <FlameMark className="mb-5 size-10" />
           <h1 className="font-serif text-4xl tracking-tight text-balance md:text-5xl">
-            Choose a local model
+            {hasCloud ? "Choose a model" : "Choose a local model"}
           </h1>
           <p className="mt-3 max-w-lg text-base text-muted-foreground text-pretty">
-            Install Ollama if needed, then search the library and install a model with one click.
-            Switch models anytime from the chat header.
+            {hasCloud
+              ? "Chat with a model on this computer, or with ChatGPT, Claude, Grok, or Kimi from the same window."
+              : "Install Ollama if needed, then search the library and install a model with one click. Add ChatGPT, Claude, Grok, or Kimi keys in Settings or Studio."}
           </p>
         </div>
+
+        {hasCloud ? (
+          <div className="mb-8 flex flex-col gap-4">
+            {cloudGroups.map((group) => (
+              <div key={group.title}>
+                <p className="mb-2 text-sm font-medium">{group.title}</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {group.items.map((model) => (
+                    <button
+                      key={`${model.provider}:${model.id}`}
+                      type="button"
+                      className="min-w-0 rounded-xl border border-border bg-card px-4 py-3 text-left text-sm transition-colors hover:bg-accent"
+                      onClick={() => onChoose(model)}
+                    >
+                      <span className="block truncate font-medium">{model.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
 
         <ModelHub
           host={host}

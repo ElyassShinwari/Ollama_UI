@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 
 const TABS = [
   "GitHub",
+  "Cloud",
   "MCP",
   "API",
   "Channels",
@@ -58,8 +59,8 @@ export function StudioPanel({
               Ollama does not train models in place — Studio tells you what is possible.
             </p>
           </div>
-          <Button variant="ghost" onClick={onClose}>
-            Back to chat
+          <Button variant="outline" onClick={onClose}>
+            Back to new chat
           </Button>
         </div>
         <div className="mb-6 flex flex-wrap gap-1">
@@ -75,6 +76,7 @@ export function StudioPanel({
           ))}
         </div>
         {tab === "GitHub" ? <GitHubTab /> : null}
+        {tab === "Cloud" ? <CloudTab /> : null}
         {tab === "MCP" ? <McpTab models={models} selected={selected} /> : null}
         {tab === "API" ? <ApiTab models={models} selected={selected} /> : null}
         {tab === "Channels" ? <ChannelsTab models={models} selected={selected} /> : null}
@@ -91,6 +93,13 @@ function GitHubTab() {
   const repos = useStudio((s) => s.repos);
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
+  const [login, setLogin] = useState("");
+  const [owner, setOwner] = useState("");
+  const [repo, setRepo] = useState("");
+  const [title, setTitle] = useState("");
+  const [head, setHead] = useState("");
+  const [base, setBase] = useState("main");
+  const [prBody, setPrBody] = useState("");
 
   async function clone() {
     setBusy(true);
@@ -101,10 +110,16 @@ function GitHubTab() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url, token }),
       });
-      const json = (await res.json()) as { error?: string; repos?: typeof repos; log?: string };
+      const json = (await res.json()) as { error?: string; repos?: typeof repos };
       if (!res.ok) throw new Error(json.error || "Clone failed");
       if (json.repos) useStudio.getState().setStudio({ repos: json.repos });
       toast.success("Repository is on this computer");
+      const parsed = parseGithub(url);
+      if (parsed) {
+        setOwner(parsed.owner);
+        setRepo(parsed.repo);
+        if (!head) setHead("main");
+      }
       setUrl("");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Clone failed");
@@ -116,13 +131,40 @@ function GitHubTab() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <Label>GitHub token (optional, for private repos)</Label>
+        <Label>Authenticate GitHub</Label>
         <Input
           type="password"
           value={token}
           onChange={(e) => useStudio.getState().setStudio({ githubToken: e.target.value })}
-          placeholder="ghp_…"
+          placeholder="ghp_… or github_pat_…"
         />
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={async () => {
+              await syncStudio({ githubToken: token });
+              const res = await fetch("/api/github-auth", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ token }),
+              });
+              const json = (await res.json()) as { error?: string; login?: string };
+              if (!res.ok) toast.error(json.error || "Auth failed");
+              else {
+                setLogin(json.login || "");
+                if (json.login && !owner) setOwner(json.login);
+                toast.success(`Signed in as ${json.login}`);
+              }
+            }}
+            disabled={!token.trim()}
+          >
+            Authenticate
+          </Button>
+          {login ? <span className="self-center text-sm text-muted-foreground">@{login}</span> : null}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Create a token at github.com/settings/tokens with repo access. This app does not do GitHub OAuth in the browser.
+        </p>
       </div>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Input
@@ -134,16 +176,27 @@ function GitHubTab() {
           Pull repository
         </Button>
       </div>
-      <p className="text-sm text-muted-foreground">
-        Clones into data/repos on this computer. Needs git installed.
-      </p>
       <div className="flex flex-col gap-2">
-        {repos.map((repo) => (
-          <div key={repo.id} className="flex items-center justify-between gap-2 rounded-xl border border-border px-4 py-3">
+        {repos.map((item) => (
+          <div key={item.id} className="flex items-center justify-between gap-2 rounded-xl border border-border px-4 py-3">
             <div className="min-w-0">
-              <p className="truncate font-medium">{repo.name}</p>
-              <p className="truncate text-xs text-muted-foreground">{repo.path}</p>
+              <p className="truncate font-medium">{item.name}</p>
+              <p className="truncate text-xs text-muted-foreground">{item.path}</p>
             </div>
+            <div className="flex shrink-0 gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                const parsed = parseGithub(item.url || item.name);
+                if (parsed) {
+                  setOwner(parsed.owner);
+                  setRepo(parsed.repo);
+                }
+              }}
+            >
+              Use for PR
+            </Button>
             <Button
               size="sm"
               variant="outline"
@@ -151,7 +204,7 @@ function GitHubTab() {
                 const res = await fetch("/api/github-pull", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ id: repo.id }),
+                  body: JSON.stringify({ id: item.id }),
                 });
                 const json = (await res.json()) as { error?: string; repos?: typeof repos };
                 if (!res.ok) toast.error(json.error || "Pull failed");
@@ -163,9 +216,87 @@ function GitHubTab() {
             >
               Pull
             </Button>
+            </div>
           </div>
         ))}
       </div>
+      <div className="rounded-xl border border-border px-4 py-4">
+        <p className="mb-3 font-medium">Create a pull request</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Input value={owner} onChange={(e) => setOwner(e.target.value)} placeholder="owner" />
+          <Input value={repo} onChange={(e) => setRepo(e.target.value)} placeholder="repo" />
+          <Input value={head} onChange={(e) => setHead(e.target.value)} placeholder="head branch" />
+          <Input value={base} onChange={(e) => setBase(e.target.value)} placeholder="base branch" />
+        </div>
+        <Input className="mt-2" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="PR title" />
+        <Textarea className="mt-2" rows={3} value={prBody} onChange={(e) => setPrBody(e.target.value)} placeholder="PR description" />
+        <Button
+          className="mt-3"
+          onClick={async () => {
+            const res = await fetch("/api/github-pr", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ token, owner, repo, title, head, base, prBody }),
+            });
+            const json = (await res.json()) as { error?: string; url?: string };
+            if (!res.ok) toast.error(json.error || "PR failed");
+            else {
+              toast.success(json.url ? `Pull request opened` : "Pull request opened");
+              if (json.url) window.open(json.url, "_blank", "noopener,noreferrer");
+            }
+          }}
+          disabled={!token || !owner || !repo || !title || !head}
+        >
+          Open pull request
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function CloudTab() {
+  const settings = useChatStore((s) => s.settings);
+  const setSettings = useChatStore((s) => s.setSettings);
+  const [openai, setOpenai] = useState(settings.openaiKey);
+  const [anthropic, setAnthropic] = useState(settings.anthropicKey);
+  const [xai, setXai] = useState(settings.xaiKey);
+  const [kimi, setKimi] = useState(settings.kimiKey);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-sm text-muted-foreground text-pretty">
+        Paste API keys so ChatGPT, Claude, Grok, and Kimi appear in the same model menu as Ollama.
+        Then pick two models in a chat to run a review cycle.
+      </p>
+      <div className="flex flex-col gap-2">
+        <Label>OpenAI · ChatGPT</Label>
+        <Input type="password" value={openai} onChange={(e) => setOpenai(e.target.value)} placeholder="sk-…" autoComplete="off" />
+      </div>
+      <div className="flex flex-col gap-2">
+        <Label>Anthropic · Claude</Label>
+        <Input type="password" value={anthropic} onChange={(e) => setAnthropic(e.target.value)} placeholder="sk-ant-…" autoComplete="off" />
+      </div>
+      <div className="flex flex-col gap-2">
+        <Label>xAI · Grok</Label>
+        <Input type="password" value={xai} onChange={(e) => setXai(e.target.value)} placeholder="xai-…" autoComplete="off" />
+      </div>
+      <div className="flex flex-col gap-2">
+        <Label>Moonshot · Kimi</Label>
+        <Input type="password" value={kimi} onChange={(e) => setKimi(e.target.value)} placeholder="sk-…" autoComplete="off" />
+      </div>
+      <Button
+        onClick={() => {
+          setSettings({
+            openaiKey: openai.trim(),
+            anthropicKey: anthropic.trim(),
+            xaiKey: xai.trim(),
+            kimiKey: kimi.trim(),
+          });
+          toast.success("Cloud keys saved. Those models appear in the same menu as Ollama.");
+        }}
+      >
+        Save keys
+      </Button>
     </div>
   );
 }
@@ -586,4 +717,11 @@ function AdvisorTab({ selected }: { selected: ModelRef | null }) {
       ))}
     </div>
   );
+}
+
+function parseGithub(input: string) {
+  const t = input.trim().replace(/\.git$/, "").replace(/\/+$/, "");
+  const match = t.match(/(?:github\.com[:/])([^/\s]+)\/([^/\s]+)$/i) || t.match(/^([^/\s]+)\/([^/\s]+)$/);
+  if (!match) return null;
+  return { owner: match[1]!, repo: match[2]! };
 }

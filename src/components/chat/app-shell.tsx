@@ -27,6 +27,9 @@ const emptyCatalog: ModelCatalog = {
     ollamaBrowser: false,
     ollamaServer: false,
     xai: false,
+    openai: false,
+    anthropic: false,
+    kimi: false,
   },
 };
 
@@ -51,7 +54,12 @@ export function ChatApp() {
     setCatalog((c) =>
       c.models.length > 0 ? c : { ...c, status: { ...c.status, loading: true } },
     );
-    const next = await fetchCatalog(useChatStore.getState().settings.ollamaHost, localModels);
+    const next = await fetchCatalog(useChatStore.getState().settings.ollamaHost, localModels, {
+      openai: useChatStore.getState().settings.openaiKey,
+      anthropic: useChatStore.getState().settings.anthropicKey,
+      xai: useChatStore.getState().settings.xaiKey,
+      kimi: useChatStore.getState().settings.kimiKey,
+    });
     setCatalog(next);
     const current = useChatStore.getState().selectedModel;
     if (current) {
@@ -83,7 +91,7 @@ export function ChatApp() {
     void refresh();
     const id = window.setInterval(() => void refresh(), 30000);
     return () => window.clearInterval(id);
-  }, [refresh, settings.ollamaHost, hydrated]);
+  }, [refresh, settings.ollamaHost, settings.openaiKey, settings.anthropicKey, settings.xaiKey, settings.kimiKey, hydrated]);
 
   function startFreshChat() {
     const id = newChat();
@@ -147,7 +155,13 @@ export function ChatApp() {
 
         <main className="flex min-w-0 flex-1 flex-col">
           {studioOpen ? (
-            <StudioPanel models={catalog.models} onClose={() => setStudioOpen(false)} />
+            <StudioPanel
+              models={catalog.models}
+              onClose={() => {
+                startFreshChat();
+                setStudioOpen(false);
+              }}
+            />
           ) : selectedModel ? (
             <ChatView
               models={catalog.models}

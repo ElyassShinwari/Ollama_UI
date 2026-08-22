@@ -9,7 +9,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn, formatBytes, formatContextWindow } from "@/lib/utils";
-import type { ModelRef } from "@/lib/chat/types";
+import { CLOUD_LABEL } from "@/lib/llm/cloud";
+import type { ModelRef, Provider } from "@/lib/chat/types";
 
 export function ModelPicker({
   models,
@@ -26,8 +27,13 @@ export function ModelPicker({
   align?: "start" | "center" | "end";
   className?: string;
 }) {
-  const ollama = models.filter((m) => m.provider === "ollama");
-  const xai = models.filter((m) => m.provider === "xai");
+  const groups: { title: string; items: ModelRef[] }[] = [
+    { title: "On this machine", items: models.filter((m) => m.provider === "ollama") },
+    { title: CLOUD_LABEL.openai, items: models.filter((m) => m.provider === "openai") },
+    { title: CLOUD_LABEL.anthropic, items: models.filter((m) => m.provider === "anthropic") },
+    { title: CLOUD_LABEL.xai, items: models.filter((m) => m.provider === "xai") },
+    { title: CLOUD_LABEL.kimi, items: models.filter((m) => m.provider === "kimi") },
+  ].filter((g) => g.items.length > 0);
   const label = value?.name ?? "Choose a model";
 
   return (
@@ -48,10 +54,11 @@ export function ModelPicker({
           </div>
         ) : (
           <>
-            {ollama.length > 0 && (
-              <>
-                <DropdownMenuLabel>On this machine</DropdownMenuLabel>
-                {ollama.map((model) => (
+            {groups.map((group, i) => (
+              <div key={group.title}>
+                {i > 0 ? <DropdownMenuSeparator /> : null}
+                <DropdownMenuLabel>{group.title}</DropdownMenuLabel>
+                {group.items.map((model) => (
                   <ModelItem
                     key={`${model.provider}:${model.id}:${model.transport}`}
                     model={model}
@@ -59,22 +66,8 @@ export function ModelPicker({
                     onSelect={() => onChange(model)}
                   />
                 ))}
-              </>
-            )}
-            {ollama.length > 0 && xai.length > 0 && <DropdownMenuSeparator />}
-            {xai.length > 0 && (
-              <>
-                <DropdownMenuLabel>Cloud</DropdownMenuLabel>
-                {xai.map((model) => (
-                  <ModelItem
-                    key={`${model.provider}:${model.id}`}
-                    model={model}
-                    selected={value?.id === model.id && value.provider === model.provider}
-                    onSelect={() => onChange(model)}
-                  />
-                ))}
-              </>
-            )}
+              </div>
+            ))}
           </>
         )}
         {onBrowse ? (
@@ -105,7 +98,11 @@ function ModelItem({
     formatContextWindow(model.contextLength),
     formatBytes(model.size),
     model.family,
-    model.provider === "xai" ? "Cloud" : model.transport === "browser" ? "This computer" : "Ollama",
+    model.provider === "ollama"
+      ? model.transport === "browser"
+        ? "This computer"
+        : "Ollama"
+      : CLOUD_LABEL[model.provider as Exclude<Provider, "ollama">] ?? "Cloud",
   ]
     .filter(Boolean)
     .join(" · ");
@@ -113,7 +110,7 @@ function ModelItem({
   return (
     <DropdownMenuItem onSelect={onSelect} className="items-start py-2.5">
       <span className="mt-0.5 text-muted-foreground">
-        {model.provider === "xai" ? <Cloud className="size-4" /> : <Cpu className="size-4" />}
+        {model.provider === "ollama" ? <Cpu className="size-4" /> : <Cloud className="size-4" />}
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate font-medium">{model.name}</span>

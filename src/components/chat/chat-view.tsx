@@ -28,6 +28,7 @@ import {
 import { repetitionCutoff } from "@/lib/llm/repeat";
 import { countModelTokens, formatChatPrompt } from "@/lib/llm/tokens";
 import { combinedInstructions, knowledgeBlock } from "@/lib/studio/store";
+import { REVIEW_SYSTEM, reviewSatisfied } from "@/lib/llm/cloud";
 import type { Message, ModelRef } from "@/lib/chat/types";
 
 const SUGGESTIONS = [
@@ -52,7 +53,6 @@ export function ChatView({
 }) {
   const conversation = useChatStore(selectActiveConversation);
   const selectedModel = useChatStore((s) => s.selectedModel);
-  const settings = useChatStore((s) => s.settings);
   const setSelectedModel = useChatStore((s) => s.setSelectedModel);
   const addUserMessage = useChatStore((s) => s.addUserMessage);
   const startAssistantMessage = useChatStore((s) => s.startAssistantMessage);
@@ -70,8 +70,14 @@ export function ChatView({
   const [switchWarn, setSwitchWarn] = useState<{ name: string; used: number; limit: number } | null>(
     null,
   );
+  const [reviewOn, setReviewOn] = useState(false);
+  const [authorKey, setAuthorKey] = useState("");
+  const [reviewerKey, setReviewerKey] = useState("");
+  const [cycles, setCycles] = useState(3);
+  const [cycleNote, setCycleNote] = useState("");
   const [streamingId, setStreamingId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const cancelledRef = useRef(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
@@ -148,6 +154,12 @@ export function ChatView({
 
   const greeting = useMemo(() => greetingForNow(), []);
 
+  useEffect(() => {
+    if (!selectedModel) return;
+    const key = `${selectedModel.provider}:${selectedModel.id}`;
+    setAuthorKey((cur) => cur || key);
+  }, [selectedModel]);
+
   function publishUsage(conversationId: string, promptTokens: number, completionTokens: number) {
     promptTokensRef.current = promptTokens;
     completionTokensRef.current = completionTokens;
@@ -176,13 +188,26 @@ export function ChatView({
     conversationId: string,
     history: { role: string; content: string; images?: string[] }[],
     parentId: string,
-  ) {
-    const model = useChatStore.getState().selectedModel;
+    using?: ModelRef,
+    extraSystem?: string,
+  ): Promise<string> {
+    const model = using ?? useChatStore.getState().selectedModel;
     if (!model) {
       toast.error("Choose a model first");
-      return;
+      return "";
     }
-    const systemPrompt = [settings.systemPrompt, combinedInstructions(), knowledgeBlock()]
+    const settingsNow = useChatStore.getState().settings;
+    const apiKey =
+      model.provider === "openai"
+        ? settingsNow.openaiKey
+        : model.provider === "anthropic"
+          ? settingsNow.anthropicKey
+          : model.provider === "xai"
+            ? settingsNow.xaiKey
+            : model.provider === "kimi"
+              ? settingsNow.kimiKey
+              : undefined;
+    const systemPrompt = [settingsNow.systemPrompt, combinedInstructions(), knowledgeBlock(), extraSystem]
       .filter(Boolean)
       .join("\n\n");
     const promptText = formatChatPrompt(systemPrompt, history);
@@ -193,7 +218,7 @@ export function ChatView({
     }
     publishUsage(conversationId, promptEstimate, 0);
     void countModelTokens({
-      host: settings.ollamaHost,
+      host: settingsNow.ollamaHost,
       model: model.id,
       text: promptText,
       transport: model.transport,
@@ -212,12 +237,13 @@ export function ChatView({
         {
           provider: model.provider,
           transport: model.transport,
-          host: settings.ollamaHost,
+          host: settingsNow.ollamaHost,
           model: model.id,
           messages: history,
-          temperature: settings.temperature,
+          temperature: settingsNow.temperature,
           systemPrompt,
           contextLength: model.contextLength,
+          apiKey,
         },
         (chunk) => {
           const current = useChatStore
@@ -247,46 +273,55 @@ export function ChatView({
         if (stoppedLoop) {
           toast("Stopped a repeating reply");
         }
-        return;
-      }
-      const message = err instanceof Error ? err.message : "The model failed to reply";
-      if (isContextOverflowError(message)) {
-        markContextExceeded(conversationId);
-        toast.error("This model's context window is full");
-      }
-      const current = useChatStore
-        .getState()
-        .conversations.find((c) => c.id === conversationId)
-        ?.messages.find((m) => m.id === assistantId);
-      if (!current?.content) {
-        appendToMessage(
-          conversationId,
-          assistantId,
-          isContextOverflowError(message)
-            ? "The context window is full. You can keep chatting, but answers may be unexpected or inaccurate."
-            : `I couldn't complete that reply. ${message}`,
-        );
-      } else if (!isContextOverflowError(message)) {
-        toast.error(message);
+      } else {
+        const message = err instanceof Error ? err.message : "The model failed to reply";
+        if (isContextOverflowError(message)) {
+          markContextExceeded(conversationId);
+          toast.error("This model's context window is full");
+        }
+        const current = useChatStore
+          .getState()
+          .conversations.find((c) => c.id === conversationId)
+          ?.messages.find((m) => m.id === assistantId);
+        if (!current?.content) {
+          appendToMessage(
+            conversationId,
+            assistantId,
+            isContextOverflowError(message)
+              ? "The context window is full. You can keep chatting, but answers may be unexpected or inaccurate."
+              : `I couldn't complete that reply. ${message}`,
+          );
+        } else if (!isContextOverflowError(message)) {
+          toast.error(message);
+        }
       }
     } finally {
       if (tokenTimerRef.current) window.clearTimeout(tokenTimerRef.current);
       setStreamingId(null);
       abortRef.current = null;
-      const text =
-        useChatStore
-          .getState()
-          .conversations.find((c) => c.id === conversationId)
-          ?.messages.find((m) => m.id === assistantId)?.content ?? "";
-      if (text && model) {
-        void countModelTokens({
-          host: settings.ollamaHost,
-          model: model.id,
-          text,
-          transport: model.transport,
-        }).then((n) => publishUsage(conversationId, promptTokensRef.current, n));
-      }
     }
+    const text =
+      useChatStore
+        .getState()
+        .conversations.find((c) => c.id === conversationId)
+        ?.messages.find((m) => m.id === assistantId)?.content ?? "";
+    if (text && model) {
+      void countModelTokens({
+        host: settingsNow.ollamaHost,
+        model: model.id,
+        text,
+        transport: model.transport,
+      }).then((n) => publishUsage(conversationId, promptTokensRef.current, n));
+    }
+    return text;
+  }
+
+  function modelKey(model: ModelRef) {
+    return `${model.provider}:${model.id}`;
+  }
+
+  function modelFromKey(key: string) {
+    return models.find((m) => modelKey(m) === key);
   }
 
   async function send(text: string, extraFiles: PendingFile[] = files) {
@@ -296,6 +331,7 @@ export function ChatView({
     setDraft("");
     setFiles([]);
     stickToBottomRef.current = true;
+    cancelledRef.current = false;
     const { conversationId, user } = addUserMessage(built.content, {
       images: built.images,
       attachments: built.attachments,
@@ -306,10 +342,105 @@ export function ChatView({
           .filter((m) => m.role === "user" || m.role === "assistant")
           .map((m) => ({ role: m.role, content: m.content, images: m.images }))
       : [{ role: "user", content: built.content, images: built.images }];
+    if (reviewOn) {
+      const author = modelFromKey(authorKey) ?? selectedModel;
+      const reviewer = modelFromKey(reviewerKey);
+      if (!author || !reviewer) {
+        toast.error("Pick a first model and a second model for the review cycle");
+        return;
+      }
+      if (modelKey(author) === modelKey(reviewer)) {
+        toast.error("The writer and the reviewer must be different models");
+        return;
+      }
+      await runReview(conversationId, user.id, history, author, reviewer);
+      return;
+    }
     await runCompletion(conversationId, history, user.id);
   }
 
+  async function runReview(
+    conversationId: string,
+    userId: string,
+    startHistory: { role: string; content: string; images?: string[] }[],
+    author: ModelRef,
+    reviewer: ModelRef,
+  ) {
+    const max = Math.min(100, Math.max(1, cycles));
+    let parentId = userId;
+    let history = startHistory;
+    for (let i = 1; i <= max; i++) {
+      if (cancelledRef.current) break;
+      setCycleNote(`Cycle ${i}/${max} · ${author.name} writing`);
+      const draft = await runCompletion(conversationId, history, parentId, author);
+      if (cancelledRef.current) {
+        setCycleNote("Stopped");
+        break;
+      }
+      if (!draft.trim()) {
+        setCycleNote(`${author.name} did not finish a reply`);
+        break;
+      }
+      const conv = useChatStore.getState().conversations.find((c) => c.id === conversationId);
+      const last = conv?.messages.filter((m) => m.role === "assistant").at(-1);
+      parentId = last?.id ?? parentId;
+      history = conv
+        ? visibleMessages(conv.messages, conv.activeRootId)
+            .filter((m) => m.role === "user" || m.role === "assistant")
+            .map((m) => ({ role: m.role, content: m.content }))
+        : history;
+      const reviewUser = addUserMessage(
+        `Review cycle ${i}/${max}. Check the latest answer from ${author.name}. If it is good, start with SATISFIED.`,
+        { conversationId },
+      );
+      parentId = reviewUser.user.id;
+      setCycleNote(`Cycle ${i}/${max} · ${reviewer.name} reviewing`);
+      const review = await runCompletion(
+        conversationId,
+        [
+          ...history,
+          { role: "user", content: reviewUser.user.content },
+        ],
+        parentId,
+        reviewer,
+        REVIEW_SYSTEM,
+      );
+      if (cancelledRef.current) {
+        setCycleNote("Stopped");
+        break;
+      }
+      const reviewMsg = useChatStore
+        .getState()
+        .conversations.find((c) => c.id === conversationId)
+        ?.messages.filter((m) => m.role === "assistant")
+        .at(-1);
+      parentId = reviewMsg?.id ?? parentId;
+      if (reviewSatisfied(review)) {
+        setCycleNote(`Stopped on cycle ${i}: ${reviewer.name} is satisfied`);
+        toast.success(`${reviewer.name} is satisfied after ${i} cycle${i === 1 ? "" : "s"}`);
+        break;
+      }
+      if (i === max) {
+        setCycleNote(`Finished ${max} cycle${max === 1 ? "" : "s"}`);
+        break;
+      }
+      const revise = addUserMessage(
+        `Revise your previous answer using this review from ${reviewer.name}:\n\n${review}`,
+        { conversationId },
+      );
+      parentId = revise.user.id;
+      const conv2 = useChatStore.getState().conversations.find((c) => c.id === conversationId);
+      history = conv2
+        ? visibleMessages(conv2.messages, conv2.activeRootId)
+            .filter((m) => m.role === "user" || m.role === "assistant")
+            .map((m) => ({ role: m.role, content: m.content }))
+        : history;
+    }
+    window.setTimeout(() => setCycleNote(""), 6000);
+  }
+
   function stop() {
+    cancelledRef.current = true;
     abortRef.current?.abort();
   }
 
@@ -489,6 +620,70 @@ export function ChatView({
           <ContextMeter used={contextUsed} limit={contextLimit} />
         </div>
       </header>
+      <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+        <label className="flex items-center gap-2 text-xs">
+          <input
+            type="checkbox"
+            checked={reviewOn}
+            onChange={(e) => {
+              const on = e.target.checked;
+              setReviewOn(on);
+              if (on && selectedModel && !authorKey) {
+                setAuthorKey(`${selectedModel.provider}:${selectedModel.id}`);
+              }
+            }}
+          />
+          Review cycle
+        </label>
+        {reviewOn ? (
+          <>
+            <label className="flex items-center gap-1 text-xs text-muted-foreground">
+              First
+              <select
+                className="h-8 max-w-[12rem] rounded-md border border-input bg-transparent px-2 text-xs"
+                value={authorKey}
+                onChange={(e) => setAuthorKey(e.target.value)}
+              >
+                <option value="">Writer…</option>
+                {models.map((m) => (
+                  <option key={`a:${m.provider}:${m.id}`} value={`${m.provider}:${m.id}`}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-1 text-xs text-muted-foreground">
+              Second
+              <select
+                className="h-8 max-w-[12rem] rounded-md border border-input bg-transparent px-2 text-xs"
+                value={reviewerKey}
+                onChange={(e) => setReviewerKey(e.target.value)}
+              >
+                <option value="">Reviewer…</option>
+                {models
+                  .filter((m) => `${m.provider}:${m.id}` !== authorKey)
+                  .map((m) => (
+                    <option key={`r:${m.provider}:${m.id}`} value={`${m.provider}:${m.id}`}>
+                      {m.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-1 text-xs text-muted-foreground">
+              Cycles
+              <input
+                type="number"
+                min={1}
+                max={100}
+                className="h-8 w-16 rounded-md border border-input bg-transparent px-2 text-xs"
+                value={cycles}
+                onChange={(e) => setCycles(Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
+              />
+            </label>
+            {cycleNote ? <span className="text-xs text-muted-foreground">{cycleNote}</span> : null}
+          </>
+        ) : null}
+      </div>
 
       <div
         ref={scrollerRef}
