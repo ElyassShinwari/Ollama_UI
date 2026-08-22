@@ -11,9 +11,15 @@ export type ModelRef = {
   family?: string;
   parameterSize?: string;
   contextLength?: number;
+  capabilities?: string[];
 };
 
 export type Role = "user" | "assistant" | "system";
+
+export type MessageAttachment = {
+  name: string;
+  kind: "txt" | "image";
+};
 
 export type Message = {
   id: string;
@@ -23,6 +29,8 @@ export type Message = {
   createdAt: number;
   parentId?: string | null;
   selectedChildId?: string | null;
+  images?: string[];
+  attachments?: MessageAttachment[];
 };
 
 export type Conversation = {

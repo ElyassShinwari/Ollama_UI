@@ -10,6 +10,13 @@ import { estimateTokens, greetingForNow, isContextOverflowError } from "@/lib/ut
 import { selectActiveConversation, useChatStore } from "@/lib/chat/store";
 import { siblingsOf, visibleMessages } from "@/lib/chat/tree";
 import { streamChat } from "@/lib/llm/catalog";
+import {
+  acceptedExtensions,
+  buildMessageFromFiles,
+  readDroppedFile,
+  unsupportedHint,
+  type PendingFile,
+} from "@/lib/llm/files";
 import { repetitionCutoff } from "@/lib/llm/repeat";
 import { countModelTokens, formatChatPrompt } from "@/lib/llm/tokens";
 import type { Message, ModelRef } from "@/lib/chat/types";
@@ -45,6 +52,9 @@ export function ChatView({
   const setUsage = useChatStore((s) => s.setUsage);
   const markContextExceeded = useChatStore((s) => s.markContextExceeded);
   const [draft, setDraft] = useState("");
+  const [files, setFiles] = useState<PendingFile[]>([]);
+  const [fileHint, setFileHint] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
   const [streamingId, setStreamingId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -147,7 +157,7 @@ export function ChatView({
 
   async function runCompletion(
     conversationId: string,
-    history: { role: string; content: string }[],
+    history: { role: string; content: string; images?: string[] }[],
     parentId: string,
   ) {
     const model = useChatStore.getState().selectedModel;
@@ -160,8 +170,6 @@ export function ChatView({
     const limit = model.contextLength;
     if (limit && promptEstimate >= limit) {
       markContextExceeded(conversationId);
-      toast.error("This model's context window is full");
-      return;
     }
     publishUsage(conversationId, promptEstimate, 0);
     void countModelTokens({
@@ -170,10 +178,7 @@ export function ChatView({
       text: promptText,
       transport: model.transport,
     }).then((n) => {
-      if (limit && n >= limit) {
-        markContextExceeded(conversationId);
-        return;
-      }
+      if (limit && n >= limit) markContextExceeded(conversationId);
       publishUsage(conversationId, n, completionTokensRef.current);
     });
 
@@ -238,7 +243,7 @@ export function ChatView({
           conversationId,
           assistantId,
           isContextOverflowError(message)
-            ? "The context limit is full. Start a new chat to reset the window."
+            ? "The context window is full. You can keep chatting, but answers may be unexpected or inaccurate."
             : `I couldn't complete that reply. ${message}`,
         );
       } else if (!isContextOverflowError(message)) {
@@ -264,28 +269,52 @@ export function ChatView({
     }
   }
 
-  async function send(text: string) {
-    const trimmed = text.trim();
-    if (!trimmed || streamingId) return;
-    if (contextFull) {
-      toast.error("Context is full. Start a new chat to continue.");
-      return;
-    }
+  async function send(text: string, extraFiles: PendingFile[] = files) {
+    const built = buildMessageFromFiles(text, extraFiles);
+    if (streamingId) return;
+    if (!built.content.trim() && !built.images?.length) return;
     setDraft("");
+    setFiles([]);
     stickToBottomRef.current = true;
-    const { conversationId, user } = addUserMessage(trimmed);
+    const { conversationId, user } = addUserMessage(built.content, {
+      images: built.images,
+      attachments: built.attachments,
+    });
     const conv = useChatStore.getState().conversations.find((c) => c.id === conversationId);
     const history = conv
       ? visibleMessages(conv.messages, conv.activeRootId)
           .filter((m) => m.role === "user" || m.role === "assistant")
-          .map((m) => ({ role: m.role, content: m.content }))
-      : [{ role: "user", content: trimmed }];
+          .map((m) => ({ role: m.role, content: m.content, images: m.images }))
+      : [{ role: "user", content: built.content, images: built.images }];
     await runCompletion(conversationId, history, user.id);
   }
 
   function stop() {
     abortRef.current?.abort();
   }
+
+  useEffect(() => {
+    if (!fileHint) return;
+    const id = window.setTimeout(() => setFileHint(null), 5000);
+    return () => window.clearTimeout(id);
+  }, [fileHint]);
+
+  async function ingestFiles(list: FileList | File[]) {
+    const model = useChatStore.getState().selectedModel;
+    if (!model) return;
+    const incoming = Array.from(list);
+    const next: PendingFile[] = [];
+    let rejected = false;
+    for (const file of incoming) {
+      const result = await readDroppedFile(file, model);
+      if (result.ok) next.push(result.file);
+      else rejected = true;
+    }
+    if (next.length) setFiles((cur) => [...cur, ...next]);
+    if (rejected) setFileHint(unsupportedHint(model.name, model));
+  }
+
+  const fileAccept = selectedModel ? acceptedExtensions(selectedModel).join(",") : ".txt";
 
   async function regenerate() {
     if (!conversation || streamingId) return;
@@ -294,7 +323,7 @@ export function ChatView({
     const history = messages
       .filter((m) => m.id !== lastAssistant?.id)
       .filter((m) => m.role === "user" || m.role === "assistant")
-      .map((m) => ({ role: m.role, content: m.content }));
+      .map((m) => ({ role: m.role, content: m.content, images: m.images }));
     stickToBottomRef.current = true;
     await runCompletion(conversation.id, history, lastUser.id);
   }
@@ -311,7 +340,7 @@ export function ChatView({
     );
     const history = [];
     for (const m of path) {
-      history.push({ role: m.role, content: m.content });
+      history.push({ role: m.role, content: m.content, images: m.images });
       if (m.id === user.id) break;
     }
     stickToBottomRef.current = true;
@@ -328,7 +357,7 @@ export function ChatView({
     );
     const history = [];
     for (const m of path) {
-      history.push({ role: m.role, content: m.content });
+      history.push({ role: m.role, content: m.content, images: m.images });
       if (m.id === user.id) break;
     }
     stickToBottomRef.current = true;
@@ -349,7 +378,33 @@ export function ChatView({
   const empty = messages.length === 0;
 
   return (
-    <div className="flex h-full min-w-0 flex-1 flex-col bg-background">
+    <div
+      className="relative flex h-full min-w-0 flex-1 flex-col bg-background"
+      onDragEnter={(e) => {
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        setDragging(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        void ingestFiles(e.dataTransfer.files);
+      }}
+    >
+      {dragging ? (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-none bg-background/80">
+          <p className="rounded-2xl border border-border bg-card px-5 py-3 text-sm">
+            Drop files to attach
+          </p>
+        </div>
+      ) : null}
       <header className="flex h-14 shrink-0 items-center gap-1 px-2 md:px-3">
         <Button
           size="icon"
@@ -446,11 +501,18 @@ export function ChatView({
         )}
       </div>
 
+      {fileHint ? (
+        <div className="mx-auto mb-2 w-full max-w-3xl px-3 md:px-4">
+          <p className="rounded-2xl border border-border bg-card px-4 py-3 text-sm">{fileHint}</p>
+        </div>
+      ) : null}
+
       {contextFull ? (
         <div className="mx-auto mb-2 w-full max-w-3xl px-3 md:px-4">
-          <div className="flex flex-col gap-2 rounded-2xl border border-destructive/40 bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-pretty">
-              This model's context window is full. Start a new chat to reset it and keep going.
+              This model's context window is full. You can keep chatting, but answers may be
+              unexpected or inaccurate. Start a new chat to reset the window.
             </p>
             <Button className="h-10 shrink-0" onClick={onNewChat}>
               New chat
@@ -465,14 +527,17 @@ export function ChatView({
         onSend={() => send(draft)}
         onStop={stop}
         streaming={Boolean(streamingId)}
-        disabled={!selectedModel || contextFull}
+        disabled={!selectedModel}
         placeholder={
-          contextFull
-            ? "Context is full — start a new chat"
-            : selectedModel
-              ? `Message ${selectedModel.name}`
-              : "Choose a model to begin"
+          selectedModel ? `Message ${selectedModel.name}` : "Choose a model to begin"
         }
+        files={files}
+        onRemoveFile={(id) => setFiles((cur) => cur.filter((f) => f.id !== id))}
+        onPickFiles={() => undefined}
+        accept={fileAccept}
+        onFileInput={(list) => {
+          if (list) void ingestFiles(list);
+        }}
       />
     </div>
   );

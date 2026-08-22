@@ -5,7 +5,7 @@ type ChatBody = {
   provider?: "ollama" | "xai";
   host?: string;
   model?: string;
-  messages?: { role: string; content: string }[];
+  messages?: { role: string; content: string; images?: string[] }[];
   temperature?: number;
   contextLength?: number;
 };

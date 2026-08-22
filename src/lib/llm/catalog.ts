@@ -1,4 +1,4 @@
-import { parseOllamaContextLength, xaiContextLength } from "@/lib/llm/context";
+import { parseOllamaCapabilities, parseOllamaContextLength, xaiContextLength } from "@/lib/llm/context";
 import type { ModelCatalog, ModelRef, TokenUsage, Transport } from "@/lib/chat/types";
 
 type ServerCatalog = {
@@ -12,7 +12,6 @@ async function attachBrowserContext(host: string, models: ModelRef[]): Promise<M
   const origin = host.replace(/\/+$/, "");
   return Promise.all(
     models.map(async (model) => {
-      if (model.provider !== "ollama" || model.contextLength) return model;
       try {
         const res = await fetch(`${origin}/api/show`, {
           method: "POST",
@@ -24,9 +23,17 @@ async function attachBrowserContext(host: string, models: ModelRef[]): Promise<M
         const body = (await res.json()) as {
           model_info?: Record<string, unknown>;
           parameters?: string;
+          capabilities?: unknown;
+          projector_info?: unknown;
+          details?: { family?: string };
         };
         const contextLength = parseOllamaContextLength(body);
-        return contextLength ? { ...model, contextLength } : model;
+        const capabilities = parseOllamaCapabilities(body, model.id);
+        return {
+          ...model,
+          contextLength: contextLength ?? model.contextLength,
+          capabilities: capabilities.length ? capabilities : model.capabilities,
+        };
       } catch {
         return model;
       }
@@ -113,21 +120,24 @@ export async function fetchCatalog(host: string, browserModels: ModelRef[] = [])
   };
 }
 
+export type ChatTurn = {
+  role: string;
+  content: string;
+  images?: string[];
+};
+
 export type ChatRequestBody = {
   provider: "ollama" | "xai";
   transport: "browser" | "server";
   host: string;
   model: string;
-  messages: { role: string; content: string }[];
+  messages: ChatTurn[];
   temperature: number;
   systemPrompt?: string;
   contextLength?: number;
 };
 
-function withSystem(
-  messages: { role: string; content: string }[],
-  systemPrompt?: string,
-) {
+function withSystem(messages: ChatTurn[], systemPrompt?: string): ChatTurn[] {
   if (!systemPrompt?.trim()) return messages;
   return [{ role: "system", content: systemPrompt.trim() }, ...messages];
 }
@@ -205,7 +215,7 @@ async function streamOllamaBrowser(
   opts: {
     host: string;
     model: string;
-    messages: { role: string; content: string }[];
+    messages: ChatTurn[];
     temperature: number;
     contextLength?: number;
   },

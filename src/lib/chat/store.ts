@@ -7,7 +7,7 @@ const defaultSettings: Settings = {
   ollamaHost: "http://127.0.0.1:11434",
   temperature: 0.7,
   systemPrompt: "",
-  theme: "dark",
+  theme: "light",
 };
 
 function uid() {
@@ -67,7 +67,7 @@ type ChatState = {
   deleteConversation: (id: string) => void;
   renameConversation: (id: string, title: string) => void;
   togglePin: (id: string) => void;
-  addUserMessage: (content: string) => { conversationId: string; user: Message };
+  addUserMessage: (content: string, extra?: { images?: string[]; attachments?: Message["attachments"] }) => { conversationId: string; user: Message };
   startAssistantMessage: (conversationId: string, model: ModelRef, parentId: string) => string;
   appendToMessage: (conversationId: string, messageId: string, chunk: string) => void;
   finishMessage: (conversationId: string, messageId: string) => void;
@@ -170,7 +170,7 @@ export const useChatStore = create<ChatState>()(
             c.id === id ? { ...c, pinned: !c.pinned, updatedAt: Date.now() } : c,
           ),
         })),
-      addUserMessage: (content) => {
+      addUserMessage: (content, extra) => {
         const now = Date.now();
         let conversationId = get().activeId;
         const existing = get().conversations.find((c) => c.id === conversationId);
@@ -187,6 +187,8 @@ export const useChatStore = create<ChatState>()(
           createdAt: now,
           parentId: parent?.id ?? null,
           selectedChildId: null,
+          images: extra?.images,
+          attachments: extra?.attachments,
         };
         set((s) => ({
           conversations: s.conversations.map((c) => {

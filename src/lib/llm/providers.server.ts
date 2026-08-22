@@ -1,4 +1,4 @@
-import { parseOllamaContextLength, xaiContextLength } from "@/lib/llm/context";
+import { parseOllamaCapabilities, parseOllamaContextLength, xaiContextLength } from "@/lib/llm/context";
 import { sanitizeOllamaHost } from "@/lib/utils";
 import type { ModelRef, TokenUsage } from "@/lib/chat/types";
 
@@ -51,7 +51,7 @@ function displayXaiName(id: string) {
 export async function fetchOllamaContext(
   host: string,
   name: string,
-): Promise<number | undefined> {
+): Promise<{ contextLength?: number; capabilities?: string[] } | undefined> {
   try {
     const res = await fetch(`${host}/api/show`, {
       method: "POST",
@@ -63,8 +63,14 @@ export async function fetchOllamaContext(
     const body = (await res.json()) as {
       model_info?: Record<string, unknown>;
       parameters?: string;
+      capabilities?: unknown;
+      projector_info?: unknown;
+      details?: { family?: string };
     };
-    return parseOllamaContextLength(body);
+    return {
+      contextLength: parseOllamaContextLength(body),
+      capabilities: parseOllamaCapabilities(body, name),
+    };
   } catch {
     return undefined;
   }
@@ -90,8 +96,13 @@ export async function listOllamaModels(hostRaw: string): Promise<ModelRef[]> {
   }));
   return Promise.all(
     base.map(async (model) => {
-      const contextLength = await fetchOllamaContext(host, model.id);
-      return contextLength ? { ...model, contextLength } : model;
+      const meta = await fetchOllamaContext(host, model.id);
+      if (!meta) return model;
+      return {
+        ...model,
+        ...(meta.contextLength ? { contextLength: meta.contextLength } : {}),
+        ...(meta.capabilities?.length ? { capabilities: meta.capabilities } : {}),
+      };
     }),
   );
 }
@@ -184,7 +195,7 @@ export async function listXaiModels(): Promise<ModelRef[]> {
 export async function* streamOllamaChat(opts: {
   host: string;
   model: string;
-  messages: { role: string; content: string }[];
+  messages: { role: string; content: string; images?: string[] }[];
   temperature: number;
   contextLength?: number;
   signal: AbortSignal;

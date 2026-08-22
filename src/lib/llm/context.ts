@@ -27,3 +27,29 @@ export function parseOllamaContextLength(body: {
   }
   return undefined;
 }
+
+export function parseOllamaCapabilities(
+  body: {
+    capabilities?: unknown;
+    projector_info?: unknown;
+    details?: { family?: string };
+  },
+  name: string,
+): string[] {
+  const caps = new Set<string>();
+  if (Array.isArray(body.capabilities)) {
+    for (const item of body.capabilities) {
+      if (typeof item === "string" && item.trim()) caps.add(item.toLowerCase());
+    }
+  }
+  if (body.projector_info) caps.add("vision");
+  const blob = `${name} ${body.details?.family ?? ""}`.toLowerCase();
+  if (
+    /llava|bakllava|moondream|vision|minicpm-v|qwen2(\.5)?-vl|qwen-vl|pixtral|gemma3|llama3\.2-vision/.test(
+      blob,
+    )
+  ) {
+    caps.add("vision");
+  }
+  return [...caps];
+}

@@ -12,7 +12,7 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: APP_NAME },
-      { name: "theme-color", content: "#0c0c0d" },
+      { name: "theme-color", content: "#f4f1ea" },
       {
         name: "description",
         content: "A local chat UI for every Ollama model on your machine.",
@@ -30,7 +30,7 @@ export const Route = createRootRoute({
     ],
   }),
   component: () => (
-    <html lang="en" className="dark antialiased" suppressHydrationWarning>
+    <html lang="en" className="light antialiased" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
         <HeadContent />

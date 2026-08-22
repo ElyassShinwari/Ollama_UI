@@ -105,6 +105,18 @@ export function MessageBubble({
           </div>
         ) : (
           <div className="max-w-[min(100%,42rem)] rounded-3xl bg-secondary px-5 py-3 text-[15px] leading-7 whitespace-pre-wrap">
+            {message.attachments?.length ? (
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {message.attachments.map((file) => (
+                  <span
+                    key={file.name}
+                    className="rounded-lg bg-background/60 px-2 py-0.5 text-xs text-muted-foreground"
+                  >
+                    {file.name}
+                  </span>
+                ))}
+              </div>
+            ) : null}
             {message.content}
           </div>
         )}
