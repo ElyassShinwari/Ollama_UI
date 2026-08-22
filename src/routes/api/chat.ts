@@ -117,7 +117,7 @@ export const Route = createFileRoute("/api/chat")({
                     apiKey: key,
                     model,
                     messages: turns,
-                    temperature,
+                    temperature: provider === "kimi" && !key.startsWith("sk-") ? 1 : temperature,
                     signal: request.signal,
                     extraHeaders,
                   });

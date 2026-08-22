@@ -194,6 +194,9 @@ Open **Studio → Cloud base** (or Settings). ChatGPT, Grok, and Kimi: click **S
 **ChatGPT says insufficient quota**  
 That is the paid OpenAI API, not your ChatGPT plan. Sign in with ChatGPT in Cloud base (do not paste a platform API key), then pick a ChatGPT GPT-5.4 or Codex model.
 
+**Kimi says invalid temperature**  
+Kimi Code only accepts temperature 1. The app now sends that automatically after you sign in with Kimi.
+
 **GitHub authenticate failed**  
 The token needs **repo** access. Fine-grained tokens must allow the target repository. This app does not use GitHub OAuth.
 
