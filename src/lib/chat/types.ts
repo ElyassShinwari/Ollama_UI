@@ -69,6 +69,7 @@ export type Settings = {
   deepseekKey: string;
   openaiOAuth: OAuthSession | null;
   xaiOAuth: OAuthSession | null;
+  kimiOAuth: OAuthSession | null;
 };
 
 export type CatalogStatus = {

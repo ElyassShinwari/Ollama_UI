@@ -15,6 +15,7 @@ const defaultSettings: Settings = {
   deepseekKey: "",
   openaiOAuth: null,
   xaiOAuth: null,
+  kimiOAuth: null,
 };
 
 function uid() {

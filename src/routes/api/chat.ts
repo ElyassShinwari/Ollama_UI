@@ -72,7 +72,7 @@ export const Route = createFileRoute("/api/chat")({
                 });
               } else if (provider === "anthropic") {
                 const key = apiKey || process.env.ANTHROPIC_API_KEY || "";
-                if (!key) throw new Error("Add a Claude API key in Settings or Studio → Cloud");
+                if (!key) throw new Error("Add a Claude API key in Settings or Studio → Cloud base");
                 iterator = streamAnthropicChat({
                   apiKey: key,
                   model,
@@ -98,10 +98,11 @@ export const Route = createFileRoute("/api/chat")({
                         ? process.env.DEEPSEEK_API_KEY
                         : process.env.XAI_API_KEY) ||
                   "";
-                if (!key) throw new Error("Add an API key in Settings or Studio → Cloud");
-                const url = cloudEndpoint(provider).url;
+                if (!key) throw new Error("Add an API key or sign in under Studio → Cloud base");
+                const url = cloudEndpoint(provider, key).url;
                 const extraHeaders: Record<string, string> = {};
                 if (provider === "openai" && accountId) extraHeaders["ChatGPT-Account-ID"] = accountId;
+                if (provider === "kimi" && !key.startsWith("sk-")) extraHeaders["User-Agent"] = "KimiCLI/1.5";
                 iterator = streamOpenAiCompat({
                   url,
                   apiKey: key,

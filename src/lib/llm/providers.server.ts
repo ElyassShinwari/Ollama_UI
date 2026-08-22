@@ -266,12 +266,15 @@ export async function listCloudModels(
   if (!apiKey.trim()) return [];
   const fallback = FALLBACK_CLOUD[provider];
   try {
-    const ep = cloudEndpoint(provider);
+    const ep = cloudEndpoint(provider, apiKey);
     const headers: Record<string, string> = { Authorization: `Bearer ${apiKey}` };
     if (provider === "anthropic") {
       headers["x-api-key"] = apiKey;
       headers["anthropic-version"] = "2023-06-01";
       delete headers.Authorization;
+    }
+    if (provider === "kimi" && !apiKey.startsWith("sk-")) {
+      headers["User-Agent"] = "KimiCLI/1.5";
     }
     const res = await fetch(ep.models, { headers, signal: AbortSignal.timeout(6000) });
     if (!res.ok) return fallback;

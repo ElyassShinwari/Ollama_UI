@@ -95,7 +95,7 @@ export function ChatApp() {
     void refresh();
     const id = window.setInterval(() => void refresh(), 30000);
     return () => window.clearInterval(id);
-  }, [refresh, settings.ollamaHost, settings.openaiKey, settings.anthropicKey, settings.xaiKey, settings.kimiKey, settings.deepseekKey, settings.openaiOAuth, settings.xaiOAuth, hydrated]);
+  }, [refresh, settings.ollamaHost, settings.openaiKey, settings.anthropicKey, settings.xaiKey, settings.kimiKey, settings.deepseekKey, settings.openaiOAuth, settings.xaiOAuth, settings.kimiOAuth, hydrated]);
 
   function startFreshChat() {
     const id = newChat();
@@ -105,6 +105,7 @@ export function ChatApp() {
       void resetModelContext(useChatStore.getState().settings.ollamaHost, model);
     }
     setMobileOpen(false);
+    setStudioOpen(false);
   }
 
   function chooseModel(model: ModelRef) {
@@ -126,7 +127,10 @@ export function ChatApp() {
         setStudioOpen(true);
         setMobileOpen(false);
       }}
-      onNavigate={() => setMobileOpen(false)}
+      onNavigate={() => {
+        setMobileOpen(false);
+        setStudioOpen(false);
+      }}
     />
   );
 
@@ -161,10 +165,7 @@ export function ChatApp() {
           {studioOpen ? (
             <StudioPanel
               models={catalog.models}
-              onClose={() => {
-                startFreshChat();
-                setStudioOpen(false);
-              }}
+              onClose={() => setStudioOpen(false)}
             />
           ) : selectedModel ? (
             <ChatView

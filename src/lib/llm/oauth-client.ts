@@ -1,7 +1,10 @@
 import { useChatStore } from "@/lib/chat/store";
 import type { OAuthSession } from "@/lib/chat/types";
 
-async function refreshIfNeeded(provider: "openai" | "xai", session: OAuthSession | null) {
+async function refreshIfNeeded(
+  provider: "openai" | "xai" | "kimi",
+  session: OAuthSession | null,
+) {
   if (!session?.refreshToken) return session;
   if (session.expiresAt > Date.now() + 120_000) return session;
   const res = await fetch("/api/oauth", {
@@ -12,7 +15,8 @@ async function refreshIfNeeded(provider: "openai" | "xai", session: OAuthSession
   const json = (await res.json()) as { session?: OAuthSession; error?: string };
   if (!res.ok || !json.session) return session;
   if (provider === "openai") useChatStore.getState().setSettings({ openaiOAuth: json.session });
-  else useChatStore.getState().setSettings({ xaiOAuth: json.session });
+  else if (provider === "xai") useChatStore.getState().setSettings({ xaiOAuth: json.session });
+  else useChatStore.getState().setSettings({ kimiOAuth: json.session });
   return json.session;
 }
 
@@ -20,4 +24,5 @@ export async function ensureCloudAuth() {
   const settings = useChatStore.getState().settings;
   await refreshIfNeeded("openai", settings.openaiOAuth);
   await refreshIfNeeded("xai", settings.xaiOAuth);
+  await refreshIfNeeded("kimi", settings.kimiOAuth);
 }

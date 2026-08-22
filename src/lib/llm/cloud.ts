@@ -88,10 +88,18 @@ export const FALLBACK_CLOUD: Record<CloudId, ModelRef[]> = {
   ],
 };
 
-export function cloudEndpoint(provider: CloudId) {
+export function cloudEndpoint(provider: CloudId, secret?: string) {
   if (provider === "openai") return { url: "https://api.openai.com/v1/chat/completions", models: "https://api.openai.com/v1/models" };
   if (provider === "xai") return { url: "https://api.x.ai/v1/chat/completions", models: "https://api.x.ai/v1/models" };
-  if (provider === "kimi") return { url: "https://api.moonshot.ai/v1/chat/completions", models: "https://api.moonshot.ai/v1/models" };
+  if (provider === "kimi") {
+    if (secret && !secret.startsWith("sk-")) {
+      return {
+        url: "https://api.kimi.com/coding/v1/chat/completions",
+        models: "https://api.kimi.com/coding/v1/models",
+      };
+    }
+    return { url: "https://api.moonshot.ai/v1/chat/completions", models: "https://api.moonshot.ai/v1/models" };
+  }
   if (provider === "deepseek") return { url: "https://api.deepseek.com/chat/completions", models: "https://api.deepseek.com/models" };
   return { url: "https://api.anthropic.com/v1/messages", models: "https://api.anthropic.com/v1/models" };
 }
@@ -105,6 +113,10 @@ export function cloudSecret(settings: Settings, provider: Provider) {
     if (settings.xaiOAuth?.accessToken) return settings.xaiOAuth.accessToken;
     return settings.xaiKey;
   }
+  if (provider === "kimi") {
+    if (settings.kimiOAuth?.accessToken) return settings.kimiOAuth.accessToken;
+    return settings.kimiKey;
+  }
   if (provider === "ollama") return "";
   const account = CLOUD_ACCOUNTS.find((item) => item.id === provider);
   if (!account) return "";
@@ -115,23 +127,24 @@ export function cloudSecret(settings: Settings, provider: Provider) {
 export function isCloudSignedIn(settings: Settings, provider: Provider) {
   if (provider === "openai") return Boolean(settings.openaiOAuth?.accessToken);
   if (provider === "xai") return Boolean(settings.xaiOAuth?.accessToken);
+  if (provider === "kimi") return Boolean(settings.kimiOAuth?.accessToken);
   return Boolean(cloudSecret(settings, provider));
 }
 
 export function oauthNote(provider: CloudId) {
   if (provider === "openai") {
-    return "Sign in with your ChatGPT account in this app. After you approve, ChatGPT is available for chat and review.";
+    return "Sign in with ChatGPT in this app. A ChatGPT window opens — you do not need to enable device-code in Security Settings.";
   }
   if (provider === "xai") {
     return "Sign in with your Grok / SuperGrok account in this app. After you approve, Grok is available for chat and review.";
   }
-  if (provider === "anthropic") {
-    return "Anthropic does not allow other apps to sign in with Claude.ai. Paste an API key from the Anthropic console.";
-  }
   if (provider === "kimi") {
-    return "Kimi does not offer in-app login for other apps. Paste a Moonshot API key.";
+    return "Sign in with your Kimi account in this app. After you approve, Kimi is available for chat and review.";
   }
-  return "DeepSeek does not offer in-app login for other apps. Paste a DeepSeek API key.";
+  if (provider === "anthropic") {
+    return "Anthropic does not allow other apps to use a Claude.ai login. Sign in on their console, then paste an API key.";
+  }
+  return "DeepSeek does not offer in-app login for other apps. Sign in on their site, then paste an API key.";
 }
 
 export function reviewSatisfied(text: string) {

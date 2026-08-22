@@ -8,7 +8,7 @@ Talk to Ollama models, ChatGPT, Claude, Grok, Kimi, and DeepSeek in one window. 
 
 - [Node.js](https://nodejs.org) 22 or newer (includes npm)
 
-Ollama is required for **local** models. Cloud models only need an API key (OpenAI, Anthropic, xAI, or Moonshot).
+Ollama is required for **local** models. Cloud models need a sign-in (ChatGPT, Grok, Kimi) or an API key (Claude, DeepSeek, or any of the five).
 
 ## Install and run
 
@@ -101,24 +101,26 @@ ollama list
 3. Chat. Switch models from the header. The full conversation is sent to the new model, and the context meter updates to that model's window.
 4. If the new model’s window is smaller than this chat, you get a warning: answers may be unexpected or inaccurate while the window is full. You can still continue, or start a new chat.
 5. Attach `.txt` files with **+** or drag and drop. Vision models also take images.
-6. Open **Studio** in the sidebar for GitHub, cloud APIs, MCP, the local API, website/WhatsApp webhooks, instructions, knowledge, and model advice. **Back to new chat** closes Studio and opens a blank conversation.
+6. Open **Studio** in the sidebar for GitHub, **Cloud base**, MCP, the local API, website/WhatsApp webhooks, instructions, knowledge, and model advice. **Back to chat** closes Studio and returns to the conversation you were in. Clicking a chat in the sidebar also closes Studio and opens that chat.
 7. Click **Start review** to run a writer/tester cycle on the current chat — including chats you already started. The **writer** is the model in the header. Pick a **tester** and 1–100 cycles. If the tester is not satisfied when the cycles end, it posts a final report with the project and remaining errors.
 
 Conversations stay in this browser. Default theme is light (switch in Settings). API keys stay in this browser and are sent only to this computer’s server, then to the matching provider.
 
-## Cloud models (ChatGPT, Claude, Grok, Kimi, DeepSeek)
+## Cloud base (ChatGPT, Claude, Grok, Kimi, DeepSeek)
 
-**Settings** or **Studio → Cloud**:
+**Settings** or **Studio → Cloud base**:
 
-- **ChatGPT** and **Grok**: click **Sign in** in this app, finish login in the window that opens, then those models work here for chat and review. No API key required after that.
-- **Claude, Kimi, DeepSeek**: those companies do not allow other apps to use a web login. Sign in on their site, then paste an API key.
+- **ChatGPT** — click **Sign in**. A ChatGPT window opens (normal login, not a device code). You do **not** need to enable device-code authorization in ChatGPT Security Settings. If the browser then says it cannot connect, copy the full address from the address bar (`http://localhost:1455/auth/callback?code=…`) and paste it into Cloud base, then **Finish**.
+- **Grok** — click **Sign in**, approve in the window, enter the code if asked.
+- **Kimi** — click **Sign in**, approve in the window, enter the code if asked.
+- **Claude** and **DeepSeek** — those companies do not allow other apps to use a web login. Sign in on their site, then paste an API key.
 
 | Provider | In-app sign-in | API key |
 | --- | --- | --- |
-| ChatGPT | Yes — Sign in in Studio / Settings | Optional, [platform.openai.com](https://platform.openai.com/api-keys) |
-| Grok | Yes — Sign in in Studio / Settings | Optional, [console.x.ai](https://console.x.ai) |
+| ChatGPT | Yes — Sign in in Cloud base | Optional, [platform.openai.com](https://platform.openai.com/api-keys) |
+| Grok | Yes — Sign in in Cloud base | Optional, [console.x.ai](https://console.x.ai) |
+| Kimi | Yes — Sign in in Cloud base | Optional, [platform.moonshot.ai](https://platform.moonshot.ai) |
 | Claude | No (Anthropic policy) | [console.anthropic.com](https://console.anthropic.com/settings/keys) |
-| Kimi | No | [platform.moonshot.ai](https://platform.moonshot.ai) |
 | DeepSeek | No | [platform.deepseek.com](https://platform.deepseek.com/api_keys) |
 
 Signed-in accounts and keys stay in this browser. Review cycles can use any connected model as writer or tester.
@@ -187,7 +189,7 @@ The app needs permission to install software. Use the manual steps above, then c
 Install one from the library search (`smollm2:135m`). If Ollama is on another machine, set the host in Settings (`http://127.0.0.1:11434` by default).
 
 **ChatGPT / Claude / Grok / Kimi / DeepSeek missing**  
-ChatGPT and Grok: click **Sign in** in Settings or Studio → Cloud. Claude, Kimi, and DeepSeek need an API key from their console.
+Open **Studio → Cloud base** (or Settings). ChatGPT, Grok, and Kimi: click **Sign in**. If ChatGPT talks about enabling device-code in Security Settings, close that tab and use **Sign in** again — this app uses the normal ChatGPT login, not device-code. Claude and DeepSeek need an API key from their console.
 
 **GitHub authenticate failed**  
 The token needs **repo** access. Fine-grained tokens must allow the target repository. This app does not use GitHub OAuth.

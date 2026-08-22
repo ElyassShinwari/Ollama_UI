@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 const TABS = [
   "GitHub",
-  "Cloud",
+  "Cloud base",
   "MCP",
   "API",
   "Channels",
@@ -61,7 +61,7 @@ export function StudioPanel({
             </p>
           </div>
           <Button variant="outline" onClick={onClose}>
-            Back to new chat
+            Back to chat
           </Button>
         </div>
         <div className="mb-6 flex flex-wrap gap-1">
@@ -77,7 +77,7 @@ export function StudioPanel({
           ))}
         </div>
         {tab === "GitHub" ? <GitHubTab /> : null}
-        {tab === "Cloud" ? <CloudTab /> : null}
+        {tab === "Cloud base" ? <CloudTab /> : null}
         {tab === "MCP" ? <McpTab models={models} selected={selected} /> : null}
         {tab === "API" ? <ApiTab models={models} selected={selected} /> : null}
         {tab === "Channels" ? <ChannelsTab models={models} selected={selected} /> : null}
@@ -259,9 +259,8 @@ function CloudTab() {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground text-pretty">
-        Sign in or paste an API key / access token so ChatGPT, Claude, Grok, Kimi, and DeepSeek
-        appear in the same model menu as Ollama. The header model is the writer in a review cycle;
-        pick a tester and click Start review.
+        Sign in here for ChatGPT, Grok, and Kimi. Claude and DeepSeek need an API key after you
+        sign in on their site. Signed-in models work in the same menu as Ollama, including Start review.
       </p>
       <CloudConnect />
     </div>
