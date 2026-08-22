@@ -17,6 +17,81 @@ type XaiModel = {
   object?: string;
 };
 
+type ChatTurnIn = {
+  role: string;
+  content: string;
+  images?: string[];
+  documents?: { name: string; mime: string; data: string }[];
+};
+
+function asDataUrl(value: string, fallbackMime: string) {
+  if (value.startsWith("data:")) return value;
+  return `data:${fallbackMime};base64,${value}`;
+}
+
+function rawBase64(value: string) {
+  if (!value.startsWith("data:")) return value;
+  const comma = value.indexOf(",");
+  return comma >= 0 ? value.slice(comma + 1) : value;
+}
+
+function mimeFromDataUrl(value: string, fallback: string) {
+  const match = /^data:([^;]+);/i.exec(value);
+  return match?.[1] || fallback;
+}
+
+function toOpenAiContent(m: ChatTurnIn) {
+  const hasMedia = Boolean(m.images?.length || m.documents?.length);
+  if (!hasMedia) return m.content;
+  const parts: Record<string, unknown>[] = [];
+  if (m.content.trim()) parts.push({ type: "text", text: m.content });
+  for (const img of m.images ?? []) {
+    parts.push({ type: "image_url", image_url: { url: asDataUrl(img, "image/png") } });
+  }
+  for (const doc of m.documents ?? []) {
+    parts.push({
+      type: "file",
+      file: { filename: doc.name, file_data: `data:${doc.mime};base64,${doc.data}` },
+    });
+  }
+  return parts;
+}
+
+function toAnthropicContent(m: ChatTurnIn) {
+  const hasMedia = Boolean(m.images?.length || m.documents?.length);
+  if (!hasMedia) return m.content;
+  const parts: Record<string, unknown>[] = [];
+  if (m.content.trim()) parts.push({ type: "text", text: m.content });
+  for (const img of m.images ?? []) {
+    parts.push({
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: mimeFromDataUrl(img, "image/png"),
+        data: rawBase64(img),
+      },
+    });
+  }
+  for (const doc of m.documents ?? []) {
+    if (doc.mime === "application/pdf" || doc.name.toLowerCase().endsWith(".pdf")) {
+      parts.push({
+        type: "document",
+        source: { type: "base64", media_type: "application/pdf", data: doc.data },
+      });
+    } else {
+      parts.push({ type: "text", text: `Attached file: ${doc.name} (${doc.mime})` });
+    }
+  }
+  return parts;
+}
+
+function fileError(text: string, status: number, fallback: string) {
+  if (/unsupported|invalid.*file|file type|media type|image|document|mime/i.test(text)) {
+    return text || "This model did not accept that file.";
+  }
+  return text || `${fallback} ${status}`;
+}
+
 export type ChatStreamEvent = {
   content?: string;
   usage?: TokenUsage;
@@ -229,7 +304,7 @@ export async function* streamOllamaChat(opts: {
 
 export async function* streamXaiChat(opts: {
   model: string;
-  messages: { role: string; content: string }[];
+  messages: ChatTurnIn[];
   temperature: number;
   signal: AbortSignal;
 }): AsyncGenerator<ChatStreamEvent> {
@@ -243,7 +318,7 @@ export async function* streamXaiChat(opts: {
     },
     body: JSON.stringify({
       model: opts.model,
-      messages: opts.messages,
+      messages: opts.messages.map((m) => ({ role: m.role, content: toOpenAiContent(m) })),
       temperature: opts.temperature,
       stream: true,
       max_tokens: 4096,
@@ -253,7 +328,7 @@ export async function* streamXaiChat(opts: {
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(text || `xAI error ${res.status}`);
+    throw new Error(fileError(text, res.status, "xAI error"));
   }
   if (!res.body) throw new Error("xAI returned an empty stream");
   yield* readXaiSse(res.body);
@@ -348,15 +423,37 @@ export async function* streamCodexChat(opts: {
   apiKey: string;
   accountId?: string;
   model: string;
-  messages: { role: string; content: string }[];
+  messages: ChatTurnIn[];
   signal: AbortSignal;
 }): AsyncGenerator<ChatStreamEvent> {
   const accountId = chatgptAccountId(opts.apiKey, opts.accountId);
-  const input = opts.messages.map((m) => ({
-    type: "message",
-    role: m.role === "system" ? "developer" : m.role,
-    content: m.content,
-  }));
+  const input = opts.messages.map((m) => {
+    const hasMedia = Boolean(m.images?.length || m.documents?.length);
+    if (!hasMedia) {
+      return {
+        type: "message",
+        role: m.role === "system" ? "developer" : m.role,
+        content: m.content,
+      };
+    }
+    const content: Record<string, unknown>[] = [];
+    if (m.content.trim()) content.push({ type: "input_text", text: m.content });
+    for (const img of m.images ?? []) {
+      content.push({ type: "input_image", image_url: asDataUrl(img, "image/png") });
+    }
+    for (const doc of m.documents ?? []) {
+      content.push({
+        type: "input_file",
+        filename: doc.name,
+        file_data: `data:${doc.mime};base64,${doc.data}`,
+      });
+    }
+    return {
+      type: "message",
+      role: m.role === "system" ? "developer" : m.role,
+      content,
+    };
+  });
   const res = await fetch("https://chatgpt.com/backend-api/codex/responses", {
     method: "POST",
     headers: {
@@ -383,7 +480,7 @@ export async function* streamCodexChat(opts: {
         "That request hit the paid OpenAI API instead of your ChatGPT plan. Sign out and Sign in again under Cloud base, then pick a ChatGPT model.",
       );
     }
-    throw new Error(text || `ChatGPT error ${res.status}`);
+    throw new Error(fileError(text, res.status, "ChatGPT error"));
   }
   if (!res.body) throw new Error("ChatGPT returned an empty stream");
   yield* readCodexSse(res.body);
@@ -444,7 +541,7 @@ export async function* streamOpenAiCompat(opts: {
   url: string;
   apiKey: string;
   model: string;
-  messages: { role: string; content: string }[];
+  messages: ChatTurnIn[];
   temperature: number;
   signal: AbortSignal;
   extraHeaders?: Record<string, string>;
@@ -458,7 +555,7 @@ export async function* streamOpenAiCompat(opts: {
     },
     body: JSON.stringify({
       model: opts.model,
-      messages: opts.messages,
+      messages: opts.messages.map((m) => ({ role: m.role, content: toOpenAiContent(m) })),
       temperature: opts.temperature,
       stream: true,
     }),
@@ -471,7 +568,7 @@ export async function* streamOpenAiCompat(opts: {
         "This is the paid OpenAI API, not your ChatGPT plan. Sign in with ChatGPT under Cloud base (no API key) to use the subscription, or add billing at platform.openai.com.",
       );
     }
-    throw new Error(text || `Cloud error ${res.status}`);
+    throw new Error(fileError(text, res.status, "Cloud error"));
   }
   if (!res.body) throw new Error("Empty stream");
   yield* readXaiSse(res.body);
@@ -480,14 +577,14 @@ export async function* streamOpenAiCompat(opts: {
 export async function* streamAnthropicChat(opts: {
   apiKey: string;
   model: string;
-  messages: { role: string; content: string }[];
+  messages: ChatTurnIn[];
   temperature: number;
   signal: AbortSignal;
 }): AsyncGenerator<ChatStreamEvent> {
   const system = opts.messages.filter((m) => m.role === "system").map((m) => m.content).join("\n");
   const messages = opts.messages
     .filter((m) => m.role === "user" || m.role === "assistant")
-    .map((m) => ({ role: m.role, content: m.content }));
+    .map((m) => ({ role: m.role, content: toAnthropicContent(m) }));
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -507,7 +604,7 @@ export async function* streamAnthropicChat(opts: {
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(text || `Anthropic error ${res.status}`);
+    throw new Error(fileError(text, res.status, "Anthropic error"));
   }
   if (!res.body) throw new Error("Empty stream");
   const reader = res.body.getReader();

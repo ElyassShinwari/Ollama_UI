@@ -152,6 +152,7 @@ export type ChatTurn = {
   role: string;
   content: string;
   images?: string[];
+  documents?: { name: string; mime: string; data: string }[];
 };
 
 export type ChatRequestBody = {

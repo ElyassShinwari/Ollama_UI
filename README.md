@@ -100,7 +100,7 @@ ollama list
 2. Pick a model from the library, from this computer, or from ChatGPT / Claude / Grok / Kimi. Open the model menu to search and scroll the full list, or use the arrows to step through every available model. The tester menu in a review works the same way.
 3. Chat. Switch models from the header. The full conversation is sent to the new model, and the context meter updates to that model's window.
 4. If the new model’s window is smaller than this chat, you get a warning: answers may be unexpected or inaccurate while the window is full. You can still continue, or start a new chat.
-5. Attach `.txt` files with **+** or drag and drop. Vision models also take images.
+5. Attach files with **+** or drag and drop. The app takes the file and sends what it can (text, images, PDFs, and other types). Grok, ChatGPT, Claude, and Kimi accept many kinds. If a model cannot read a file, that model’s reply says so — the app does not block unknown types up front.
 6. Open **Studio** in the sidebar for GitHub, **Cloud base**, MCP, the local API, website/WhatsApp webhooks, instructions, knowledge, and model advice. **Back to chat** closes Studio and returns to the conversation you were in. Clicking a chat in the sidebar also closes Studio and opens that chat.
 7. Click **Start review** to run a writer/tester cycle on the current chat — including chats you already started. The **writer** is the model in the header. Pick a **tester** and 1–100 cycles. If the tester is not satisfied when the cycles end, it posts a final report with the project and remaining errors.
 

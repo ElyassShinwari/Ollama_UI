@@ -75,7 +75,7 @@ type ChatState = {
   deleteConversation: (id: string) => void;
   renameConversation: (id: string, title: string) => void;
   togglePin: (id: string) => void;
-  addUserMessage: (content: string, extra?: { images?: string[]; attachments?: Message["attachments"]; conversationId?: string }) => { conversationId: string; user: Message };
+  addUserMessage: (content: string, extra?: { images?: string[]; documents?: Message["documents"]; attachments?: Message["attachments"]; conversationId?: string }) => { conversationId: string; user: Message };
   startAssistantMessage: (conversationId: string, model: ModelRef, parentId: string) => string;
   appendToMessage: (conversationId: string, messageId: string, chunk: string) => void;
   finishMessage: (conversationId: string, messageId: string) => void;
@@ -203,6 +203,7 @@ export const useChatStore = create<ChatState>()(
           parentId: parent?.id ?? null,
           selectedChildId: null,
           images: extra?.images,
+          documents: extra?.documents,
           attachments: extra?.attachments,
         };
         set((s) => ({

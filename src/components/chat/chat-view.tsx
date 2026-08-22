@@ -19,10 +19,8 @@ import { selectActiveConversation, useChatStore } from "@/lib/chat/store";
 import { siblingsOf, visibleMessages } from "@/lib/chat/tree";
 import { streamChat } from "@/lib/llm/catalog";
 import {
-  acceptedExtensions,
   buildMessageFromFiles,
   readDroppedFile,
-  unsupportedHint,
   type PendingFile,
 } from "@/lib/llm/files";
 import { repetitionCutoff } from "@/lib/llm/repeat";
@@ -194,7 +192,7 @@ export function ChatView({
 
   async function runCompletion(
     conversationId: string,
-    history: { role: string; content: string; images?: string[] }[],
+    history: { role: string; content: string; images?: string[]; documents?: Message["documents"] }[],
     parentId: string,
     using?: ModelRef,
     extraSystem?: string,
@@ -333,10 +331,10 @@ export function ChatView({
 
   function visibleHistory(conversationId: string) {
     const conv = useChatStore.getState().conversations.find((c) => c.id === conversationId);
-    if (!conv) return [] as { role: string; content: string; images?: string[] }[];
+    if (!conv) return [] as { role: string; content: string; images?: string[]; documents?: Message["documents"] }[];
     return visibleMessages(conv.messages, conv.activeRootId)
       .filter((m) => m.role === "user" || m.role === "assistant")
-      .map((m) => ({ role: m.role, content: m.content, images: m.images }));
+      .map((m) => ({ role: m.role, content: m.content, images: m.images, documents: m.documents }));
   }
 
   function lastAssistantId(conversationId: string) {
@@ -347,20 +345,21 @@ export function ChatView({
   async function send(text: string, extraFiles: PendingFile[] = files) {
     const built = buildMessageFromFiles(text, extraFiles);
     if (streamingId) return;
-    if (!built.content.trim() && !built.images?.length) return;
+    if (!built.content.trim() && !built.images?.length && !built.documents?.length) return;
     setDraft("");
     setFiles([]);
     stickToBottomRef.current = true;
     cancelledRef.current = false;
     const { conversationId, user } = addUserMessage(built.content, {
       images: built.images,
+      documents: built.documents,
       attachments: built.attachments,
     });
     const history = visibleHistory(conversationId);
     const startHistory =
       history.length > 0
         ? history
-        : [{ role: "user", content: built.content, images: built.images }];
+        : [{ role: "user", content: built.content, images: built.images, documents: built.documents }];
     await runCompletion(conversationId, startHistory, user.id);
   }
 
@@ -383,11 +382,12 @@ export function ChatView({
     cancelledRef.current = false;
     stickToBottomRef.current = true;
     const pending = buildMessageFromFiles(draft, files);
-    if (pending.content.trim() || pending.images?.length) {
+    if (pending.content.trim() || pending.images?.length || pending.documents?.length) {
       setDraft("");
       setFiles([]);
       const { conversationId, user } = addUserMessage(pending.content, {
         images: pending.images,
+        documents: pending.documents,
         attachments: pending.attachments,
       });
       await runReview(conversationId, user.id, visibleHistory(conversationId), reviewer, {
@@ -427,7 +427,7 @@ export function ChatView({
   async function runReview(
     conversationId: string,
     userId: string,
-    startHistory: { role: string; content: string; images?: string[] }[],
+    startHistory: { role: string; content: string; images?: string[]; documents?: Message["documents"] }[],
     reviewerStart: ModelRef,
     opts: { begin?: "writer" | "tester"; seedProject?: string } = {},
   ) {
@@ -528,21 +528,19 @@ export function ChatView({
   }, [fileHint]);
 
   async function ingestFiles(list: FileList | File[]) {
-    const model = useChatStore.getState().selectedModel;
-    if (!model) return;
     const incoming = Array.from(list);
     const next: PendingFile[] = [];
-    let rejected = false;
+    const problems: string[] = [];
     for (const file of incoming) {
-      const result = await readDroppedFile(file, model);
+      const result = await readDroppedFile(file);
       if (result.ok) next.push(result.file);
-      else rejected = true;
+      else problems.push(result.reason);
     }
     if (next.length) setFiles((cur) => [...cur, ...next]);
-    if (rejected) setFileHint(unsupportedHint(model.name, model));
+    if (problems.length) setFileHint(problems.join(" · "));
   }
 
-  const fileAccept = selectedModel ? acceptedExtensions(selectedModel).join(",") : ".txt";
+  const fileAccept = "";
 
   function applyModel(model: ModelRef) {
     const used = conversation?.contextTokens ?? 0;
@@ -586,7 +584,7 @@ export function ChatView({
     const history = messages
       .filter((m) => m.id !== lastAssistant?.id)
       .filter((m) => m.role === "user" || m.role === "assistant")
-      .map((m) => ({ role: m.role, content: m.content, images: m.images }));
+      .map((m) => ({ role: m.role, content: m.content, images: m.images, documents: m.documents }));
     stickToBottomRef.current = true;
     await runCompletion(conversation.id, history, lastUser.id);
   }
@@ -603,7 +601,7 @@ export function ChatView({
     );
     const history = [];
     for (const m of path) {
-      history.push({ role: m.role, content: m.content, images: m.images });
+      history.push({ role: m.role, content: m.content, images: m.images, documents: m.documents });
       if (m.id === user.id) break;
     }
     stickToBottomRef.current = true;
@@ -620,7 +618,7 @@ export function ChatView({
     );
     const history = [];
     for (const m of path) {
-      history.push({ role: m.role, content: m.content, images: m.images });
+      history.push({ role: m.role, content: m.content, images: m.images, documents: m.documents });
       if (m.id === user.id) break;
     }
     stickToBottomRef.current = true;

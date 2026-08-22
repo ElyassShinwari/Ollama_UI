@@ -97,7 +97,7 @@ export function Composer({
               type="file"
               className="sr-only"
               multiple
-              accept={accept}
+              accept={accept || undefined}
               onChange={(e) => {
                 onFileInput(e.target.files);
                 e.currentTarget.value = "";

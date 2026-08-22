@@ -7,7 +7,7 @@ type ChatBody = {
   provider?: Provider;
   host?: string;
   model?: string;
-  messages?: { role: string; content: string; images?: string[] }[];
+  messages?: { role: string; content: string; images?: string[]; documents?: { name: string; mime: string; data: string }[] }[];
   temperature?: number;
   contextLength?: number;
   apiKey?: string;
@@ -59,7 +59,12 @@ export const Route = createFileRoute("/api/chat")({
               controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
             };
             try {
-              const turns = messages.map((m) => ({ role: m.role, content: m.content }));
+              const turns = messages.map((m) => ({
+                role: m.role,
+                content: m.content,
+                images: m.images,
+                documents: m.documents,
+              }));
               let iterator: AsyncGenerator<{ content?: string; usage?: { promptTokens: number; completionTokens: number } }>;
               if (provider === "ollama") {
                 iterator = streamOllamaChat({

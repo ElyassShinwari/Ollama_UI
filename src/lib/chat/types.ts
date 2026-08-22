@@ -18,7 +18,13 @@ export type Role = "user" | "assistant" | "system";
 
 export type MessageAttachment = {
   name: string;
-  kind: "txt" | "image";
+  kind: "txt" | "image" | "file";
+};
+
+export type MessageDocument = {
+  name: string;
+  mime: string;
+  data: string;
 };
 
 export type Message = {
@@ -31,6 +37,7 @@ export type Message = {
   parentId?: string | null;
   selectedChildId?: string | null;
   images?: string[];
+  documents?: MessageDocument[];
   attachments?: MessageAttachment[];
 };
 
