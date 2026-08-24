@@ -117,6 +117,18 @@ export function MessageBubble({
                 ))}
               </div>
             ) : null}
+            {message.images?.length ? (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {message.images.map((src, i) => (
+                  <img
+                    key={i}
+                    src={src.startsWith("data:") || src.startsWith("blob:") ? src : `data:image/png;base64,${src}`}
+                    alt=""
+                    className="max-h-40 rounded-xl"
+                  />
+                ))}
+              </div>
+            ) : null}
             {message.content}
           </div>
         )}
@@ -173,11 +185,13 @@ export function MessageBubble({
           ) : null}
           {message.content ? (
             <MessageMarkdown content={message.content} />
-          ) : (
+          ) : streaming ? (
             <span className="inline-flex items-center gap-2 text-muted-foreground">
               <span className="size-2 animate-pulse rounded-full bg-foreground" />
               Thinking
             </span>
+          ) : (
+            <span className="text-muted-foreground">No reply</span>
           )}
           {streaming && message.content ? (
             <span className="ml-0.5 inline-block h-4 w-1.5 translate-y-0.5 animate-pulse bg-foreground align-middle" />

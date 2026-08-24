@@ -27,7 +27,7 @@ export const Route = createFileRoute("/api/library")({
         }
         const exact = exactQueryModel(q);
         const merged = mergeLibrary(STARTER_MODELS, remote);
-        const models = q ? filterLibrary(merged, q) : STARTER_MODELS;
+        const models = q ? filterLibrary(merged, q) : merged;
         const withExact =
           exact && !models.some((m) => m.name === exact.name) ? [exact, ...models] : models;
         return Response.json({ models: withExact.slice(0, 24) });

@@ -44,6 +44,7 @@ export type StudioConfig = {
   channelSecret: string;
   channelVerify: string;
   defaultModel: string;
+  ollamaHost: string;
   instructions: InstructionPreset[];
   knowledge: KnowledgeDoc[];
   knowledgeEnabled: boolean;
@@ -58,6 +59,7 @@ export const defaultStudio = (): StudioConfig => ({
   channelSecret: "",
   channelVerify: "ollama-ui",
   defaultModel: "",
+  ollamaHost: "http://127.0.0.1:11434",
   instructions: [
     {
       id: "helpful",

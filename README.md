@@ -100,9 +100,9 @@ ollama list
 2. Pick a model from the library, from this computer, or from ChatGPT / Claude / Grok / Kimi. Open the model menu to search and scroll the full list, or use the arrows to step through every available model. The tester menu in a review works the same way.
 3. Chat. Switch models from the header. The full conversation is sent to the new model, and the context meter updates to that model's window. Delete a chat from the trash icon in the sidebar history, from **⋯ → Delete**, or from the trash in the chat header. Confirm, and it is removed from this browser.
 4. If the new model’s window is smaller than this chat, you get a warning: answers may be unexpected or inaccurate while the window is full. You can still continue, or start a new chat.
-5. Attach files with **+** or drag and drop. The app takes the file and sends what it can (text, images, PDFs, and other types). Grok files go through xAI’s Responses API. ChatGPT, Claude, and Kimi accept many kinds too. If a model cannot read a file, that model’s reply says so — the app does not block unknown types up front.
-6. Open **Studio** in the sidebar for GitHub, **Cloud base**, MCP, the local API, website/WhatsApp webhooks, instructions, knowledge, and model advice. **Back to chat** closes Studio and returns to the conversation you were in. Clicking a chat in the sidebar also closes Studio and opens that chat.
-7. Click **Start review** to run a writer/tester cycle on the current chat — including chats you already started. The **writer** is the model in the header. Pick a **tester** and 1–100 cycles. Each cycle passes the latest answer (not the whole growing thread) between the two models so memory stays bounded. If the tester is not satisfied when the cycles end, it posts a final report with the project and remaining errors.
+5. Attach files with **+** or drag and drop. The app takes the file and sends what it can (text, images, PDFs, and other types). Follow-up messages keep their attachments. Grok files go through xAI’s Responses API (assistant turns use `output_text`). ChatGPT, Claude, and Kimi accept many kinds too. If a model cannot read a file, that model’s reply says so — the app does not block unknown types up front.
+6. Open **Studio** in the sidebar for GitHub, **Cloud base**, MCP, the local API, website/WhatsApp webhooks, instructions, knowledge, and model advice. **Back to chat** closes Studio and returns to the conversation you were in. Clicking a chat in the sidebar also closes Studio and opens that chat. On a phone, use the menu in Studio to open the chat list.
+7. Click **Start review** to run a writer/tester cycle on the current chat — including chats you already started. The **writer** is the model in the header. A **tester** is picked automatically when another model is available (you can change it). Set 1–100 cycles. Each cycle passes the latest answer between the two models. If the tester is not satisfied when the cycles end, it posts a final report with the project and remaining errors.
 
 Conversations stay in this browser. Default theme is light (switch in Settings). API keys stay in this browser and are sent only to this computer’s server, then to the matching provider.
 
@@ -111,7 +111,7 @@ Conversations stay in this browser. Default theme is light (switch in Settings).
 **Settings** or **Studio → Cloud base**:
 
 - **ChatGPT** — click **Sign in**. A ChatGPT window opens (normal login, not a device code). You do **not** need to enable device-code authorization in ChatGPT Security Settings. If the browser then says it cannot connect, copy the full address from the address bar (`http://localhost:1455/auth/callback?code=…`) and paste it into Cloud base, then **Finish**. After you are signed in, pick a **ChatGPT** model (GPT-5.4 or Codex). That uses your ChatGPT plan. A platform API key is a separate paid bill and is not needed for sign-in.
-- **Grok** — click **Sign in**, approve in the window, enter the code if asked.
+- **Grok** — click **Sign in**, approve in the window, enter the code if asked. If sign-in fails, the app shows the error instead of waiting forever.
 - **Kimi** — click **Sign in**, approve in the window, enter the code if asked.
 - **Claude** and **DeepSeek** — those companies do not allow other apps to use a web login. Sign in on their site, then paste an API key.
 
@@ -145,22 +145,22 @@ Studio is for connecting this computer to other software. It does **not** log in
 
 1. Create a token at [github.com/settings/tokens](https://github.com/settings/tokens) with **repo** access (`ghp_…` or `github_pat_…`).
 2. Paste it in **Studio → GitHub** and click **Authenticate**.
-3. Paste `owner/repo` or a GitHub URL and click **Pull repository**. git must be installed. Copies land in `data/repos`.
-4. To open a pull request, fill owner, repo, head branch, base branch, and title, then **Open pull request**. Use **Use for PR** on a cloned repo to fill owner and repo.
+3. Paste `owner/repo` or a GitHub URL (trailing slash or `/tree/…` is fine) and click **Pull repository**. git must be installed. Copies land in `data/repos`. A failed clone is cleaned up so you can retry. Pulls on existing clones use your GitHub token.
+4. To open a pull request, fill owner, repo, head branch, base branch, and title, then **Open pull request**. Use **Use for PR** on a cloned repo to fill owner and repo. If a new window is blocked, tap **Open** on the toast.
 
 This app does not do GitHub OAuth in the browser. The token stays in this browser and is sent only to GitHub.
 
 ### MCP
 
-Add an MCP server (stdio command or HTTP URL), or **Create an MCP server** to write a starter `server.js`. Tool-calling models: qwen2.5, llama3.1, llama3.2. Tiny chat models usually cannot use tools.
+Add an MCP server (stdio command or HTTP URL), or **Create an MCP server** to write a starter `server.js`. Paths with spaces work as a single argument. HTTP MCP servers keep the session id. Tool-calling models: qwen2.5, llama3.1, llama3.2. Tiny chat models usually cannot use tools.
 
 ### Local API
 
-Enable the OpenAI-style endpoint so other programs can call your model:
+Enable the OpenAI-style endpoint so other programs can call your **local Ollama** model:
 
 `POST /api/v1/chat/completions`
 
-Use the API key from Studio. Example is shown in the app.
+Pick a local default model in Studio (cloud models in the chat menu are not used here). The host comes from Settings. Use the API key from Studio. Example is shown in the app.
 
 ### Website, WhatsApp, Instagram
 
@@ -202,6 +202,12 @@ The token needs **repo** access. Fine-grained tokens must allow the target repos
 
 **Review cycle does nothing**  
 Pick a **tester** different from the model in the header, then click **Start review**. Works on a chat that already has messages.
+
+**Signed-in ChatGPT / Grok / Kimi suddenly 401**  
+The app refreshes the sign-in token before each send (ChatGPT uses the same form-encoded token URL as sign-in). If refresh is rejected, you are signed out of that account so an API key can be used instead.
+
+**Edit a message and the file is gone**  
+Editing a prompt now keeps the original images and files on the new version.
 
 **Review uses too much memory**  
 Grok + ChatGPT review no longer resends the whole thread and file bytes every cycle. Refresh if an old tab is still running a previous review. Image previews stay in the open chat; large document bytes are not kept after send.

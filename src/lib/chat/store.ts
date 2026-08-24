@@ -224,7 +224,8 @@ export const useChatStore = create<ChatState>()(
           const conversations = s.conversations.filter((c) => c.id !== id);
           const activeId =
             s.activeId === id ? (conversations[0]?.id ?? null) : s.activeId;
-          return { conversations, activeId };
+          const conv = conversations.find((c) => c.id === activeId);
+          return { conversations, activeId, selectedModel: conv?.model ?? s.selectedModel };
         }),
       renameConversation: (id, title) =>
         set((s) => ({
@@ -384,6 +385,9 @@ export const useChatStore = create<ChatState>()(
           createdAt: Date.now(),
           parentId: old?.parentId ?? null,
           selectedChildId: null,
+          images: old?.images,
+          documents: old?.documents,
+          attachments: old?.attachments,
         };
         set((s) => ({
           conversations: s.conversations.map((c) => {

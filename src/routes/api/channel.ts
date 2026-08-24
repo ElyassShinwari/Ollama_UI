@@ -6,7 +6,7 @@ async function reply(text: string) {
   const studio = await loadStudio();
   const model = studio.defaultModel;
   if (!model) throw new Error("Set a default model in Studio");
-  const host = sanitizeOllamaHost(process.env.OLLAMA_HOST || "http://127.0.0.1:11434");
+  const host = sanitizeOllamaHost(studio.ollamaHost || process.env.OLLAMA_HOST || "http://127.0.0.1:11434");
   const extras = studio.instructions.filter((i) => i.enabled).map((i) => i.text);
   const res = await fetch(`${host}/api/chat`, {
     method: "POST",
@@ -34,8 +34,11 @@ export const Route = createFileRoute("/api/channel")({
         const token = url.searchParams.get("hub.verify_token");
         const challenge = url.searchParams.get("hub.challenge");
         const studio = await loadStudio();
-        if (mode === "subscribe" && token === studio.channelVerify) {
-          return new Response(challenge ?? "", { status: 200 });
+        if (mode === "subscribe") {
+          if (studio.channelVerify && token === studio.channelVerify) {
+            return new Response(challenge ?? "", { status: 200, headers: { "Content-Type": "text/plain" } });
+          }
+          return new Response("", { status: 403 });
         }
         return Response.json({ ok: true, service: "ollama-ui-channel" });
       },
@@ -43,7 +46,7 @@ export const Route = createFileRoute("/api/channel")({
         const studio = await loadStudio();
         const url = new URL(request.url);
         const secret = url.searchParams.get("secret") ?? request.headers.get("x-channel-secret") ?? "";
-        if (studio.channelSecret && secret !== studio.channelSecret) {
+        if (!studio.channelSecret || secret !== studio.channelSecret) {
           return Response.json({ error: "Bad secret" }, { status: 401 });
         }
         const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;

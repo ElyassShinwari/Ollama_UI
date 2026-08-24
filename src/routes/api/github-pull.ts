@@ -6,12 +6,17 @@ export const Route = createFileRoute("/api/github-pull")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const body = (await request.json()) as { id?: string };
+        let body: { id?: string };
+        try {
+          body = (await request.json()) as { id?: string };
+        } catch {
+          return Response.json({ error: "Invalid JSON" }, { status: 400 });
+        }
         const studio = await loadStudio();
         const repo = studio.repos.find((r) => r.id === body.id);
         if (!repo) return Response.json({ error: "Repo not found" }, { status: 404 });
         try {
-          const result = await pullRepo(repo.path);
+          const result = await pullRepo(repo.path, studio.githubToken);
           const repos = studio.repos.map((r) =>
             r.id === repo.id ? { ...r, pulledAt: Date.now() } : r,
           );

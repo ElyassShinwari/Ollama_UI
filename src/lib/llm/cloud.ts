@@ -99,6 +99,10 @@ export function isChatGptOAuth(secret: string) {
   return Boolean(token) && !token.startsWith("sk-") && token.split(".").length >= 3;
 }
 
+export function responsesTextType(role: string) {
+  return role === "assistant" ? "output_text" : "input_text";
+}
+
 export function cloudEndpoint(provider: CloudId, secret?: string) {
   if (provider === "openai") return { url: "https://api.openai.com/v1/chat/completions", models: "https://api.openai.com/v1/models" };
   if (provider === "xai") return { url: "https://api.x.ai/v1/chat/completions", models: "https://api.x.ai/v1/models" };

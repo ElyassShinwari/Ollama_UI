@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Menu } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,7 @@ import { useChatStore } from "@/lib/chat/store";
 import type { ModelRef } from "@/lib/chat/types";
 import { CloudConnect } from "@/components/chat/cloud-connect";
 import { cn } from "@/lib/utils";
+import { parseRepoUrl } from "@/lib/studio/github";
 
 const TABS = [
   "GitHub",
@@ -28,37 +30,54 @@ type Tab = (typeof TABS)[number];
 export function StudioPanel({
   models,
   onClose,
+  onOpenSidebar,
 }: {
   models: ModelRef[];
   onClose: () => void;
+  onOpenSidebar?: () => void;
 }) {
   const [tab, setTab] = useState<Tab>("GitHub");
   const selected = useChatStore((s) => s.selectedModel);
   const apiKey = useStudio((s) => s.apiKey);
+  const channelSecret = useStudio((s) => s.channelSecret);
 
   useEffect(() => {
-    if (!apiKey) {
-      const key = randomKey();
-      useStudio.getState().setStudio({
-        apiKey: key,
-        channelSecret: randomKey().slice(0, 24),
-      });
-      void syncStudio({ apiKey: key });
+    const patch: { apiKey?: string; channelSecret?: string; ollamaHost?: string } = {};
+    if (!apiKey) patch.apiKey = randomKey();
+    if (!channelSecret) patch.channelSecret = randomKey().slice(0, 24);
+    const host = useChatStore.getState().settings.ollamaHost;
+    if (host) patch.ollamaHost = host;
+    if (Object.keys(patch).length) {
+      useStudio.getState().setStudio(patch);
+      void syncStudio(patch);
     } else {
       void syncStudio();
     }
-  }, [apiKey]);
+  }, [apiKey, channelSecret]);
 
   return (
     <div className="scrollbar-thin h-full overflow-y-auto">
       <div className="mx-auto flex w-full max-w-3xl flex-col px-4 py-8">
         <div className="mb-6 flex items-start justify-between gap-3">
-          <div>
-            <h1 className="font-serif text-4xl tracking-tight">Studio</h1>
-            <p className="mt-2 max-w-xl text-sm text-muted-foreground text-pretty">
-              Connect GitHub, MCP servers, a public API, and chatbots. Add instructions and knowledge.
-              Ollama does not train models in place — Studio tells you what is possible.
-            </p>
+          <div className="flex min-w-0 items-start gap-2">
+            {onOpenSidebar ? (
+              <Button
+                size="icon"
+                variant="ghost"
+                className="mt-1 md:hidden"
+                onClick={onOpenSidebar}
+                aria-label="Open sidebar"
+              >
+                <Menu className="size-5" />
+              </Button>
+            ) : null}
+            <div>
+              <h1 className="font-serif text-4xl tracking-tight">Studio</h1>
+              <p className="mt-2 max-w-xl text-sm text-muted-foreground text-pretty">
+                Connect GitHub, MCP servers, a public API, and chatbots. Add instructions and knowledge.
+                Ollama does not train models in place — Studio tells you what is possible.
+              </p>
+            </div>
           </div>
           <Button variant="outline" onClick={onClose}>
             Back to chat
@@ -79,7 +98,7 @@ export function StudioPanel({
         {tab === "GitHub" ? <GitHubTab /> : null}
         {tab === "Cloud base" ? <CloudTab /> : null}
         {tab === "MCP" ? <McpTab models={models} selected={selected} /> : null}
-        {tab === "API" ? <ApiTab models={models} selected={selected} /> : null}
+        {tab === "API" ? <ApiTab models={models} /> : null}
         {tab === "Channels" ? <ChannelsTab models={models} selected={selected} /> : null}
         {tab === "Instructions" ? <InstructionsTab /> : null}
         {tab === "Train" ? <TrainTab selected={selected} /> : null}
@@ -115,11 +134,13 @@ function GitHubTab() {
       if (!res.ok) throw new Error(json.error || "Clone failed");
       if (json.repos) useStudio.getState().setStudio({ repos: json.repos });
       toast.success("Repository is on this computer");
-      const parsed = parseGithub(url);
-      if (parsed) {
+      try {
+        const parsed = parseRepoUrl(url);
         setOwner(parsed.owner);
         setRepo(parsed.repo);
         if (!head) setHead("main");
+      } catch {
+        /* keep PR fields as typed */
       }
       setUrl("");
     } catch (err) {
@@ -189,10 +210,12 @@ function GitHubTab() {
               size="sm"
               variant="ghost"
               onClick={() => {
-                const parsed = parseGithub(item.url || item.name);
-                if (parsed) {
+                try {
+                  const parsed = parseRepoUrl(item.url || item.name);
                   setOwner(parsed.owner);
                   setRepo(parsed.repo);
+                } catch {
+                  /* ignore */
                 }
               }}
             >
@@ -241,10 +264,15 @@ function GitHubTab() {
             });
             const json = (await res.json()) as { error?: string; url?: string };
             if (!res.ok) toast.error(json.error || "PR failed");
-            else {
-              toast.success(json.url ? `Pull request opened` : "Pull request opened");
-              if (json.url) window.open(json.url, "_blank", "noopener,noreferrer");
-            }
+            else if (json.url) {
+              toast.success("Pull request opened", {
+                description: json.url,
+                action: {
+                  label: "Open",
+                  onClick: () => window.open(json.url, "_blank", "noopener,noreferrer"),
+                },
+              });
+            } else toast.success("Pull request opened");
           }}
           disabled={!token || !owner || !repo || !title || !head}
         >
@@ -387,10 +415,45 @@ function McpTab({ models, selected }: { models: ModelRef[]; selected: ModelRef |
   );
 }
 
-function ApiTab({ models, selected }: { models: ModelRef[]; selected: ModelRef | null }) {
+function localModels(models: ModelRef[]) {
+  return models.filter((m) => m.provider === "ollama");
+}
+
+function DefaultModelSelect({ models }: { models: ModelRef[] }) {
+  const stored = useStudio((s) => s.defaultModel);
+  const local = localModels(models);
+  const value = local.some((m) => m.id === stored) ? stored : "";
+  return (
+    <div className="flex flex-col gap-2">
+      <Label>Default local model</Label>
+      <select
+        className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+        value={value}
+        onChange={(e) => {
+          useStudio.getState().setStudio({ defaultModel: e.target.value });
+          void syncStudio({ defaultModel: e.target.value });
+        }}
+      >
+        <option value="">Choose a local Ollama model…</option>
+        {local.map((m) => (
+          <option key={`${m.provider}:${m.id}`} value={m.id}>
+            {m.name}
+          </option>
+        ))}
+      </select>
+      {local.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          The local API and webhooks talk to Ollama on this computer. Install a local model first.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function ApiTab({ models }: { models: ModelRef[] }) {
   const apiKey = useStudio((s) => s.apiKey);
   const enabled = useStudio((s) => s.apiEnabled);
-  const defaultModel = useStudio((s) => s.defaultModel) || selected?.id || "";
+  const defaultModel = useStudio((s) => s.defaultModel);
   const origin = typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:8080";
   const curl = useMemo(
     () =>
@@ -411,24 +474,7 @@ function ApiTab({ models, selected }: { models: ModelRef[]; selected: ModelRef |
         />
         Enable the local API so other programs can call your model
       </label>
-      <div className="flex flex-col gap-2">
-        <Label>Default model</Label>
-        <select
-          className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
-          value={defaultModel}
-          onChange={(e) => {
-            useStudio.getState().setStudio({ defaultModel: e.target.value });
-            void syncStudio({ defaultModel: e.target.value });
-          }}
-        >
-          <option value="">Choose…</option>
-          {models.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      <DefaultModelSelect models={models} />
       <div className="flex flex-col gap-2">
         <Label>API key</Label>
         <div className="flex gap-2">
@@ -473,6 +519,7 @@ fetch("${origin}/api/channel?secret=${secret}", {
         Tiny models such as smollm2 will not stay on-script. Use qwen2.5 or llama3.1+ if you can.
         This computer must be reachable, or use a tunnel.
       </p>
+      <DefaultModelSelect models={models} />
       <div className="flex flex-col gap-2">
         <Label>Webhook secret</Label>
         <Input
@@ -683,11 +730,4 @@ function AdvisorTab({ selected }: { selected: ModelRef | null }) {
       ))}
     </div>
   );
-}
-
-function parseGithub(input: string) {
-  const t = input.trim().replace(/\.git$/, "").replace(/\/+$/, "");
-  const match = t.match(/(?:github\.com[:/])([^/\s]+)\/([^/\s]+)$/i) || t.match(/^([^/\s]+)\/([^/\s]+)$/);
-  if (!match) return null;
-  return { owner: match[1]!, repo: match[2]! };
 }

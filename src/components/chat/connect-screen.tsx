@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FlameMark } from "@/components/chat/sidebar";
@@ -21,6 +21,10 @@ export function ConnectScreen({
 }) {
   const [hostDraft, setHostDraft] = useState(host);
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    setHostDraft(host);
+  }, [host]);
   const q = query.trim().toLowerCase();
   const ollama = catalog.models.filter((m) => m.provider === "ollama");
   const cloudGroups: { title: string; items: ModelRef[] }[] = (

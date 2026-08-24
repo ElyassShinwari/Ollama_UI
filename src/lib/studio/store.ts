@@ -38,6 +38,7 @@ export async function syncStudio(patch?: Partial<StudioConfig>) {
     channelSecret: state.channelSecret,
     channelVerify: state.channelVerify,
     defaultModel: state.defaultModel,
+    ollamaHost: state.ollamaHost,
     instructions: state.instructions,
     knowledge: state.knowledge,
     knowledgeEnabled: state.knowledgeEnabled,

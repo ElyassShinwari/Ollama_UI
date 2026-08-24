@@ -4,7 +4,7 @@ export const Route = createFileRoute("/api/github-pr")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const body = (await request.json()) as {
+        let body: {
           token?: string;
           owner?: string;
           repo?: string;
@@ -13,6 +13,11 @@ export const Route = createFileRoute("/api/github-pr")({
           base?: string;
           prBody?: string;
         };
+        try {
+          body = (await request.json()) as typeof body;
+        } catch {
+          return Response.json({ error: "Invalid JSON" }, { status: 400 });
+        }
         const token = body.token?.trim();
         const owner = body.owner?.trim();
         const repo = body.repo?.trim();
@@ -22,7 +27,9 @@ export const Route = createFileRoute("/api/github-pr")({
         if (!token || !owner || !repo || !title || !head) {
           return Response.json({ error: "Token, owner, repo, title, and head branch are required" }, { status: 400 });
         }
-        const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls`, {
+        try {
+          const res = await fetch(
+          `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -37,7 +44,11 @@ export const Route = createFileRoute("/api/github-pr")({
             body: body.prBody || "",
           }),
         });
-        const json = (await res.json()) as { html_url?: string; message?: string; errors?: { message?: string }[] };
+        const json = (await res.json().catch(() => ({}))) as {
+          html_url?: string;
+          message?: string;
+          errors?: { message?: string }[];
+        };
         if (!res.ok) {
           return Response.json(
             { error: json.message || json.errors?.[0]?.message || "Could not create the pull request" },
@@ -45,6 +56,9 @@ export const Route = createFileRoute("/api/github-pr")({
           );
         }
         return Response.json({ ok: true, url: json.html_url });
+        } catch {
+          return Response.json({ error: "Could not reach GitHub" }, { status: 502 });
+        }
       },
     },
   },

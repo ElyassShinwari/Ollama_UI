@@ -6,12 +6,17 @@ export const Route = createFileRoute("/api/mcp")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const body = (await request.json()) as {
+        let body: {
           action?: string;
           id?: string;
           name?: string;
           description?: string;
         };
+        try {
+          body = (await request.json()) as typeof body;
+        } catch {
+          return Response.json({ error: "Invalid JSON" }, { status: 400 });
+        }
         if (body.action === "create") {
           try {
             const scaffold = await createMcpScaffold(body.name || "my-mcp", body.description || "");

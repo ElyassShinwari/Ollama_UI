@@ -84,10 +84,23 @@ function pkce() {
 }
 
 function htmlPage(title: string, body: string) {
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>
+  const safeTitle = escapeHtml(title);
+  const safeBody = escapeHtml(body);
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${safeTitle}</title>
 <style>body{font-family:ui-sans-serif,system-ui,sans-serif;background:#111;color:#f4f4f5;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}
 main{max-width:28rem;padding:2rem;border:1px solid #333;border-radius:1rem}</style></head>
-<body><main><h1 style="font-size:1.25rem">${title}</h1><p>${body}</p></main></body></html>`;
+<body><main><h1 style="font-size:1.25rem">${safeTitle}</h1><p>${safeBody}</p></main></body></html>`;
+}
+
+function escapeHtml(text: string) {
+  return Array.from(text, (ch) => {
+    if (ch === "&") return "&" + "amp;";
+    if (ch === "<") return "&" + "lt;";
+    if (ch === ">") return "&" + "gt;";
+    if (ch === '"') return "&" + "quot;";
+    if (ch === "'") return "&#39;";
+    return ch;
+  }).join("");
 }
 
 async function exchangeOpenai(code: string, redirectUri: string, verifier: string) {
@@ -161,7 +174,7 @@ function ensureLoopback(): Promise<number> {
             ok ? "Signed in to ChatGPT" : "Sign-in did not finish",
             ok
               ? "You can close this tab and return to Ollama UI."
-              : status.replace(/</g, "<"),
+              : status,
           ),
         );
       });
@@ -339,7 +352,7 @@ export async function pollOAuth(body: {
   }
   if (json.error === "authorization_pending" || json.error === "slow_down") return { pending: true };
   if (!res.ok) {
-    if (!json.error || json.error === "authorization_pending") return { pending: true };
+    if (/pending|slow_down/i.test(text)) return { pending: true };
     throw new Error(json.error || text || "Grok sign-in failed");
   }
   if (!json.access_token) return { pending: true };
@@ -370,8 +383,8 @@ export async function refreshOAuth(provider: OAuthProvider, refreshToken: string
   if (provider === "openai") {
     const res = await fetch(`${OPENAI_ISSUER}/oauth/token`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form({
         grant_type: "refresh_token",
         refresh_token: refreshToken,
         client_id: OPENAI_CLIENT_ID,

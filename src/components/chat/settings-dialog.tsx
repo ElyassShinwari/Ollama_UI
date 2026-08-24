@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CloudConnect } from "@/components/chat/cloud-connect";
 import { applyTheme } from "@/lib/theme";
 import { useChatStore } from "@/lib/chat/store";
+import { syncStudio } from "@/lib/studio/store";
 import type { ThemeMode } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +39,15 @@ export function SettingsDialog({
   const [temperature, setTemperature] = useState(String(settings.temperature));
   const [systemPrompt, setSystemPrompt] = useState(settings.systemPrompt);
   const [theme, setTheme] = useState<ThemeMode>(settings.theme);
+
+  useEffect(() => {
+    if (!open) return;
+    const s = useChatStore.getState().settings;
+    setHost(s.ollamaHost);
+    setTemperature(String(s.temperature));
+    setSystemPrompt(s.systemPrompt);
+    setTheme(s.theme);
+  }, [open]);
 
   return (
     <Dialog
@@ -133,13 +143,15 @@ export function SettingsDialog({
           <Button
             onClick={() => {
               const parsed = Number(temperature);
+              const nextHost = host.trim() || "http://127.0.0.1:11434";
               setSettings({
-                ollamaHost: host.trim() || "http://127.0.0.1:11434",
+                ollamaHost: nextHost,
                 temperature: Number.isFinite(parsed) ? parsed : 0.7,
                 systemPrompt,
                 theme,
               });
               applyTheme(theme);
+              void syncStudio({ ollamaHost: nextHost });
               onOpenChange(false);
               onHostChange?.();
             }}

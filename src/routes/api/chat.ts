@@ -70,7 +70,11 @@ export const Route = createFileRoute("/api/chat")({
                 iterator = streamOllamaChat({
                   host,
                   model,
-                  messages,
+                  messages: messages.map((m) => ({
+                    role: m.role,
+                    content: typeof m.content === "string" ? m.content : "",
+                    images: m.images,
+                  })),
                   temperature,
                   contextLength,
                   signal: request.signal,
@@ -117,12 +121,13 @@ export const Route = createFileRoute("/api/chat")({
                   const extraHeaders: Record<string, string> = {};
                   if (provider === "openai" && accountId) extraHeaders["ChatGPT-Account-ID"] = accountId;
                   if (provider === "kimi" && !key.startsWith("sk-")) extraHeaders["User-Agent"] = "KimiCLI/1.5";
+                  const kimiOAuth = provider === "kimi" && !key.startsWith("sk-");
                   iterator = streamOpenAiCompat({
                     url,
                     apiKey: key,
                     model,
                     messages: turns,
-                    temperature: provider === "kimi" && !key.startsWith("sk-") ? 1 : temperature,
+                    temperature: kimiOAuth ? 1 : provider === "kimi" ? Math.min(1, temperature) : temperature,
                     signal: request.signal,
                     extraHeaders,
                   });

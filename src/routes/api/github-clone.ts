@@ -6,7 +6,12 @@ export const Route = createFileRoute("/api/github-clone")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const body = (await request.json()) as { url?: string; token?: string };
+        let body: { url?: string; token?: string };
+        try {
+          body = (await request.json()) as { url?: string; token?: string };
+        } catch {
+          return Response.json({ error: "Invalid JSON" }, { status: 400 });
+        }
         if (!body.url) return Response.json({ error: "Repository is required" }, { status: 400 });
         try {
           const studio = await loadStudio();

@@ -44,6 +44,11 @@ export function pullIdsFor(model: LibraryModel): string[] {
   return [...new Set(ids)];
 }
 
+export function sameOllamaId(a: string, b: string) {
+  const n = (id: string) => (id.endsWith(":latest") ? id.slice(0, -7) : id);
+  return a === b || n(a) === n(b);
+}
+
 export function filterLibrary(models: LibraryModel[], query: string): LibraryModel[] {
   const q = query.trim().toLowerCase();
   if (!q) return models;

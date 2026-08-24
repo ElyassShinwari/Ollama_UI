@@ -59,11 +59,11 @@ function clipTurn(text: string) {
 }
 
 function slimTurns(turns: ChatTurn[], withMedia = false): ChatTurn[] {
-  return turns.map((m, i) => ({
+  return turns.map((m) => ({
     role: m.role,
     content: clipTurn(m.content),
-    images: withMedia && i === 0 ? m.images : undefined,
-    documents: withMedia && i === 0 ? m.documents?.filter((d) => d.data) : undefined,
+    images: withMedia ? m.images : undefined,
+    documents: withMedia ? m.documents?.filter((d) => d.data) : undefined,
   }));
 }
 
@@ -108,6 +108,7 @@ export function ChatView({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const cancelledRef = useRef(false);
+  const streamingConvRef = useRef<string | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
@@ -157,6 +158,14 @@ export function ChatView({
           .join("\n\n"),
         promptMsgs.map((m) => ({ role: m.role, content: m.content })),
       );
+      if (model.provider !== "ollama") {
+        if (cancelled) return;
+        setUsage(conversation.id, {
+          promptTokens: estimateTokens(prompt),
+          completionTokens: estimateTokens(completionText),
+        });
+        return;
+      }
       const [promptTokens, completionTokens] = await Promise.all([
         countModelTokens({
           host: useChatStore.getState().settings.ollamaHost,
@@ -186,11 +195,15 @@ export function ChatView({
   const greeting = useMemo(() => greetingForNow(), []);
 
   useEffect(() => {
-    if (!selectedModel || !reviewerKey) return;
-    if (reviewerKey === `${selectedModel.provider}:${selectedModel.id}`) {
-      setReviewerKey("");
-    }
-  }, [selectedModel, reviewerKey]);
+    if (!selectedModel) return;
+    const others = models.filter(
+      (m) => !(m.id === selectedModel.id && m.provider === selectedModel.provider),
+    );
+    const ok = others.some((m) => `${m.provider}:${m.id}` === reviewerKey);
+    if (ok) return;
+    const pick = others[0];
+    setReviewerKey(pick ? `${pick.provider}:${pick.id}` : "");
+  }, [selectedModel, models, reviewerKey]);
 
   function publishUsage(conversationId: string, promptTokens: number, completionTokens: number) {
     promptTokensRef.current = promptTokens;
@@ -214,6 +227,7 @@ export function ChatView({
     if (!current) return;
     const cut = repetitionCutoff(current);
     if (cut != null) {
+      pendingChunkRef.current = "";
       replaceMessageContent(conversationId, assistantId, current.slice(0, cut).trimEnd());
       abortRef.current?.abort();
     }
@@ -242,7 +256,6 @@ export function ChatView({
       history,
       history.some((m) => Boolean(m.images?.length || m.documents?.some((d) => d.data))),
     );
-    dropBinary(conversationId);
     const promptText = formatChatPrompt(systemPrompt, payload);
     const promptEstimate = estimateTokens(promptText);
     const limit = model.contextLength;
@@ -251,13 +264,15 @@ export function ChatView({
     }
     publishUsage(conversationId, promptEstimate, 0);
 
+    chatPersist.enabled = false;
+    streamingConvRef.current = conversationId;
     const assistantId = startAssistantMessage(conversationId, model, parentId);
     setStreamingId(assistantId);
     const controller = new AbortController();
     abortRef.current = controller;
     pendingChunkRef.current = "";
     let stoppedLoop = false;
-    chatPersist.enabled = false;
+    let failed = false;
     try {
       await streamChat(
         {
@@ -273,6 +288,7 @@ export function ChatView({
           accountId,
         },
         (chunk) => {
+          if (controller.signal.aborted) return;
           pendingChunkRef.current += chunk;
           if (!flushTimerRef.current) {
             flushTimerRef.current = window.setTimeout(() => {
@@ -287,9 +303,8 @@ export function ChatView({
               ?.messages.find((m) => m.id === assistantId)?.content.length ?? 0) + pendingChunkRef.current.length;
           if (nextLen > 400_000) {
             stoppedLoop = true;
-            flushPending(conversationId, assistantId);
+            pendingChunkRef.current = "";
             controller.abort();
-            return;
           }
           completionTokensRef.current += Math.max(1, estimateTokens(chunk));
         },
@@ -300,10 +315,9 @@ export function ChatView({
       );
     } catch (err) {
       if ((err as { name?: string }).name === "AbortError") {
-        if (stoppedLoop) {
-          toast("Stopped a repeating reply");
-        }
+        if (stoppedLoop) toast("Stopped a repeating reply");
       } else {
+        failed = true;
         const message = err instanceof Error ? err.message : "The model failed to reply";
         if (isContextOverflowError(message)) {
           markContextExceeded(conversationId);
@@ -327,18 +341,26 @@ export function ChatView({
         }
       }
     } finally {
-      flushPending(conversationId, assistantId);
+      if (!controller.signal.aborted || stoppedLoop) flushPending(conversationId, assistantId);
+      else pendingChunkRef.current = "";
       setStreamingId(null);
       abortRef.current = null;
+      if (streamingConvRef.current === conversationId) streamingConvRef.current = null;
       chatPersist.enabled = true;
-      dropBinary(conversationId);
     }
     const text =
       useChatStore
         .getState()
         .conversations.find((c) => c.id === conversationId)
         ?.messages.find((m) => m.id === assistantId)?.content ?? "";
-    if (text && model.provider === "ollama") {
+    if (!text) {
+      if (cancelledRef.current) appendToMessage(conversationId, assistantId, "Stopped.");
+      return "";
+    }
+    if (!failed && !text.startsWith("I couldn't complete")) {
+      dropBinary(conversationId);
+    }
+    if (text && model.provider === "ollama" && !failed) {
       void countModelTokens({
         host: settingsNow.ollamaHost,
         model: model.id,
@@ -346,6 +368,7 @@ export function ChatView({
         transport: model.transport,
       }).then((n) => publishUsage(conversationId, promptTokensRef.current, n));
     }
+    if (failed || text.startsWith("I couldn't complete") || text === "Stopped.") return "";
     return text;
   }
 
@@ -372,12 +395,20 @@ export function ChatView({
 
   function lastAssistantId(conversationId: string) {
     const conv = useChatStore.getState().conversations.find((c) => c.id === conversationId);
-    return conv?.messages.filter((m) => m.role === "assistant").at(-1)?.id;
+    if (!conv) return undefined;
+    return [...visibleMessages(conv.messages, conv.activeRootId)]
+      .reverse()
+      .find((m) => m.role === "assistant")?.id;
   }
 
   async function send(text: string, extraFiles: PendingFile[] = files) {
+    if (!useChatStore.getState().selectedModel) {
+      toast.error("Choose a model first");
+      return;
+    }
     const built = buildMessageFromFiles(text, extraFiles);
-    if (streamingId) return;
+    if (streamingId && streamingConvRef.current === conversation?.id) return;
+    if (streamingId) abortRef.current?.abort();
     if (!built.content.trim() && !built.images?.length && !built.documents?.length) return;
     setDraft("");
     setFiles([]);
@@ -397,7 +428,8 @@ export function ChatView({
   }
 
   async function startReview() {
-    if (streamingId) return;
+    if (streamingId && streamingConvRef.current === conversation?.id) return;
+    if (streamingId) abortRef.current?.abort();
     const author = useChatStore.getState().selectedModel;
     const reviewer = modelFromKey(reviewerKey);
     if (!author) {
@@ -470,7 +502,7 @@ export function ChatView({
     let lastReview = "";
     let satisfied = false;
     const testerFirst = opts.begin === "tester" && Boolean(lastProject.trim());
-    const original = startHistory.find((m) => m.role === "user") ?? startHistory[0];
+    const original = [...startHistory].reverse().find((m) => m.role === "user") ?? startHistory[0];
     const originalText: ChatTurn = original
       ? { role: "user", content: clipTurn(original.content) }
       : { role: "user", content: "Review the work." };
@@ -635,7 +667,7 @@ export function ChatView({
     const used = conversation?.contextTokens ?? 0;
     const limit = model.contextLength;
     const hasChat = (conversation?.messages.length ?? 0) > 0;
-    if (hasChat && limit && used > limit) {
+    if (hasChat && limit && used >= limit) {
       setPendingModel(model);
       return;
     }
@@ -701,7 +733,16 @@ export function ChatView({
     };
   }
 
+  const thisStreaming = Boolean(streamingId) && streamingConvRef.current === conversation?.id;
   const empty = messages.length === 0;
+
+  useEffect(() => {
+    return () => {
+      cancelledRef.current = true;
+      abortRef.current?.abort();
+      chatPersist.enabled = true;
+    };
+  }, []);
 
   return (
     <div
@@ -783,8 +824,8 @@ export function ChatView({
         <span className="text-xs text-muted-foreground">
           Writer {selectedModel ? writerLabel(selectedModel) : "—"}
         </span>
-        <label className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-          Tester
+        <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+          <span>Tester</span>
           <ModelPicker
             models={models.filter(
               (m) =>
@@ -800,8 +841,9 @@ export function ChatView({
             onChange={(m) => setReviewerKey(`${m.provider}:${m.id}`)}
             emptyLabel="Testing model…"
             className="h-8 max-w-[14rem] px-2 text-xs"
+            allowCycle={false}
           />
-        </label>
+        </div>
         <label className="flex items-center gap-1 text-xs text-muted-foreground">
           Cycles
           <input
@@ -838,8 +880,9 @@ export function ChatView({
                 <button
                   key={s}
                   type="button"
-                  className="rounded-xl border border-border bg-card px-4 py-3 text-left text-sm leading-6 transition-colors hover:bg-accent"
-                  onClick={() => send(s)}
+                  disabled={!selectedModel}
+                  className="rounded-xl border border-border bg-card px-4 py-3 text-left text-sm leading-6 transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
+                  onClick={() => void send(s)}
                 >
                   {s}
                 </button>
@@ -928,7 +971,7 @@ export function ChatView({
         onChange={setDraft}
         onSend={() => send(draft)}
         onStop={stop}
-        streaming={Boolean(streamingId)}
+        streaming={thisStreaming}
         disabled={!selectedModel}
         placeholder={
           selectedModel ? `Message ${selectedModel.name}` : "Choose a model to begin"

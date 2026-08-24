@@ -5,6 +5,7 @@ const cloud = await import("../src/lib/llm/cloud.ts");
 const files = await import("../src/lib/llm/files.ts");
 const repeat = await import("../src/lib/llm/repeat.ts");
 const tree = await import("../src/lib/chat/tree.ts");
+const git = await import("../src/lib/studio/github.ts");
 
 test("reviewSatisfied accepts a tester that is done", () => {
   assert.equal(cloud.reviewSatisfied("SATISFIED\nLooks good."), true);
@@ -112,4 +113,39 @@ test("conversation tree follows selected children", () => {
   assert.equal(visible.map((m) => m.id).join(","), "u1,a1");
   const switched = messages.map((m) => (m.id === "u1" ? { ...m, selectedChildId: "a2" } : m));
   assert.equal(tree.visibleMessages(switched, "u1").at(-1)?.content, "two");
+});
+
+test("responses API uses output_text on assistant turns", () => {
+  assert.equal(cloud.responsesTextType("assistant"), "output_text");
+  assert.equal(cloud.responsesTextType("user"), "input_text");
+  assert.equal(cloud.responsesTextType("system"), "input_text");
+});
+
+test("GitHub clone URLs accept trailing slashes and .git", () => {
+  assert.deepEqual(git.parseRepoUrl("https://github.com/owner/repo/"), {
+    owner: "owner",
+    repo: "repo",
+    slug: "owner-repo",
+  });
+  assert.deepEqual(git.parseRepoUrl("https://github.com/owner/repo.git/"), {
+    owner: "owner",
+    repo: "repo",
+    slug: "owner-repo",
+  });
+  assert.deepEqual(git.parseRepoUrl("owner/repo.git"), {
+    owner: "owner",
+    repo: "repo",
+    slug: "owner-repo",
+  });
+  assert.deepEqual(git.parseRepoUrl("https://github.com/owner/repo/tree/main"), {
+    owner: "owner",
+    repo: "repo",
+    slug: "owner-repo",
+  });
+});
+
+test("sameOllamaId treats :latest as the untagged name", async () => {
+  const library = await import("../src/lib/llm/library.ts");
+  assert.equal(library.sameOllamaId("moondream:latest", "moondream"), true);
+  assert.equal(library.sameOllamaId("llama3.2:1b", "llama3"), false);
 });

@@ -63,7 +63,17 @@ export function CloudConnect({ compact = false }: { compact?: boolean }) {
   }, []);
 
   function setField(setting: keyof typeof draft, value: string) {
-    setDraft((cur) => ({ ...cur, [setting]: value }));
+    setDraft((cur) => {
+      const next = { ...cur, [setting]: value };
+      useChatStore.getState().setSettings({
+        openaiKey: next.openaiKey,
+        anthropicKey: next.anthropicKey,
+        xaiKey: next.xaiKey,
+        kimiKey: next.kimiKey,
+        deepseekKey: next.deepseekKey,
+      });
+      return next;
+    });
   }
 
   async function startSignIn(provider: CloudId) {
@@ -133,7 +143,12 @@ export function CloudConnect({ compact = false }: { compact?: boolean }) {
       const label = CLOUD_ACCOUNTS.find((item) => item.id === next.provider)?.label || next.provider;
       toast.success(json.session.email ? `Signed in to ${label} as ${json.session.email}` : `Signed in to ${label}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Sign-in failed");
+      const msg = err instanceof Error ? err.message : "Sign-in failed";
+      if (/fetch|network|Failed to fetch|timeout/i.test(msg)) {
+        schedulePoll(next);
+        return;
+      }
+      toast.error(msg);
       setPending(null);
     }
   }

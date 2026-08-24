@@ -18,6 +18,7 @@ import { fetchCatalog, resetModelContext } from "@/lib/llm/catalog";
 import { cloudSecret } from "@/lib/llm/cloud";
 import { applyTheme, resolvedTheme } from "@/lib/theme";
 import { useChatStore } from "@/lib/chat/store";
+import { syncStudio } from "@/lib/studio/store";
 import type { ModelCatalog, ModelRef } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
@@ -166,6 +167,7 @@ export function ChatApp() {
             <StudioPanel
               models={catalog.models}
               onClose={() => setStudioOpen(false)}
+              onOpenSidebar={() => setMobileOpen(true)}
             />
           ) : selectedModel ? (
             <ChatView
@@ -181,6 +183,7 @@ export function ChatApp() {
               host={settings.ollamaHost}
               onHostCommit={(host) => {
                 setSettings({ ollamaHost: host });
+                void syncStudio({ ollamaHost: host });
               }}
               onRefresh={() => refresh()}
               onChoose={chooseModel}

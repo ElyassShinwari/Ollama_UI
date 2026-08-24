@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Download, LoaderCircle, Search, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { pullIdsFor, type LibraryModel } from "@/lib/llm/library";
+import { pullIdsFor, sameOllamaId, type LibraryModel } from "@/lib/llm/library";
 import { fetchSetup, readSetupStream, searchLibrary, type SetupStatus } from "@/lib/llm/setup";
 import type { ModelRef } from "@/lib/chat/types";
 import { cn, formatBytes, formatContextWindow } from "@/lib/utils";
@@ -101,7 +101,9 @@ export function ModelHub({
         },
       );
       const models = (await onRefreshLocal()) ?? [];
-      const match = models.find((m) => m.id === id || m.id.startsWith(`${id}:`) || id.startsWith(m.id));
+      const match = models.find(
+        (m) => sameOllamaId(m.id, id) || m.id.startsWith(`${id}:`) || id.startsWith(`${m.id}:`),
+      );
       if (ok) {
         pushLog(`${id} is ready.`);
         if (match) onChoose(match);
@@ -206,7 +208,7 @@ export function ModelHub({
               disabled={!status?.running || Boolean(pulling)}
               onInstall={(id) => void installModel(id)}
               onUse={(id) => {
-                const match = localModels.find((m) => m.id === id);
+                const match = localModels.find((m) => sameOllamaId(m.id, id));
                 if (match) onChoose(match);
               }}
             />
@@ -246,7 +248,7 @@ function LibraryCard({
       ) : null}
       <div className="mt-3 flex flex-wrap gap-2">
         {ids.map((id) => {
-          const have = localIds.has(id);
+          const have = [...localIds].some((local) => sameOllamaId(local, id));
           const active = pulling === id;
           return (
             <Button

@@ -1,5 +1,7 @@
 import { parseOllamaCapabilities, parseOllamaContextLength, xaiContextLength } from "@/lib/llm/context";
+import { cloudSecret } from "@/lib/llm/cloud";
 import { ensureCloudAuth } from "@/lib/llm/oauth-client";
+import { useChatStore } from "@/lib/chat/store";
 import type { ModelCatalog, ModelRef, TokenUsage, Transport } from "@/lib/chat/types";
 
 type ServerCatalog = {
@@ -96,12 +98,18 @@ export async function fetchCatalog(
   keys: { openai?: string; anthropic?: string; xai?: string; kimi?: string; deepseek?: string } = {},
 ): Promise<ModelCatalog> {
   await ensureCloudAuth();
+  const s = useChatStore.getState().settings;
   const headers: Record<string, string> = {};
-  if (keys.openai) headers["x-openai-key"] = keys.openai;
-  if (keys.anthropic) headers["x-anthropic-key"] = keys.anthropic;
-  if (keys.xai) headers["x-xai-key"] = keys.xai;
-  if (keys.kimi) headers["x-kimi-key"] = keys.kimi;
-  if (keys.deepseek) headers["x-deepseek-key"] = keys.deepseek;
+  const openai = cloudSecret(s, "openai") || keys.openai;
+  const anthropic = cloudSecret(s, "anthropic") || keys.anthropic;
+  const xai = cloudSecret(s, "xai") || keys.xai;
+  const kimi = cloudSecret(s, "kimi") || keys.kimi;
+  const deepseek = cloudSecret(s, "deepseek") || keys.deepseek;
+  if (openai) headers["x-openai-key"] = openai;
+  if (anthropic) headers["x-anthropic-key"] = anthropic;
+  if (xai) headers["x-xai-key"] = xai;
+  if (kimi) headers["x-kimi-key"] = kimi;
+  if (deepseek) headers["x-deepseek-key"] = deepseek;
   const serverRes = await fetch(`/api/models?host=${encodeURIComponent(host)}`, { headers })
     .then(async (r) => {
       if (!r.ok) {
@@ -180,6 +188,12 @@ export async function streamChat(
   onUsage?: (usage: TokenUsage) => void,
 ) {
   await ensureCloudAuth();
+  const settings = useChatStore.getState().settings;
+  const apiKey = cloudSecret(settings, body.provider) || body.apiKey;
+  const accountId =
+    body.provider === "openai"
+      ? settings.openaiOAuth?.accountId || body.accountId
+      : body.accountId;
   const messages = withSystem(body.messages, body.systemPrompt);
 
   if (body.provider === "ollama" && body.transport === "browser") {
@@ -208,8 +222,8 @@ export async function streamChat(
       messages,
       temperature: body.temperature,
       contextLength: body.contextLength,
-      apiKey: body.apiKey,
-      accountId: body.accountId,
+      apiKey,
+      accountId,
     }),
     signal,
   });

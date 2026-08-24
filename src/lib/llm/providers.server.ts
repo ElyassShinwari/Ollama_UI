@@ -1,4 +1,4 @@
-import { CHATGPT_OAUTH_MODELS, FALLBACK_CLOUD, cloudEndpoint, isChatGptOAuth, type CloudId } from "@/lib/llm/cloud";
+import { CHATGPT_OAUTH_MODELS, FALLBACK_CLOUD, cloudEndpoint, isChatGptOAuth, responsesTextType, type CloudId } from "@/lib/llm/cloud";
 import { parseOllamaCapabilities, parseOllamaContextLength, xaiContextLength } from "@/lib/llm/context";
 import { sanitizeOllamaHost } from "@/lib/utils";
 import type { ModelRef, TokenUsage } from "@/lib/chat/types";
@@ -51,7 +51,7 @@ function toOpenAiContent(m: ChatTurnIn) {
 }
 
 function hasDocuments(messages: ChatTurnIn[]) {
-  return messages.some((m) => Boolean(m.documents?.length));
+  return messages.some((m) => m.documents?.some((d) => Boolean(d.data)));
 }
 
 async function uploadProviderFile(
@@ -61,6 +61,7 @@ async function uploadProviderFile(
   purpose: string,
   extraHeaders?: Record<string, string>,
 ) {
+  if (!doc.data) throw new Error(`${doc.name} has no file data to upload`);
   const bytes = Buffer.from(doc.data, "base64");
   const form = new FormData();
   form.append("purpose", purpose);
@@ -89,19 +90,24 @@ async function toResponsesInput(opts: {
   const input: Record<string, unknown>[] = [];
   for (const m of opts.messages) {
     if (m.role === "system") continue;
+    const isAssistant = m.role === "assistant";
+    const textType = responsesTextType(m.role);
     const content: Record<string, unknown>[] = [];
-    if (m.content.trim()) content.push({ type: "input_text", text: m.content });
-    for (const img of m.images ?? []) {
-      content.push({ type: "input_image", image_url: asDataUrl(img, "image/png") });
-    }
-    for (const doc of m.documents ?? []) {
-      const fileId = await uploadProviderFile(opts.filesUrl, opts.apiKey, doc, opts.purpose, opts.extraHeaders);
-      content.push({ type: "input_file", file_id: fileId });
+    if (m.content.trim()) content.push({ type: textType, text: m.content });
+    if (!isAssistant) {
+      for (const img of m.images ?? []) {
+        content.push({ type: "input_image", image_url: asDataUrl(img, "image/png") });
+      }
+      for (const doc of m.documents ?? []) {
+        if (!doc.data) continue;
+        const fileId = await uploadProviderFile(opts.filesUrl, opts.apiKey, doc, opts.purpose, opts.extraHeaders);
+        content.push({ type: "input_file", file_id: fileId });
+      }
     }
     input.push({
       type: "message",
-      role: m.role === "assistant" ? "assistant" : "user",
-      content: content.length ? content : [{ type: "input_text", text: "" }],
+      role: isAssistant ? "assistant" : "user",
+      content: content.length ? content : [{ type: textType, text: "" }],
     });
   }
   return input;
@@ -549,7 +555,8 @@ export async function* streamCodexChat(opts: {
 }): AsyncGenerator<ChatStreamEvent> {
   const accountId = chatgptAccountId(opts.apiKey, opts.accountId);
   const input = opts.messages.map((m) => {
-    const hasMedia = Boolean(m.images?.length || m.documents?.length);
+    const isAssistant = m.role === "assistant";
+    const hasMedia = !isAssistant && Boolean(m.images?.length || m.documents?.some((d) => d.data));
     if (!hasMedia) {
       return {
         type: "message",
@@ -563,6 +570,7 @@ export async function* streamCodexChat(opts: {
       content.push({ type: "input_image", image_url: asDataUrl(img, "image/png") });
     }
     for (const doc of m.documents ?? []) {
+      if (!doc.data) continue;
       content.push({
         type: "input_file",
         filename: doc.name,
@@ -572,7 +580,7 @@ export async function* streamCodexChat(opts: {
     return {
       type: "message",
       role: m.role === "system" ? "developer" : m.role,
-      content,
+      content: content.length ? content : [{ type: "input_text", text: "" }],
     };
   });
   const res = await fetch("https://chatgpt.com/backend-api/codex/responses", {

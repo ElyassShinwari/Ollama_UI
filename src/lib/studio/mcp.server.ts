@@ -10,6 +10,35 @@ function sendStdio(proc: ReturnType<typeof spawn>, msg: Rpc) {
   proc.stdin?.write(`${JSON.stringify(msg)}\n`);
 }
 
+function splitArgs(raw: string): string[] {
+  const s = raw.trim();
+  if (!s) return [];
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    return [s.slice(1, -1)];
+  }
+  if (/[\\/]/.test(s) && !/\s-[A-Za-z]/.test(s)) return [s];
+  const out: string[] = [];
+  const re = /"([^"]*)"|'([^']*)'|(\S+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(s))) out.push(m[1] ?? m[2] ?? m[3] ?? "");
+  return out.filter(Boolean);
+}
+
+async function readRpc(res: Response): Promise<Rpc> {
+  const ct = (res.headers.get("content-type") || "").toLowerCase();
+  const text = await res.text();
+  if (!text.trim()) throw new Error("Empty MCP response");
+  if (ct.includes("event-stream") || text.trimStart().startsWith("event:") || text.includes("\ndata:")) {
+    const line = text
+      .split(/\r?\n/)
+      .reverse()
+      .find((l) => l.startsWith("data:"));
+    if (!line) throw new Error("Empty MCP stream");
+    return JSON.parse(line.slice(5).trim()) as Rpc;
+  }
+  return JSON.parse(text) as Rpc;
+}
+
 export async function listMcpTools(server: McpServerConfig): Promise<{ name: string; description?: string }[]> {
   if (server.transport === "stdio") {
     return listStdioTools(server);
@@ -32,26 +61,38 @@ export async function listMcpTools(server: McpServerConfig): Promise<{ name: str
     signal: AbortSignal.timeout(6000),
   });
   if (!init.ok) throw new Error(`MCP HTTP ${init.status}`);
+  const session = init.headers.get("mcp-session-id") || init.headers.get("Mcp-Session-Id") || "";
+  const sessionHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "application/json, text/event-stream",
+    ...(session ? { "Mcp-Session-Id": session } : {}),
+  };
+  await readRpc(init).catch(() => undefined);
   await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: sessionHeaders,
     body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
   }).catch(() => undefined);
   const listed = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: sessionHeaders,
     body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" }),
     signal: AbortSignal.timeout(6000),
   });
-  const body = (await listed.json()) as Rpc;
+  if (!listed.ok) throw new Error(`MCP HTTP ${listed.status}`);
+  const body = await readRpc(listed);
+  if (body.error) throw new Error(body.error.message || "MCP error");
   const tools = (body.result as { tools?: { name: string; description?: string }[] } | undefined)?.tools;
   return tools ?? [];
 }
 
 async function listStdioTools(server: McpServerConfig) {
   if (!server.command) throw new Error("Command is required for stdio MCP");
-  const args = (server.args ?? "").split(" ").filter(Boolean);
-  const proc = spawn(server.command, args, { windowsHide: true });
+  const args = splitArgs(server.args ?? "");
+  const proc = spawn(server.command, args, {
+    windowsHide: true,
+    shell: process.platform === "win32",
+  });
   const lines: string[] = [];
   return await new Promise<{ name: string; description?: string }[]>((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -68,6 +109,10 @@ async function listStdioTools(server: McpServerConfig) {
           if (msg.id === 2) {
             clearTimeout(timer);
             proc.kill();
+            if (msg.error) {
+              reject(new Error(msg.error.message || "MCP error"));
+              return;
+            }
             const tools = (msg.result as { tools?: { name: string; description?: string }[] })?.tools;
             resolve(tools ?? []);
           }
@@ -101,9 +146,31 @@ export async function callMcpTool(server: McpServerConfig, name: string, args: R
     throw new Error("Tool calls from chat currently use HTTP MCP servers");
   }
   if (!server.url) throw new Error("MCP URL missing");
-  const res = await fetch(server.url.replace(/\/+$/, ""), {
+  const url = server.url.replace(/\/+$/, "");
+  const init = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: {
+        protocolVersion: "2024-11-05",
+        capabilities: {},
+        clientInfo: { name: "ollama-ui", version: "1.0" },
+      },
+    }),
+    signal: AbortSignal.timeout(6000),
+  }).catch(() => null);
+  const session = init?.headers.get("mcp-session-id") || init?.headers.get("Mcp-Session-Id") || "";
+  if (init) await readRpc(init).catch(() => undefined);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+      ...(session ? { "Mcp-Session-Id": session } : {}),
+    },
     body: JSON.stringify({
       jsonrpc: "2.0",
       id: Date.now(),
@@ -112,7 +179,7 @@ export async function callMcpTool(server: McpServerConfig, name: string, args: R
     }),
     signal: AbortSignal.timeout(20000),
   });
-  return await res.json();
+  return await readRpc(res);
 }
 
 export async function createMcpScaffold(name: string, description: string) {
