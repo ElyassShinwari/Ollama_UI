@@ -14,8 +14,11 @@ import {
   estimateContextFromParameters,
   xaiContextLength,
 } from "@/lib/llm/context";
+import { ollamaChatPayload } from "@/lib/llm/ollama-client";
 import { sanitizeOllamaHost } from "@/lib/utils";
 import type { ModelRef, TokenUsage } from "@/lib/chat/types";
+import http from "node:http";
+import https from "node:https";
 
 type OllamaTag = {
   name: string;
@@ -289,39 +292,27 @@ export async function fetchOllamaContext(
 export async function listOllamaModels(hostRaw: string): Promise<ModelRef[]> {
   const host = sanitizeOllamaHost(hostRaw);
   const res = await fetch(`${host}/api/tags`, {
-    signal: AbortSignal.timeout(400),
+    signal: AbortSignal.timeout(4000),
   });
   if (!res.ok) {
     throw new Error(`Ollama returned ${res.status}`);
   }
   const body = (await res.json()) as { models?: OllamaTag[] };
-  const base = (body.models ?? []).map((m) => ({
-    id: m.name,
-    name: m.name,
-    provider: "ollama" as const,
-    transport: "server" as const,
-    size: m.size,
-    family: m.details?.family,
-    parameterSize: m.details?.parameter_size,
-  }));
-  return Promise.all(
-    base.map(async (model) => {
-      const meta = await fetchOllamaContext(host, model.id, {
-        sizeBytes: model.size,
-        family: model.family,
-        parameterSize: model.parameterSize,
-      });
-      const contextLength =
-        meta?.contextLength ??
-        lookupPublishedContext(model.id, model.family) ??
-        estimateContextFromParameters(model.parameterSize, model.size);
-      return {
-        ...model,
-        ...(contextLength ? { contextLength } : {}),
-        ...(meta?.capabilities?.length ? { capabilities: meta.capabilities } : {}),
-      };
-    }),
-  );
+  return (body.models ?? []).map((m) => {
+    const contextLength =
+      lookupPublishedContext(m.name, m.details?.family) ??
+      estimateContextFromParameters(m.details?.parameter_size, m.size);
+    return {
+      id: m.name,
+      name: m.name,
+      provider: "ollama" as const,
+      transport: "server" as const,
+      size: m.size,
+      family: m.details?.family,
+      parameterSize: m.details?.parameter_size,
+      ...(contextLength ? { contextLength } : {}),
+    };
+  });
 }
 
 export async function unloadOllamaModel(hostRaw: string, model: string) {
@@ -423,25 +414,15 @@ export async function* streamOllamaChat(opts: {
   let busyTries = 0;
   while (true) {
     const options = ollamaChatOptions(opts.temperature, numCtx);
+    const payload = ollamaChatPayload(opts.model, opts.messages, options);
     let produced = false;
     try {
-      const res = await fetch(`${host}/api/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: opts.model,
-          messages: opts.messages,
-          stream: true,
-          options,
-        }),
-        signal: opts.signal,
-      });
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(text || `Ollama error ${res.status}`);
+      const { status, stream } = await postOllamaChat(host, payload, opts.signal);
+      if (status >= 400) {
+        const text = await new Response(stream).text();
+        throw new Error(text || `Ollama error ${status}`);
       }
-      if (!res.body) throw new Error("Ollama returned an empty stream");
-      for await (const event of readOllamaNdjson(res.body)) {
+      for await (const event of readOllamaNdjson(stream)) {
         if (event.content) produced = true;
         yield event;
       }
@@ -449,7 +430,7 @@ export async function* streamOllamaChat(opts: {
     } catch (err) {
       if (opts.signal.aborted) throw err;
       const message = err instanceof Error ? err.message : String(err);
-      if (!produced && isOllamaBusyError(message) && busyTries < 8) {
+      if (!produced && isOllamaBusyError(message) && busyTries < 4) {
         busyTries += 1;
         await new Promise((r) => setTimeout(r, busyRetryMs(busyTries)));
         continue;
@@ -474,6 +455,57 @@ export async function* streamOllamaChat(opts: {
       throw wrapped;
     }
   }
+}
+
+function postOllamaChat(
+  host: string,
+  payload: unknown,
+  signal: AbortSignal,
+): Promise<{ status: number; stream: ReadableStream<Uint8Array> }> {
+  const url = new URL("/api/chat", host.endsWith("/") ? host : `${host}/`);
+  const lib = url.protocol === "https:" ? https : http;
+  const raw = JSON.stringify(payload);
+  return new Promise((resolve, reject) => {
+    const req = lib.request(
+      {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: url.port || (url.protocol === "https:" ? 443 : 80),
+        path: url.pathname,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/x-ndjson",
+          "Content-Length": Buffer.byteLength(raw),
+        },
+      },
+      (res) => {
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            res.on("data", (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)));
+            res.on("end", () => controller.close());
+            res.on("error", (err) => controller.error(err));
+          },
+          cancel() {
+            res.destroy();
+          },
+        });
+        resolve({ status: res.statusCode ?? 0, stream });
+      },
+    );
+    req.on("error", reject);
+    const onAbort = () => {
+      req.destroy();
+      reject(Object.assign(new Error("Aborted"), { name: "AbortError" }));
+    };
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+    req.write(raw);
+    req.end();
+  });
 }
 
 function isOverflowMessage(message: string) {

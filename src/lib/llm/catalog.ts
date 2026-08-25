@@ -15,6 +15,12 @@ import {
 } from "@/lib/llm/context";
 import { cloudSecret } from "@/lib/llm/cloud";
 import { ensureCloudAuth } from "@/lib/llm/oauth-client";
+import {
+  isOllamaUnreachable,
+  ollamaChatPayload,
+  ollamaGate,
+  streamOllamaXhr,
+} from "@/lib/llm/ollama-client";
 import { useChatStore } from "@/lib/chat/store";
 import type { ModelCatalog, ModelRef, TokenUsage, Transport } from "@/lib/chat/types";
 
@@ -30,50 +36,14 @@ type ServerCatalog = {
 };
 
 async function attachBrowserContext(host: string, models: ModelRef[]): Promise<ModelRef[]> {
-  const origin = host.replace(/\/+$/, "");
-  return Promise.all(
-    models.map(async (model) => {
-      try {
-        const res = await fetch(`${origin}/api/show`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: model.id }),
-          signal: AbortSignal.timeout(2500),
-        });
-        if (!res.ok) {
-          const fallback =
-            lookupPublishedContext(model.id, model.family) ??
-            estimateContextFromParameters(model.parameterSize, model.size);
-          return fallback ? { ...model, contextLength: fallback } : model;
-        }
-        const body = (await res.json()) as {
-          model_info?: Record<string, unknown>;
-          parameters?: string;
-          capabilities?: unknown;
-          projector_info?: unknown;
-          details?: { family?: string };
-        };
-        const contextLength =
-          parseOllamaContextLength(body, {
-            modelId: model.id,
-            family: model.family,
-            parameterSize: model.parameterSize,
-            sizeBytes: model.size,
-          }) ?? model.contextLength;
-        const capabilities = parseOllamaCapabilities(body, model.id);
-        return {
-          ...model,
-          contextLength: contextLength ?? model.contextLength,
-          capabilities: capabilities.length ? capabilities : model.capabilities,
-        };
-      } catch {
-        const fallback =
-          lookupPublishedContext(model.id, model.family) ??
-          estimateContextFromParameters(model.parameterSize, model.size);
-        return fallback ? { ...model, contextLength: fallback } : model;
-      }
-    }),
-  );
+  void host;
+  return models.map((model) => {
+    if (model.contextLength) return model;
+    const fallback =
+      lookupPublishedContext(model.id, model.family) ??
+      estimateContextFromParameters(model.parameterSize, model.size);
+    return fallback ? { ...model, contextLength: fallback } : model;
+  });
 }
 
 export async function probeBrowserOllama(host: string): Promise<ModelRef[]> {
@@ -101,6 +71,41 @@ export async function probeBrowserOllama(host: string): Promise<ModelRef[]> {
     return attachBrowserContext(host, models);
   } catch {
     return [];
+  }
+}
+
+export async function fillOllamaContext(host: string, model: ModelRef): Promise<ModelRef> {
+  if (model.provider !== "ollama" || ollamaGate.chat) return model;
+  try {
+    const res = await fetch(`${host.replace(/\/+$/, "")}/api/show`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: model.id }),
+      signal: AbortSignal.timeout(2500),
+    });
+    if (!res.ok) return model;
+    const body = (await res.json()) as {
+      model_info?: Record<string, unknown>;
+      parameters?: string;
+      capabilities?: unknown;
+      projector_info?: unknown;
+      details?: { family?: string };
+    };
+    const contextLength =
+      parseOllamaContextLength(body, {
+        modelId: model.id,
+        family: model.family,
+        parameterSize: model.parameterSize,
+        sizeBytes: model.size,
+      }) ?? model.contextLength;
+    const capabilities = parseOllamaCapabilities(body, model.id);
+    return {
+      ...model,
+      contextLength: contextLength ?? model.contextLength,
+      capabilities: capabilities.length ? capabilities : model.capabilities,
+    };
+  } catch {
+    return model;
   }
 }
 
@@ -225,44 +230,58 @@ export async function streamChat(
       : body.accountId;
   const messages = withSystem(body.messages, body.systemPrompt);
 
-  if (body.provider === "ollama" && body.transport === "browser") {
-    await streamOllamaBrowser(
-      {
+  if (body.provider === "ollama") {
+    ollamaGate.chat = true;
+    try {
+      await streamOllamaBrowser(
+        {
+          host: body.host,
+          model: body.model,
+          messages,
+          temperature: body.temperature,
+          contextLength: body.contextLength,
+          modelSize: body.modelSize,
+        },
+        onDelta,
+        signal,
+        onUsage,
+      );
+      return;
+    } catch (err) {
+      if ((err as { name?: string }).name === "AbortError") throw err;
+      if (!isOllamaUnreachable(err)) throw err;
+    } finally {
+      ollamaGate.chat = false;
+    }
+    ollamaGate.chat = true;
+  }
+
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        provider: body.provider,
         host: body.host,
         model: body.model,
         messages,
         temperature: body.temperature,
         contextLength: body.contextLength,
         modelSize: body.modelSize,
-      },
-      onDelta,
+        apiKey,
+        accountId,
+      }),
       signal,
-      onUsage,
-    );
-    return;
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(text || `Chat failed (${res.status})`);
+    }
+    await readSseStream(res, onDelta, onUsage);
+  } finally {
+    if (body.provider === "ollama") ollamaGate.chat = false;
   }
-
-  const res = await fetch("/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      provider: body.provider,
-      host: body.host,
-      model: body.model,
-      messages,
-      temperature: body.temperature,
-      contextLength: body.contextLength,
-      modelSize: body.modelSize,
-      apiKey,
-      accountId,
-    }),
-    signal,
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(text || `Chat failed (${res.status})`);
-  }
-  await readSseStream(res, onDelta, onUsage);
 }
 
 export async function resetModelContext(
@@ -322,58 +341,32 @@ async function streamOllamaBrowser(
   let busyTries = 0;
   while (true) {
     const options = ollamaChatOptions(opts.temperature, numCtx);
-    const res = await fetch(`${host}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: opts.model,
-        messages: opts.messages,
-        stream: true,
-        options,
-      }),
-      signal,
-    });
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      lastMessage = text || `Ollama error ${res.status}`;
-      if (!signal.aborted && isOllamaBusyError(lastMessage) && busyTries < 8) {
-        busyTries += 1;
-        await new Promise((r) => setTimeout(r, busyRetryMs(busyTries)));
-        continue;
-      }
-      if (!signal.aborted && isOllamaMemoryError(lastMessage)) {
-        const next = nextCtxForMemoryError(numCtx ?? 8192, lastMessage);
-        if (next) {
-          numCtx = next;
-          await unloadOllamaBrowser(host, opts.model);
-          continue;
-        }
-      }
-      if (!signal.aborted && isOverflow(lastMessage)) {
-        const next = nextCtxForOverflow(numCtx, opts.contextLength);
-        if (next) {
-          numCtx = next;
-          continue;
-        }
-      }
-      throw new Error(friendlyOllamaError(lastMessage));
-    }
-    if (!res.body) throw new Error("Ollama returned an empty stream");
+    const payload = ollamaChatPayload(
+      opts.model,
+      opts.messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+        images: m.images,
+      })),
+      options,
+    );
     let produced = false;
     try {
-      await readOllamaBrowserBody(
-        res.body,
-        (text) => {
+      await streamOllamaXhr({
+        url: `${host}/api/chat`,
+        payload,
+        signal,
+        onDelta: (text) => {
           produced = true;
           onDelta(text);
         },
         onUsage,
-      );
+      });
       return;
     } catch (err) {
-      if (signal.aborted) throw err;
+      if (signal.aborted || (err as { name?: string }).name === "AbortError") throw err;
       lastMessage = err instanceof Error ? err.message : String(err);
-      if (!produced && isOllamaBusyError(lastMessage) && busyTries < 8) {
+      if (!produced && isOllamaBusyError(lastMessage) && busyTries < 4) {
         busyTries += 1;
         await new Promise((r) => setTimeout(r, busyRetryMs(busyTries)));
         continue;
@@ -393,7 +386,7 @@ async function streamOllamaBrowser(
           continue;
         }
       }
-      throw new Error(friendlyOllamaError(lastMessage));
+      throw isOllamaUnreachable(err) ? err : new Error(friendlyOllamaError(lastMessage));
     }
   }
 }
@@ -408,51 +401,6 @@ function isOverflow(message: string) {
     t.includes("exceeds the context") ||
     t.includes("too many tokens")
   );
-}
-
-async function readOllamaBrowserBody(
-  body: ReadableStream<Uint8Array>,
-  onDelta: (text: string) => void,
-  onUsage?: (usage: TokenUsage) => void,
-) {
-  const reader = body.getReader();
-  const dec = new TextDecoder();
-  let buf = "";
-  const take = (line: string) => {
-    if (!line.trim()) return;
-    const json = JSON.parse(line) as {
-      message?: { content?: string };
-      error?: string;
-      done?: boolean;
-      prompt_eval_count?: number;
-      eval_count?: number;
-    };
-    if (json.error) throw new Error(json.error);
-    if (json.message?.content) onDelta(json.message.content);
-    const promptTokens = Number(json.prompt_eval_count) || 0;
-    const completionTokens = Number(json.eval_count) || 0;
-    if (promptTokens || completionTokens) {
-      onUsage?.({ promptTokens, completionTokens });
-    }
-  };
-  while (true) {
-    const { done, value } = await reader.read();
-    if (value) buf += dec.decode(value, { stream: true });
-    if (done) buf += dec.decode();
-    const lines = buf.split("\n");
-    buf = lines.pop() ?? "";
-    const batch = done && buf.trim() ? lines.concat(buf) : lines;
-    if (done) buf = "";
-    for (const line of batch) {
-      try {
-        take(line);
-      } catch (err) {
-        if (err instanceof SyntaxError) continue;
-        throw err;
-      }
-    }
-    if (done) break;
-  }
 }
 
 async function readSseStream(

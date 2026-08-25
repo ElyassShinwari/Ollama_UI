@@ -15,7 +15,8 @@ import { StudioPanel } from "@/components/studio/studio-panel";
 import { NewsPanel } from "@/components/news/news-panel";
 import { SettingsDialog } from "@/components/chat/settings-dialog";
 import { FlameMark, Sidebar } from "@/components/chat/sidebar";
-import { fetchCatalog } from "@/lib/llm/catalog";
+import { fetchCatalog, fillOllamaContext, probeBrowserOllama } from "@/lib/llm/catalog";
+import { ollamaGate } from "@/lib/llm/ollama-client";
 import { cloudSecret } from "@/lib/llm/cloud";
 import { applyTheme, resolvedTheme } from "@/lib/theme";
 import { useChatStore } from "@/lib/chat/store";
@@ -47,7 +48,6 @@ export function ChatApp() {
   const newChat = useChatStore((s) => s.newChat);
   const resetUsage = useChatStore((s) => s.resetUsage);
   const [catalog, setCatalog] = useState<ModelCatalog>(emptyCatalog);
-  const [browserModels, setBrowserModels] = useState<ModelRef[]>([]);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hubOpen, setHubOpen] = useState(false);
@@ -56,18 +56,21 @@ export function ChatApp() {
   const [newsOpen, setNewsOpen] = useState(false);
   const [hydrated, setHydrated] = useState(() => useChatStore.persist.hasHydrated());
 
-  const refresh = useCallback(async (localModels = browserModels) => {
+  const refresh = useCallback(async () => {
+    if (ollamaGate.chat) return;
     setCatalog((c) =>
       c.models.length > 0 ? c : { ...c, status: { ...c.status, loading: true } },
     );
     const s = useChatStore.getState().settings;
-    const next = await fetchCatalog(s.ollamaHost, localModels, {
+    const local = await probeBrowserOllama(s.ollamaHost);
+    const next = await fetchCatalog(s.ollamaHost, local, {
       openai: cloudSecret(s, "openai"),
       anthropic: cloudSecret(s, "anthropic"),
       xai: cloudSecret(s, "xai"),
       kimi: cloudSecret(s, "kimi"),
       deepseek: cloudSecret(s, "deepseek"),
     });
+    if (ollamaGate.chat) return next.models;
     setCatalog(next);
     const current = useChatStore.getState().selectedModel;
     if (current) {
@@ -77,7 +80,22 @@ export function ChatApp() {
       if (match) setSelectedModel(match);
     }
     return next.models;
-  }, [browserModels, setSelectedModel]);
+  }, [setSelectedModel]);
+
+  useEffect(() => {
+    if (!hydrated || !selectedModel || selectedModel.provider !== "ollama") return;
+    if (ollamaGate.chat) return;
+    let cancelled = false;
+    void fillOllamaContext(settings.ollamaHost, selectedModel).then((next) => {
+      if (cancelled || ollamaGate.chat) return;
+      if (next.contextLength && next.contextLength !== selectedModel.contextLength) {
+        setSelectedModel(next);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated, selectedModel, settings.ollamaHost, setSelectedModel]);
 
   useEffect(() => {
     const unsub = useChatStore.persist.onFinishHydration(() => setHydrated(true));
@@ -97,7 +115,10 @@ export function ChatApp() {
   useEffect(() => {
     if (!hydrated) return;
     void refresh();
-    const id = window.setInterval(() => void refresh(), 30000);
+    const id = window.setInterval(() => {
+      if (ollamaGate.chat) return;
+      void refresh();
+    }, 60000);
     return () => window.clearInterval(id);
   }, [refresh, settings.ollamaHost, settings.openaiKey, settings.anthropicKey, settings.xaiKey, settings.kimiKey, settings.deepseekKey, settings.openaiOAuth, settings.xaiOAuth, settings.kimiOAuth, hydrated]);
 

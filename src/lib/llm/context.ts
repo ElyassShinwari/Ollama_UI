@@ -193,10 +193,11 @@ export function isOllamaBusyError(message: string): boolean {
   );
 }
 
-export function ollamaChatOptions(temperature: number, numCtx?: number): Record<string, number> {
-  const options: Record<string, number> = { temperature };
+export function ollamaChatOptions(temperature: number, numCtx?: number): Record<string, number> | undefined {
+  const options: Record<string, number> = {};
   if (numCtx) options.num_ctx = numCtx;
-  return options;
+  void temperature;
+  return Object.keys(options).length ? options : undefined;
 }
 
 export function busyRetryMs(attempt: number): number {

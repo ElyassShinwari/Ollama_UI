@@ -322,8 +322,8 @@ test("each model keeps its own context window, not a size-based guess", async ()
   assert.match(ctx.friendlyOllamaError(oom), /real window/i);
   assert.doesNotMatch(ctx.friendlyOllamaError(oom), /50\.6/);
   assert.equal(ctx.initialOllamaNumCtx(), undefined);
-  assert.deepEqual(ctx.ollamaChatOptions(0.7), { temperature: 0.7 });
-  assert.deepEqual(ctx.ollamaChatOptions(0.7, 4096), { temperature: 0.7, num_ctx: 4096 });
+  assert.equal(ctx.ollamaChatOptions(0.7), undefined);
+  assert.deepEqual(ctx.ollamaChatOptions(0.7, 4096), { num_ctx: 4096 });
   assert.equal(ctx.nextCtxForOverflow(undefined, 131072), 4096);
   assert.equal(ctx.nextCtxForOverflow(4096, 131072), 8192);
   assert.equal(ctx.nextCtxForOverflow(131072, 131072), undefined);
@@ -372,4 +372,20 @@ test("review pairs keep writer and tester different, with a coding pair", async 
     [{ id: "phi3:mini", name: "phi3:mini", provider: "ollama", transport: "server" }],
     "phi3:mini",
   ));
+});
+
+test("ollama chat payload matches the terminal: stream, no extra options", async () => {
+  const ollama = await import("../src/lib/llm/ollama-client.ts");
+  const body = ollama.ollamaChatPayload("smollm2:135m", [{ role: "user", content: "hi" }]);
+  assert.equal(body.model, "smollm2:135m");
+  assert.equal(body.stream, true);
+  assert.equal(body.options, undefined);
+  const withCtx = ollama.ollamaChatPayload(
+    "smollm2:135m",
+    [{ role: "user", content: "hi" }],
+    { num_ctx: 4096 },
+  );
+  assert.equal(withCtx.options?.num_ctx, 4096);
+  const parsed = ollama.parseOllamaNdjsonLine('{"message":{"role":"assistant","content":"Hello"}}');
+  assert.equal(parsed?.content, "Hello");
 });
