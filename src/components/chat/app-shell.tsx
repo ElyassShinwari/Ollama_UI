@@ -12,6 +12,7 @@ import { ChatView } from "@/components/chat/chat-view";
 import { ConnectScreen } from "@/components/chat/connect-screen";
 import { ModelHub } from "@/components/chat/model-hub";
 import { StudioPanel } from "@/components/studio/studio-panel";
+import { NewsPanel } from "@/components/news/news-panel";
 import { SettingsDialog } from "@/components/chat/settings-dialog";
 import { FlameMark, Sidebar } from "@/components/chat/sidebar";
 import { fetchCatalog, resetModelContext } from "@/lib/llm/catalog";
@@ -51,6 +52,7 @@ export function ChatApp() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hubOpen, setHubOpen] = useState(false);
   const [studioOpen, setStudioOpen] = useState(false);
+  const [newsOpen, setNewsOpen] = useState(false);
   const [hydrated, setHydrated] = useState(() => useChatStore.persist.hasHydrated());
 
   const refresh = useCallback(async (localModels = browserModels) => {
@@ -107,6 +109,7 @@ export function ChatApp() {
     }
     setMobileOpen(false);
     setStudioOpen(false);
+    setNewsOpen(false);
   }
 
   function chooseModel(model: ModelRef) {
@@ -126,11 +129,20 @@ export function ChatApp() {
       }}
       onOpenStudio={() => {
         setStudioOpen(true);
+        setNewsOpen(false);
         setMobileOpen(false);
       }}
+      onOpenNews={() => {
+        setNewsOpen(true);
+        setStudioOpen(false);
+        setMobileOpen(false);
+      }}
+      newsActive={newsOpen}
+      studioActive={studioOpen}
       onNavigate={() => {
         setMobileOpen(false);
         setStudioOpen(false);
+        setNewsOpen(false);
       }}
     />
   );
@@ -169,6 +181,11 @@ export function ChatApp() {
               onClose={() => setStudioOpen(false)}
               onOpenSidebar={() => setMobileOpen(true)}
             />
+          ) : newsOpen ? (
+            <NewsPanel
+              onClose={() => setNewsOpen(false)}
+              onOpenSidebar={() => setMobileOpen(true)}
+            />
           ) : selectedModel ? (
             <ChatView
               models={catalog.models}
@@ -187,6 +204,7 @@ export function ChatApp() {
               }}
               onRefresh={() => refresh()}
               onChoose={chooseModel}
+              onOpenSidebar={() => setMobileOpen(true)}
             />
           )}
         </main>

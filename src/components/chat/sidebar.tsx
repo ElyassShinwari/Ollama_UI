@@ -3,6 +3,7 @@ import {
   Blocks,
   Moon,
   MoreHorizontal,
+  Newspaper,
   Pencil,
   Pin,
   PinOff,
@@ -68,12 +69,18 @@ export function Sidebar({
   onNewChat,
   onOpenSettings,
   onOpenStudio,
+  onOpenNews,
+  newsActive,
+  studioActive,
   onNavigate,
 }: {
   className?: string;
   onNewChat: () => void;
   onOpenSettings: () => void;
   onOpenStudio?: () => void;
+  onOpenNews?: () => void;
+  newsActive?: boolean;
+  studioActive?: boolean;
   onNavigate?: () => void;
 }) {
   const conversations = useChatStore((s) => s.conversations);
@@ -226,7 +233,15 @@ export function Sidebar({
         </Button>
         <Button
           variant="ghost"
-          className="h-10 w-full justify-start gap-2"
+          className={cn("h-10 w-full justify-start gap-2", newsActive && "bg-accent")}
+          onClick={onOpenNews}
+        >
+          <Newspaper className="size-4" />
+          News
+        </Button>
+        <Button
+          variant="ghost"
+          className={cn("h-10 w-full justify-start gap-2", studioActive && "bg-accent")}
           onClick={onOpenStudio}
         >
           <Blocks className="size-4" />

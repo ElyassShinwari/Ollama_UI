@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiChannelRouteImport } from './routes/api/channel'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiDeleteModelRouteImport } from './routes/api/delete-model'
 import { Route as ApiGithubAuthRouteImport } from './routes/api/github-auth'
 import { Route as ApiGithubCloneRouteImport } from './routes/api/github-clone'
 import { Route as ApiGithubPrRouteImport } from './routes/api/github-pr'
@@ -19,6 +20,7 @@ import { Route as ApiGithubPullRouteImport } from './routes/api/github-pull'
 import { Route as ApiLibraryRouteImport } from './routes/api/library'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as ApiModelsRouteImport } from './routes/api/models'
+import { Route as ApiNewsRouteImport } from './routes/api/news'
 import { Route as ApiOauthRouteImport } from './routes/api/oauth'
 import { Route as ApiPullRouteImport } from './routes/api/pull'
 import { Route as ApiResetRouteImport } from './routes/api/reset'
@@ -42,6 +44,11 @@ const ApiChannelRoute = ApiChannelRouteImport.update({
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDeleteModelRoute = ApiDeleteModelRouteImport.update({
+  id: '/api/delete-model',
+  path: '/api/delete-model',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiGithubAuthRoute = ApiGithubAuthRouteImport.update({
@@ -77,6 +84,11 @@ const ApiMcpRoute = ApiMcpRouteImport.update({
 const ApiModelsRoute = ApiModelsRouteImport.update({
   id: '/api/models',
   path: '/api/models',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiNewsRoute = ApiNewsRouteImport.update({
+  id: '/api/news',
+  path: '/api/news',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiOauthRoute = ApiOauthRouteImport.update({
@@ -129,6 +141,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/channel': typeof ApiChannelRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/delete-model': typeof ApiDeleteModelRoute
   '/api/github-auth': typeof ApiGithubAuthRoute
   '/api/github-clone': typeof ApiGithubCloneRoute
   '/api/github-pr': typeof ApiGithubPrRoute
@@ -136,6 +149,7 @@ export interface FileRoutesByFullPath {
   '/api/library': typeof ApiLibraryRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/models': typeof ApiModelsRoute
+  '/api/news': typeof ApiNewsRoute
   '/api/oauth': typeof ApiOauthRoute
   '/api/pull': typeof ApiPullRoute
   '/api/reset': typeof ApiResetRoute
@@ -150,6 +164,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/channel': typeof ApiChannelRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/delete-model': typeof ApiDeleteModelRoute
   '/api/github-auth': typeof ApiGithubAuthRoute
   '/api/github-clone': typeof ApiGithubCloneRoute
   '/api/github-pr': typeof ApiGithubPrRoute
@@ -157,6 +172,7 @@ export interface FileRoutesByTo {
   '/api/library': typeof ApiLibraryRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/models': typeof ApiModelsRoute
+  '/api/news': typeof ApiNewsRoute
   '/api/oauth': typeof ApiOauthRoute
   '/api/pull': typeof ApiPullRoute
   '/api/reset': typeof ApiResetRoute
@@ -172,6 +188,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/api/channel': typeof ApiChannelRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/delete-model': typeof ApiDeleteModelRoute
   '/api/github-auth': typeof ApiGithubAuthRoute
   '/api/github-clone': typeof ApiGithubCloneRoute
   '/api/github-pr': typeof ApiGithubPrRoute
@@ -179,6 +196,7 @@ export interface FileRoutesById {
   '/api/library': typeof ApiLibraryRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/models': typeof ApiModelsRoute
+  '/api/news': typeof ApiNewsRoute
   '/api/oauth': typeof ApiOauthRoute
   '/api/pull': typeof ApiPullRoute
   '/api/reset': typeof ApiResetRoute
@@ -195,6 +213,7 @@ export interface FileRouteTypes {
     | '/'
     | '/api/channel'
     | '/api/chat'
+    | '/api/delete-model'
     | '/api/github-auth'
     | '/api/github-clone'
     | '/api/github-pr'
@@ -202,6 +221,7 @@ export interface FileRouteTypes {
     | '/api/library'
     | '/api/mcp'
     | '/api/models'
+    | '/api/news'
     | '/api/oauth'
     | '/api/pull'
     | '/api/reset'
@@ -216,6 +236,7 @@ export interface FileRouteTypes {
     | '/'
     | '/api/channel'
     | '/api/chat'
+    | '/api/delete-model'
     | '/api/github-auth'
     | '/api/github-clone'
     | '/api/github-pr'
@@ -223,6 +244,7 @@ export interface FileRouteTypes {
     | '/api/library'
     | '/api/mcp'
     | '/api/models'
+    | '/api/news'
     | '/api/oauth'
     | '/api/pull'
     | '/api/reset'
@@ -237,6 +259,7 @@ export interface FileRouteTypes {
     | '/'
     | '/api/channel'
     | '/api/chat'
+    | '/api/delete-model'
     | '/api/github-auth'
     | '/api/github-clone'
     | '/api/github-pr'
@@ -244,6 +267,7 @@ export interface FileRouteTypes {
     | '/api/library'
     | '/api/mcp'
     | '/api/models'
+    | '/api/news'
     | '/api/oauth'
     | '/api/pull'
     | '/api/reset'
@@ -259,6 +283,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiChannelRoute: typeof ApiChannelRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiDeleteModelRoute: typeof ApiDeleteModelRoute
   ApiGithubAuthRoute: typeof ApiGithubAuthRoute
   ApiGithubCloneRoute: typeof ApiGithubCloneRoute
   ApiGithubPrRoute: typeof ApiGithubPrRoute
@@ -266,6 +291,7 @@ export interface RootRouteChildren {
   ApiLibraryRoute: typeof ApiLibraryRoute
   ApiMcpRoute: typeof ApiMcpRoute
   ApiModelsRoute: typeof ApiModelsRoute
+  ApiNewsRoute: typeof ApiNewsRoute
   ApiOauthRoute: typeof ApiOauthRoute
   ApiPullRoute: typeof ApiPullRoute
   ApiResetRoute: typeof ApiResetRoute
@@ -298,6 +324,13 @@ declare module '@tanstack/react-router' {
       path: '/api/chat'
       fullPath: '/api/chat'
       preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/delete-model': {
+      id: '/api/delete-model'
+      path: '/api/delete-model'
+      fullPath: '/api/delete-model'
+      preLoaderRoute: typeof ApiDeleteModelRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/github-auth': {
@@ -347,6 +380,13 @@ declare module '@tanstack/react-router' {
       path: '/api/models'
       fullPath: '/api/models'
       preLoaderRoute: typeof ApiModelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/news': {
+      id: '/api/news'
+      path: '/api/news'
+      fullPath: '/api/news'
+      preLoaderRoute: typeof ApiNewsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/oauth': {
@@ -419,6 +459,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiChannelRoute: ApiChannelRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiDeleteModelRoute: ApiDeleteModelRoute,
   ApiGithubAuthRoute: ApiGithubAuthRoute,
   ApiGithubCloneRoute: ApiGithubCloneRoute,
   ApiGithubPrRoute: ApiGithubPrRoute,
@@ -426,6 +467,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiLibraryRoute: ApiLibraryRoute,
   ApiMcpRoute: ApiMcpRoute,
   ApiModelsRoute: ApiModelsRoute,
+  ApiNewsRoute: ApiNewsRoute,
   ApiOauthRoute: ApiOauthRoute,
   ApiPullRoute: ApiPullRoute,
   ApiResetRoute: ApiResetRoute,

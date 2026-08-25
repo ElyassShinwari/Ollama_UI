@@ -101,10 +101,22 @@ ollama list
 3. Chat. Switch models from the header. The full conversation is sent to the new model, and the context meter updates to that model's window. Delete a chat from the trash icon in the sidebar history, from **⋯ → Delete**, or from the trash in the chat header. Confirm, and it is removed from this browser.
 4. If the new model’s window is smaller than this chat, you get a warning: answers may be unexpected or inaccurate while the window is full. You can still continue, or start a new chat.
 5. Attach files with **+** or drag and drop. The app takes the file and sends what it can (text, images, PDFs, and other types). Follow-up messages keep their attachments. Grok files go through xAI’s Responses API (assistant turns use `output_text`). ChatGPT, Claude, and Kimi accept many kinds too. If a model cannot read a file, that model’s reply says so — the app does not block unknown types up front.
-6. Open **Studio** in the sidebar for GitHub, **Cloud base**, MCP, the local API, website/WhatsApp webhooks, instructions, knowledge, and model advice. **Back to chat** closes Studio and returns to the conversation you were in. Clicking a chat in the sidebar also closes Studio and opens that chat. On a phone, use the menu in Studio to open the chat list.
-7. Click **Start review** to run a writer/tester cycle on the current chat — including chats you already started. The **writer** is the model in the header. A **tester** is picked automatically when another model is available (you can change it). Set 1–100 cycles. Each cycle passes the latest answer between the two models. If the tester is not satisfied when the cycles end, it posts a final report with the project and remaining errors.
+6. Open **News** in the sidebar. Choose **Local AI**, **Overall AI**, **Pictures**, or **Videos**. Stories open in a new tab; videos play in the page. **Back to chat** closes News. Clicking a chat also closes it.
+7. Open **Studio** in the sidebar for GitHub, **Cloud base**, MCP, the local API, website/WhatsApp webhooks, instructions, knowledge, and model advice. **Back to chat** closes Studio and returns to the conversation you were in. Clicking a chat in the sidebar also closes Studio and opens that chat. On a phone, use the menu in Studio to open the chat list.
+8. Click **Start review** to run a writer/tester cycle on the current chat — including chats you already started. The **writer** is the model in the header. A **tester** is picked automatically when another model is available (you can change it). Set 1–100 cycles. Each cycle passes the latest answer between the two models. If the tester is not satisfied when the cycles end, it posts a final report with the project and remaining errors.
 
 Conversations stay in this browser. Default theme is light (switch in Settings). API keys stay in this browser and are sent only to this computer’s server, then to the matching provider.
+
+## News
+
+Open **News** in the sidebar, then pick a feed:
+
+- **Local AI** — Ollama, llama.cpp, GGUF, LM Studio, and on-device models
+- **Overall AI** — labs, products, research, and policy
+- **Pictures** — image models, AI art, and visual news
+- **Videos** — talks and demos. Click a clip to play it in the page, or open it on YouTube.
+
+Refresh reloads the feed. **Back to chat** (or clicking a chat) closes News.
 
 ## Cloud base (ChatGPT, Claude, Grok, Kimi, DeepSeek)
 

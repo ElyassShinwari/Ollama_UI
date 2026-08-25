@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FlameMark } from "@/components/chat/sidebar";
@@ -12,12 +13,14 @@ export function ConnectScreen({
   onHostCommit,
   onRefresh,
   onChoose,
+  onOpenSidebar,
 }: {
   catalog: ModelCatalog;
   host: string;
   onHostCommit: (host: string) => void;
   onRefresh: () => Promise<ModelRef[] | void> | void;
   onChoose: (model: ModelRef) => void;
+  onOpenSidebar?: () => void;
 }) {
   const [hostDraft, setHostDraft] = useState(host);
   const [query, setQuery] = useState("");
@@ -45,7 +48,20 @@ export function ConnectScreen({
     <div className="scrollbar-thin h-full overflow-y-auto">
       <div className="mx-auto flex w-full max-w-2xl flex-col px-4 py-10 md:py-14">
         <div className="mb-8">
-          <FlameMark className="mb-5 size-10" />
+          <div className="mb-5 flex items-center gap-2">
+            {onOpenSidebar ? (
+              <Button
+                size="icon"
+                variant="ghost"
+                className="md:hidden"
+                onClick={onOpenSidebar}
+                aria-label="Open sidebar"
+              >
+                <Menu className="size-5" />
+              </Button>
+            ) : null}
+            <FlameMark className="size-10" />
+          </div>
           <h1 className="font-serif text-4xl tracking-tight text-balance md:text-5xl">
             {hasCloud ? "Choose a model" : "Choose a local model"}
           </h1>

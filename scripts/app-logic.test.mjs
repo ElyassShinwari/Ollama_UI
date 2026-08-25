@@ -149,3 +149,63 @@ test("sameOllamaId treats :latest as the untagged name", async () => {
   assert.equal(library.sameOllamaId("moondream:latest", "moondream"), true);
   assert.equal(library.sameOllamaId("llama3.2:1b", "llama3"), false);
 });
+
+test("parseRss extracts title, link, image, and youtube thumbs", async () => {
+  const news = await import("../src/lib/news/feeds.ts");
+  assert.equal(news.decodeXml("A &" + "amp; B &" + "lt;ok&" + "gt;"), "A & B <ok>");
+  assert.equal(news.decodeXml("hi &" + "amp;nbsp; there"), "hi   there");
+  const rss = `
+    <rss><channel>
+      <item>
+        <title><![CDATA[Ollama 1.0]]></title>
+        <link>https://ollama.com/blog/one</link>
+        <pubDate>Wed, 01 Jan 2025 00:00:00 GMT</pubDate>
+        <source>Ollama</source>
+        <description><![CDATA[<p>Local models.</p><img src="https://ollama.com/one.png" />]]></description>
+      </item>
+      <item>
+        <title>Skip me</title>
+        <guid>not-a-url</guid>
+      </item>
+    </channel></rss>`;
+  const items = news.parseRss(rss);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].title, "Ollama 1.0");
+  assert.equal(items[0].link, "https://ollama.com/blog/one");
+  assert.equal(items[0].image, "https://ollama.com/one.png");
+  assert.equal(items[0].source, "Ollama");
+
+  const atom = `
+    <feed>
+      <entry>
+        <title>AI video</title>
+        <link rel="alternate" href="https://www.youtube.com/watch?v=abcdefghijk"/>
+        <yt:videoId>abcdefghijk</yt:videoId>
+        <media:content url="https://www.youtube.com/v/abcdefghijk?version=3" type="application/x-shockwave-flash"/>
+        <published>2025-02-01T00:00:00Z</published>
+      </entry>
+    </feed>`;
+  const videos = news.parseRss(atom, "YouTube");
+  assert.equal(videos.length, 1);
+  assert.equal(videos[0].video, true);
+  assert.match(videos[0].image || "", /ytimg/);
+  assert.doesNotMatch(videos[0].image || "", /youtube\.com\/v\//);
+
+  const merged = news.mergeNews([items, videos, items], "pictures");
+  assert.equal(merged.length, 2);
+  assert.ok(merged.every((item) => item.image));
+
+  const videoOnly = news.mergeNews([items, videos], "videos");
+  assert.equal(videoOnly.length, 1);
+  assert.equal(videoOnly[0].video, true);
+
+  const nested = news.parseRss(`
+    <feed>
+      <entry>
+        <title>Release</title>
+        <link href="https://github.com/ollama/ollama/releases/tag/v1"/>
+        <author><name>github-actions[bot]</name><uri>https://github.com/apps/github-actions</uri></author>
+      </entry>
+    </feed>`);
+  assert.equal(nested[0].source, "github-actions[bot]");
+});

@@ -64,6 +64,28 @@ await page.getByRole("button", { name: "Back to chat" }).first().click();
 await page.waitForTimeout(300);
 pass("back to chat");
 
+const newsBtn = page.getByRole("button", { name: "News" }).first();
+if (!(await newsBtn.count())) await fail("News missing");
+await newsBtn.click();
+await page.waitForTimeout(600);
+const newsText = await page.locator("body").innerText();
+for (const label of ["Local AI", "Overall AI", "Pictures", "Videos"]) {
+  if (!newsText.includes(label)) await fail(`News option missing: ${label}`);
+}
+if (!/Ollama|on-device|local models/i.test(newsText)) await fail("News local AI hint missing");
+if (!(await page.getByRole("button", { name: "Back to chat" }).count())) await fail("News back to chat missing");
+for (const label of ["Overall AI", "Pictures", "Videos", "Local AI"]) {
+  const option = page.getByRole("button", { name: new RegExp(`^${label}`) }).first();
+  if (!(await option.count())) await fail(`News option button missing: ${label}`);
+  await option.click();
+  await page.waitForTimeout(250);
+}
+pass("news options");
+await page.getByRole("button", { name: "Back to chat", exact: true }).first().click();
+await page.getByRole("heading", { name: "News" }).waitFor({ state: "hidden", timeout: 8000 });
+await page.waitForTimeout(300);
+pass("news back to chat");
+
 const settingsBtn = page.getByRole("button", { name: "Settings" }).first();
 if (await settingsBtn.count()) {
   await settingsBtn.click();
