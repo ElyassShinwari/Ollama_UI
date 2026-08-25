@@ -26,7 +26,7 @@ import {
   type PendingFile,
 } from "@/lib/llm/files";
 import { repetitionCutoff } from "@/lib/llm/repeat";
-import { countModelTokens, formatChatPrompt } from "@/lib/llm/tokens";
+import { formatChatPrompt } from "@/lib/llm/tokens";
 import { combinedInstructions, knowledgeBlock } from "@/lib/studio/store";
 import {
   CLOUD_LABEL,
@@ -161,31 +161,9 @@ export function ChatView({
           .join("\n\n"),
         promptMsgs.map((m) => ({ role: m.role, content: m.content })),
       );
-      if (model.provider !== "ollama") {
-        if (cancelled) return;
-        setUsage(conversation.id, {
-          promptTokens: estimateTokens(prompt),
-          completionTokens: estimateTokens(completionText),
-        });
-        return;
-      }
-      const [promptTokens, completionTokens] = await Promise.all([
-        countModelTokens({
-          host: useChatStore.getState().settings.ollamaHost,
-          model: model.id,
-          text: prompt,
-          transport: model.transport,
-        }),
-        completionText
-          ? countModelTokens({
-              host: useChatStore.getState().settings.ollamaHost,
-              model: model.id,
-              text: completionText,
-              transport: model.transport,
-            })
-          : Promise.resolve(0),
-      ]);
       if (cancelled) return;
+      const promptTokens = estimateTokens(prompt);
+      const completionTokens = estimateTokens(completionText);
       promptTokensRef.current = promptTokens;
       completionTokensRef.current = completionTokens;
       setUsage(conversation.id, { promptTokens, completionTokens });
@@ -216,6 +194,7 @@ export function ChatView({
 
   function flushPending(conversationId: string, assistantId: string) {
     if (flushTimerRef.current) {
+      window.cancelAnimationFrame(flushTimerRef.current);
       window.clearTimeout(flushTimerRef.current);
       flushTimerRef.current = null;
     }
@@ -274,6 +253,7 @@ export function ChatView({
     const controller = new AbortController();
     abortRef.current = controller;
     pendingChunkRef.current = "";
+    let painted = false;
     let stoppedLoop = false;
     let failed = false;
     try {
@@ -294,11 +274,14 @@ export function ChatView({
         (chunk) => {
           if (controller.signal.aborted) return;
           pendingChunkRef.current += chunk;
-          if (!flushTimerRef.current) {
-            flushTimerRef.current = window.setTimeout(() => {
+          if (!painted) {
+            painted = true;
+            flushPending(conversationId, assistantId);
+          } else if (!flushTimerRef.current) {
+            flushTimerRef.current = window.requestAnimationFrame(() => {
               flushTimerRef.current = null;
               flushPending(conversationId, assistantId);
-            }, 80);
+            });
           }
           const nextLen =
             (useChatStore
@@ -363,14 +346,6 @@ export function ChatView({
     }
     if (!failed && !text.startsWith("I couldn't complete")) {
       dropBinary(conversationId);
-    }
-    if (text && model.provider === "ollama" && !failed) {
-      void countModelTokens({
-        host: settingsNow.ollamaHost,
-        model: model.id,
-        text: text.slice(0, MAX_TURN_CHARS),
-        transport: model.transport,
-      }).then((n) => publishUsage(conversationId, promptTokensRef.current, n));
     }
     if (failed || text.startsWith("I couldn't complete") || text === "Stopped.") return "";
     return text;

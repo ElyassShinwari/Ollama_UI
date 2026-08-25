@@ -321,6 +321,15 @@ test("each model keeps its own context window, not a size-based guess", async ()
   assert.ok(scaled && scaled < 131072 && scaled >= 2048);
   assert.match(ctx.friendlyOllamaError(oom), /real window/i);
   assert.doesNotMatch(ctx.friendlyOllamaError(oom), /50\.6/);
+  assert.equal(ctx.initialOllamaNumCtx(), undefined);
+  assert.deepEqual(ctx.ollamaChatOptions(0.7), { temperature: 0.7 });
+  assert.deepEqual(ctx.ollamaChatOptions(0.7, 4096), { temperature: 0.7, num_ctx: 4096 });
+  assert.equal(ctx.nextCtxForOverflow(undefined, 131072), 4096);
+  assert.equal(ctx.nextCtxForOverflow(4096, 131072), 8192);
+  assert.equal(ctx.nextCtxForOverflow(131072, 131072), undefined);
+  assert.equal(ctx.isOllamaBusyError('{"error":"server busy, please try again."}'), true);
+  assert.equal(ctx.isOllamaBusyError("model is currently loading"), true);
+  assert.equal(ctx.isOllamaBusyError("the types are wrong"), false);
 });
 
 test("pullProgress maps Ollama completed/total to a percent", async () => {

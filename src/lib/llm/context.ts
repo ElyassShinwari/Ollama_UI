@@ -166,6 +166,43 @@ export function resolveOllamaNumCtx(contextLength?: number): number | undefined 
   return Math.round(contextLength);
 }
 
+/**
+ * First chat matches the terminal: do not send num_ctx. Sending the model's
+ * published window (8k–128k) makes Ollama reload and allocate a huge KV cache,
+ * which is why a 600ms CLI reply can take 45s here.
+ */
+export function initialOllamaNumCtx(): number | undefined {
+  return undefined;
+}
+
+export function nextCtxForOverflow(current: number | undefined, cap?: number): number | undefined {
+  const from = current && current > 2048 ? current : 2048;
+  const ceiling = cap && Number.isFinite(cap) && cap > 0 ? cap : 32768;
+  const next = Math.min(ceiling, Math.max(4096, from * 2));
+  return next > from ? next : undefined;
+}
+
+export function isOllamaBusyError(message: string): boolean {
+  const t = stripOllamaErrorPayload(message).toLowerCase();
+  return (
+    t.includes("busy") ||
+    t.includes("currently loading") ||
+    t.includes("loading model") ||
+    t.includes("model is loading") ||
+    t.includes("runner process")
+  );
+}
+
+export function ollamaChatOptions(temperature: number, numCtx?: number): Record<string, number> {
+  const options: Record<string, number> = { temperature };
+  if (numCtx) options.num_ctx = numCtx;
+  return options;
+}
+
+export function busyRetryMs(attempt: number): number {
+  return Math.min(2000, 250 * Math.max(1, attempt));
+}
+
 export function parseOllamaMemoryBudget(
   message: string,
 ): { requiredGiB: number; availableGiB: number } | undefined {
@@ -234,7 +271,7 @@ export function stripOllamaErrorPayload(message: string): string {
 }
 
 const MEMORY_HINT =
-  "This model needs more RAM than is free for its full context window. The file on disk can be small while a long window still uses a lot of memory. Ollama_UI read this model's real window, then retries with a shorter one that matches the RAM Ollama reported. Close other loaded models if it still fails.";
+  "This model needs more RAM than is free for its full context window. The file on disk can be small while a long window still uses a lot of memory. Ollama_UI read this model's real window for the meter, talks to Ollama like the terminal (no huge window forced on each send), and only shortens the window if Ollama reports it ran out of RAM.";
 
 export function friendlyOllamaError(message: string): string {
   if (message === MEMORY_HINT) return message;

@@ -1,12 +1,16 @@
 import { CHATGPT_OAUTH_MODELS, FALLBACK_CLOUD, cloudEndpoint, isChatGptOAuth, responsesTextType, type CloudId } from "@/lib/llm/cloud";
 import {
+  busyRetryMs,
   friendlyOllamaError,
+  initialOllamaNumCtx,
+  isOllamaBusyError,
   isOllamaMemoryError,
   lookupPublishedContext,
   nextCtxForMemoryError,
+  nextCtxForOverflow,
+  ollamaChatOptions,
   parseOllamaCapabilities,
   parseOllamaContextLength,
-  resolveOllamaNumCtx,
   estimateContextFromParameters,
   xaiContextLength,
 } from "@/lib/llm/context";
@@ -415,14 +419,10 @@ export async function* streamOllamaChat(opts: {
   signal: AbortSignal;
 }): AsyncGenerator<ChatStreamEvent> {
   const host = sanitizeOllamaHost(opts.host);
-  let numCtx = resolveOllamaNumCtx(opts.contextLength);
+  let numCtx = initialOllamaNumCtx();
+  let busyTries = 0;
   while (true) {
-    const options: Record<string, number> = {
-      temperature: opts.temperature,
-      repeat_penalty: 1.2,
-      repeat_last_n: 256,
-    };
-    if (numCtx) options.num_ctx = numCtx;
+    const options = ollamaChatOptions(opts.temperature, numCtx);
     let produced = false;
     try {
       const res = await fetch(`${host}/api/chat`, {
@@ -449,14 +449,43 @@ export async function* streamOllamaChat(opts: {
     } catch (err) {
       if (opts.signal.aborted) throw err;
       const message = err instanceof Error ? err.message : String(err);
+      if (!produced && isOllamaBusyError(message) && busyTries < 8) {
+        busyTries += 1;
+        await new Promise((r) => setTimeout(r, busyRetryMs(busyTries)));
+        continue;
+      }
       const wrapped = new Error(friendlyOllamaError(message));
-      if (produced || !isOllamaMemoryError(message)) throw wrapped;
-      const next = nextCtxForMemoryError(numCtx ?? 8192, message);
-      if (!next) throw wrapped;
-      numCtx = next;
-      await unloadOllamaModel(host, opts.model).catch(() => undefined);
+      if (produced) throw wrapped;
+      if (isOllamaMemoryError(message)) {
+        const next = nextCtxForMemoryError(numCtx ?? 8192, message);
+        if (next) {
+          numCtx = next;
+          await unloadOllamaModel(host, opts.model).catch(() => undefined);
+          continue;
+        }
+      }
+      if (isOverflowMessage(message)) {
+        const next = nextCtxForOverflow(numCtx, opts.contextLength);
+        if (next) {
+          numCtx = next;
+          continue;
+        }
+      }
+      throw wrapped;
     }
   }
+}
+
+function isOverflowMessage(message: string) {
+  const t = message.toLowerCase();
+  return (
+    t.includes("context length") ||
+    t.includes("context size") ||
+    t.includes("prompt is too long") ||
+    t.includes("maximum context") ||
+    t.includes("exceeds the context") ||
+    t.includes("too many tokens")
+  );
 }
 
 export async function* streamXaiChat(opts: {
@@ -839,11 +868,13 @@ async function* readOllamaNdjson(
   let buf = "";
   while (true) {
     const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    const lines = buf.split("\n");
-    buf = lines.pop() ?? "";
-    for (const line of lines) {
+    if (value) buf += dec.decode(value, { stream: true });
+    if (done) buf += dec.decode();
+    const parts = buf.split("\n");
+    buf = parts.pop() ?? "";
+    const batch = done && buf.trim() ? parts.concat(buf) : parts;
+    if (done) buf = "";
+    for (const line of batch) {
       if (!line.trim()) continue;
       try {
         const json = JSON.parse(line) as {
@@ -865,6 +896,7 @@ async function* readOllamaNdjson(
         throw err;
       }
     }
+    if (done) return;
   }
 }
 

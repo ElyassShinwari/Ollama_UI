@@ -15,7 +15,7 @@ import { StudioPanel } from "@/components/studio/studio-panel";
 import { NewsPanel } from "@/components/news/news-panel";
 import { SettingsDialog } from "@/components/chat/settings-dialog";
 import { FlameMark, Sidebar } from "@/components/chat/sidebar";
-import { fetchCatalog, resetModelContext } from "@/lib/llm/catalog";
+import { fetchCatalog } from "@/lib/llm/catalog";
 import { cloudSecret } from "@/lib/llm/cloud";
 import { applyTheme, resolvedTheme } from "@/lib/theme";
 import { useChatStore } from "@/lib/chat/store";
@@ -104,10 +104,6 @@ export function ChatApp() {
   function startFreshChat() {
     const id = newChat();
     resetUsage(id);
-    const model = useChatStore.getState().selectedModel;
-    if (model) {
-      void resetModelContext(useChatStore.getState().settings.ollamaHost, model);
-    }
     setMobileOpen(false);
     setStudioOpen(false);
     setNewsOpen(false);

@@ -1,11 +1,15 @@
 import {
+  busyRetryMs,
   friendlyOllamaError,
+  initialOllamaNumCtx,
+  isOllamaBusyError,
   isOllamaMemoryError,
   lookupPublishedContext,
   nextCtxForMemoryError,
+  nextCtxForOverflow,
+  ollamaChatOptions,
   parseOllamaCapabilities,
   parseOllamaContextLength,
-  resolveOllamaNumCtx,
   estimateContextFromParameters,
   xaiContextLength,
 } from "@/lib/llm/context";
@@ -212,7 +216,7 @@ export async function streamChat(
   signal: AbortSignal,
   onUsage?: (usage: TokenUsage) => void,
 ) {
-  await ensureCloudAuth();
+  if (body.provider !== "ollama") await ensureCloudAuth();
   const settings = useChatStore.getState().settings;
   const apiKey = cloudSecret(settings, body.provider) || body.apiKey;
   const accountId =
@@ -313,15 +317,11 @@ async function streamOllamaBrowser(
   onUsage?: (usage: TokenUsage) => void,
 ) {
   const host = opts.host.replace(/\/+$/, "");
-  let numCtx = resolveOllamaNumCtx(opts.contextLength);
+  let numCtx = initialOllamaNumCtx();
   let lastMessage = "Ollama failed";
+  let busyTries = 0;
   while (true) {
-    const options: Record<string, number> = {
-      temperature: opts.temperature,
-      repeat_penalty: 1.2,
-      repeat_last_n: 256,
-    };
-    if (numCtx) options.num_ctx = numCtx;
+    const options = ollamaChatOptions(opts.temperature, numCtx);
     const res = await fetch(`${host}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -336,11 +336,23 @@ async function streamOllamaBrowser(
     if (!res.ok) {
       const text = await res.text().catch(() => "");
       lastMessage = text || `Ollama error ${res.status}`;
+      if (!signal.aborted && isOllamaBusyError(lastMessage) && busyTries < 8) {
+        busyTries += 1;
+        await new Promise((r) => setTimeout(r, busyRetryMs(busyTries)));
+        continue;
+      }
       if (!signal.aborted && isOllamaMemoryError(lastMessage)) {
         const next = nextCtxForMemoryError(numCtx ?? 8192, lastMessage);
         if (next) {
           numCtx = next;
           await unloadOllamaBrowser(host, opts.model);
+          continue;
+        }
+      }
+      if (!signal.aborted && isOverflow(lastMessage)) {
+        const next = nextCtxForOverflow(numCtx, opts.contextLength);
+        if (next) {
+          numCtx = next;
           continue;
         }
       }
@@ -361,6 +373,11 @@ async function streamOllamaBrowser(
     } catch (err) {
       if (signal.aborted) throw err;
       lastMessage = err instanceof Error ? err.message : String(err);
+      if (!produced && isOllamaBusyError(lastMessage) && busyTries < 8) {
+        busyTries += 1;
+        await new Promise((r) => setTimeout(r, busyRetryMs(busyTries)));
+        continue;
+      }
       if (!produced && isOllamaMemoryError(lastMessage)) {
         const next = nextCtxForMemoryError(numCtx ?? 8192, lastMessage);
         if (next) {
@@ -369,9 +386,28 @@ async function streamOllamaBrowser(
           continue;
         }
       }
+      if (!produced && isOverflow(lastMessage)) {
+        const next = nextCtxForOverflow(numCtx, opts.contextLength);
+        if (next) {
+          numCtx = next;
+          continue;
+        }
+      }
       throw new Error(friendlyOllamaError(lastMessage));
     }
   }
+}
+
+function isOverflow(message: string) {
+  const t = message.toLowerCase();
+  return (
+    t.includes("context length") ||
+    t.includes("context size") ||
+    t.includes("prompt is too long") ||
+    t.includes("maximum context") ||
+    t.includes("exceeds the context") ||
+    t.includes("too many tokens")
+  );
 }
 
 async function readOllamaBrowserBody(
@@ -382,34 +418,40 @@ async function readOllamaBrowserBody(
   const reader = body.getReader();
   const dec = new TextDecoder();
   let buf = "";
+  const take = (line: string) => {
+    if (!line.trim()) return;
+    const json = JSON.parse(line) as {
+      message?: { content?: string };
+      error?: string;
+      done?: boolean;
+      prompt_eval_count?: number;
+      eval_count?: number;
+    };
+    if (json.error) throw new Error(json.error);
+    if (json.message?.content) onDelta(json.message.content);
+    const promptTokens = Number(json.prompt_eval_count) || 0;
+    const completionTokens = Number(json.eval_count) || 0;
+    if (promptTokens || completionTokens) {
+      onUsage?.({ promptTokens, completionTokens });
+    }
+  };
   while (true) {
     const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
+    if (value) buf += dec.decode(value, { stream: true });
+    if (done) buf += dec.decode();
     const lines = buf.split("\n");
     buf = lines.pop() ?? "";
-    for (const line of lines) {
-      if (!line.trim()) continue;
+    const batch = done && buf.trim() ? lines.concat(buf) : lines;
+    if (done) buf = "";
+    for (const line of batch) {
       try {
-        const json = JSON.parse(line) as {
-          message?: { content?: string };
-          error?: string;
-          done?: boolean;
-          prompt_eval_count?: number;
-          eval_count?: number;
-        };
-        if (json.error) throw new Error(json.error);
-        if (json.message?.content) onDelta(json.message.content);
-        const promptTokens = Number(json.prompt_eval_count) || 0;
-        const completionTokens = Number(json.eval_count) || 0;
-        if (promptTokens || completionTokens) {
-          onUsage?.({ promptTokens, completionTokens });
-        }
+        take(line);
       } catch (err) {
         if (err instanceof SyntaxError) continue;
         throw err;
       }
     }
+    if (done) break;
   }
 }
 

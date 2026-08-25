@@ -114,7 +114,7 @@ ollama list
 
 1. Open Ollama_UI. Install Ollama if you want local models, or skip to a cloud model.
 2. Pick a model from the library, from Hugging Face GGUF, from this computer, or from ChatGPT / Claude / Grok / Kimi. Search suggests names as you type (`qwen` lists every available Qwen, not only ones already installed). Open the model menu to search and scroll the full list, or use the arrows to step through every available model. The tester menu in a review works the same way.
-3. Chat. Switch models from the header. The full conversation is sent to the new model, and the context meter updates to that model's own window (read from the model; if a model never published one, the app estimates from its parameter size). Delete a chat from the trash icon in the sidebar history, from **⋯ → Delete**, or from the trash in the chat header. Confirm, and it is removed from this browser.
+3. Chat. Tokens appear as Ollama writes them — the same speed as `ollama run` in a terminal. The app does not reload the model or force a huge context window on every send. Switch models from the header. The full conversation is sent to the new model, and the context meter updates to that model's own window (read from the model; if a model never published one, the app estimates from its parameter size). Delete a chat from the trash icon in the sidebar history, from **⋯ → Delete**, or from the trash in the chat header. Confirm, and it is removed from this browser.
 4. If the new model’s window is smaller than this chat, you get a warning: answers may be unexpected or inaccurate while the window is full. You can still continue, or start a new chat.
 5. Attach files with **+** or drag and drop. The app takes the file and sends what it can (text, images, PDFs, and other types). Follow-up messages keep their attachments. Grok files go through xAI’s Responses API (assistant turns use `output_text`). ChatGPT, Claude, and Kimi accept many kinds too. If a model cannot read a file, that model’s reply says so — the app does not block unknown types up front.
 6. Open **News** in the sidebar. Choose **Local AI**, **Overall AI**, **Pictures**, or **Videos**. Stories open in a new tab; videos play in the page. **Back to chat** closes News. Clicking a chat also closes it.
@@ -241,8 +241,11 @@ Editing a prompt now keeps the original images and files on the new version.
 **Review uses too much memory**  
 Grok + ChatGPT review no longer resends the whole thread and file bytes every cycle. Refresh if an old tab is still running a previous review. Image previews stay in the open chat; large document bytes are not kept after send.
 
+**Replies feel much slower than the terminal**  
+The app now talks to Ollama the same way `ollama run` does: it keeps the model loaded and does not send the full published window as `num_ctx` on every message. Forcing 8k–128k on a small model made Ollama reload and sit on “busy” for tens of seconds. Tokens paint as they arrive. If a reply is still slow, another request (or a second chat) may have the runner busy — the app retries that instead of hanging.
+
 **Phi-3 (or another model) says it needs 50 GiB**  
-Ollama_UI reads each model's own context window from the model (GGUF / Ollama), not a one-size guess from file size. Phi-3's window is 128k even though the file is about 2 GB — that long window is what asks for tens of gigabytes of RAM. If this computer cannot hold the full window, the first reply retries with a shorter one that matches the RAM Ollama reported. Close other loaded models if it still fails.
+Ollama_UI reads each model's own context window from the model (GGUF / Ollama) for the meter. Chat itself uses Ollama’s default loaded window, like the terminal. Phi-3’s published window is 128k even though the file is about 2 GB — that long window is what asks for tens of gigabytes of RAM. If a long chat actually needs more than the default and this computer cannot hold it, the reply retries with a shorter window that matches the RAM Ollama reported. Close other loaded models if it still fails.
 
 **Node not found**  
 Install Node.js 22+ from [nodejs.org](https://nodejs.org), then `make run`.
