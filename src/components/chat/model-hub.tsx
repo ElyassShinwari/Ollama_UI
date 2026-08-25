@@ -44,8 +44,8 @@ export function ModelHub({
   const [suggestions, setSuggestions] = useState<string[]>(EMPTY_CHIPS);
   const [busy, setBusy] = useState<string | null>(null);
   const [log, setLog] = useState<string[]>([]);
-  const [pulling, setPulling] = useState<string | null>(null);
-  const [pullPercent, setPullPercent] = useState<number | null>(null);
+  const [pulls, setPulls] = useState<Record<string, number>>({});
+  const pullingRef = useRef(new Set<string>());
   const [pendingDelete, setPendingDelete] = useState<ModelRef | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [openSuggest, setOpenSuggest] = useState(false);
@@ -130,20 +130,21 @@ export function ModelHub({
       pushLog("Install or start Ollama first.");
       return;
     }
-    setPulling(id);
-    setPullPercent(0);
-    setLog([`Installing ${id}…`]);
+    if (pullingRef.current.has(id)) return;
+    pullingRef.current.add(id);
+    setPulls((cur) => ({ ...cur, [id]: 0 }));
+    pushLog(`Installing ${id}…`);
     let succeeded = false;
     try {
       const ok = await readSetupStream(
         "/api/pull",
-        pushLog,
+        (line) => pushLog(`${id}: ${line}`),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ host, model: id }),
         },
-        (pct) => setPullPercent(pct),
+        (pct) => setPulls((cur) => ({ ...cur, [id]: pct })),
       );
       const models = (await onRefreshLocal()) ?? [];
       const match = models.find(
@@ -151,21 +152,30 @@ export function ModelHub({
       );
       if (ok) {
         succeeded = true;
-        setPullPercent(100);
+        setPulls((cur) => ({ ...cur, [id]: 100 }));
         pushLog(`${id} is ready.`);
         if (match) onChoose(match);
       }
     } catch (err) {
-      pushLog(err instanceof Error ? err.message : "Download failed");
+      pushLog(err instanceof Error ? `${id}: ${err.message}` : `${id}: Download failed`);
     } finally {
+      pullingRef.current.delete(id);
       if (succeeded) {
         window.setTimeout(() => {
-          setPulling(null);
-          setPullPercent(null);
+          setPulls((cur) => {
+            if (!(id in cur)) return cur;
+            const next = { ...cur };
+            delete next[id];
+            return next;
+          });
         }, 800);
       } else {
-        setPulling(null);
-        setPullPercent(null);
+        setPulls((cur) => {
+          if (!(id in cur)) return cur;
+          const next = { ...cur };
+          delete next[id];
+          return next;
+        });
       }
     }
   }
@@ -357,7 +367,7 @@ export function ModelHub({
                   variant="ghost"
                   className="shrink-0 text-muted-foreground hover:text-destructive"
                   aria-label={`Delete ${model.name}`}
-                  disabled={Boolean(pulling) || deleting}
+                  disabled={deleting}
                   onClick={() => setPendingDelete(model)}
                 >
                   <Trash2 className="size-4" />
@@ -377,9 +387,8 @@ export function ModelHub({
         }
         models={ollamaLibrary}
         localIds={new Set(localModels.map((m) => m.id))}
-        pulling={pulling}
-        pullPercent={pullPercent}
-        disabled={!status?.running || Boolean(pulling)}
+        pulls={pulls}
+        disabled={!status?.running}
         onInstall={(id) => void installModel(id)}
         onUse={(id) => {
           const match = localModels.find((m) => sameOllamaId(m.id, id) || m.id.includes(id));
@@ -396,9 +405,8 @@ export function ModelHub({
         }
         models={hfLibrary}
         localIds={new Set(localModels.map((m) => m.id))}
-        pulling={pulling}
-        pullPercent={pullPercent}
-        disabled={!status?.running || Boolean(pulling)}
+        pulls={pulls}
+        disabled={!status?.running}
         onInstall={(id) => void installModel(id)}
         onUse={(id) => {
           const match = localModels.find((m) => sameOllamaId(m.id, id) || m.id.includes(id));
@@ -442,8 +450,7 @@ function LibrarySection({
   empty,
   models,
   localIds,
-  pulling,
-  pullPercent,
+  pulls,
   disabled,
   onInstall,
   onUse,
@@ -452,8 +459,7 @@ function LibrarySection({
   empty: string;
   models: LibraryModel[];
   localIds: Set<string>;
-  pulling: string | null;
-  pullPercent: number | null;
+  pulls: Record<string, number>;
   disabled: boolean;
   onInstall: (id: string) => void;
   onUse: (id: string) => void;
@@ -467,8 +473,7 @@ function LibrarySection({
             key={item.pullId || item.name}
             model={item}
             localIds={localIds}
-            pulling={pulling}
-            pullPercent={pullPercent}
+            pulls={pulls}
             disabled={disabled}
             onInstall={onInstall}
             onUse={onUse}
@@ -482,19 +487,24 @@ function LibrarySection({
   );
 }
 
+function tagLabel(id: string, family: string) {
+  if (id === family) return "latest";
+  if (id.startsWith(`${family}:`)) return id.slice(family.length + 1);
+  if (id.includes(":")) return id.split(":").pop() || id;
+  return id;
+}
+
 function LibraryCard({
   model,
   localIds,
-  pulling,
-  pullPercent,
+  pulls,
   disabled,
   onInstall,
   onUse,
 }: {
   model: LibraryModel;
   localIds: Set<string>;
-  pulling: string | null;
-  pullPercent: number | null;
+  pulls: Record<string, number>;
   disabled: boolean;
   onInstall: (id: string) => void;
   onUse: (id: string) => void;
@@ -506,12 +516,6 @@ function LibraryCard({
     ...extra.map((tag) => `${stripQuantSuffix(model.pullId || "")}:${tag}`),
   ]).filter((id) => id && !id.endsWith(":"));
   const hf = model.source === "huggingface" || model.source === "url";
-  const haveAny = ids.some((id) =>
-    [...localIds].some((local) => sameOllamaId(local, id) || local.includes(id)),
-  );
-  const active = Boolean(pulling && ids.includes(pulling));
-  const percent = active ? Math.max(0, Math.min(100, pullPercent ?? 0)) : haveAny ? 100 : 0;
-  const ready = haveAny || (active && percent >= 100);
 
   async function loadSizes() {
     if (!model.repo) return;
@@ -525,67 +529,66 @@ function LibraryCard({
   }
 
   return (
-    <div
-      className="relative overflow-hidden rounded-xl border border-border bg-card px-4 py-3"
-      aria-busy={active || undefined}
-    >
-      {active ? <InstallProgress percent={Math.max(percent, 4)} /> : null}
-      <div className="relative">
-        <div className="flex items-start justify-between gap-2">
-          <p
-            className={cn(
-              "min-w-0 font-medium text-pretty transition-colors duration-200 ease-out",
-              ready ? "text-ready" : "text-foreground",
-            )}
-          >
-            {model.name}
-          </p>
-          <div className="flex shrink-0 items-center gap-2">
-            {active ? (
-              <span className="font-mono text-[11px] tabular-nums text-muted-foreground">{percent}%</span>
-            ) : null}
-            <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
-              {hf ? "Hugging Face" : "Ollama"}
-            </span>
-          </div>
-        </div>
-        {model.description ? (
-          <p className="mt-1 text-sm text-muted-foreground text-pretty">{model.description}</p>
-        ) : null}
-        <div className="mt-3 flex flex-wrap gap-2">
-          {ids.map((id) => {
-            const have = [...localIds].some((local) => sameOllamaId(local, id) || local.includes(id));
-            const rowActive = pulling === id;
-            const label = hf
-              ? have
-                ? "Use"
-                : id.includes(":")
-                  ? `Install ${id.split(":").pop()}`
-                  : "Install from Hugging Face"
-              : have
-                ? `Use ${id}`
-                : `Install & run ${id}`;
-            return (
-              <Button
-                key={id}
-                size="sm"
-                variant={have ? "secondary" : "outline"}
-                className={cn("h-8", have && "ring-1 ring-ring/30")}
-                disabled={disabled && !have}
-                onClick={() => (have ? onUse(id) : onInstall(id))}
+    <div className="rounded-xl border border-border bg-card px-4 py-3">
+      <div className="flex items-start justify-between gap-2">
+        <p className="min-w-0 font-medium text-pretty">{model.name}</p>
+        <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
+          {hf ? "Hugging Face" : "Ollama"}
+        </span>
+      </div>
+      {model.description ? (
+        <p className="mt-1 text-sm text-muted-foreground text-pretty">{model.description}</p>
+      ) : null}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {ids.map((id) => {
+          const have = [...localIds].some((local) => sameOllamaId(local, id) || local.includes(id));
+          const percent = pulls[id];
+          const rowActive = percent != null;
+          const ready = have || (rowActive && percent >= 100);
+          const shown = rowActive ? Math.max(4, Math.min(100, percent)) : 0;
+          const short = tagLabel(id, model.name);
+          const label = have
+            ? `Use ${short}`
+            : hf
+              ? id.includes(":")
+                ? `Install ${short}`
+                : "Install from Hugging Face"
+              : `Install ${short}`;
+          return (
+            <Button
+              key={id}
+              size="sm"
+              variant={have ? "secondary" : "outline"}
+              className={cn(
+                "relative h-8 overflow-hidden",
+                rowActive && "min-w-40",
+                have && "ring-1 ring-ring/30",
+                rowActive && !have && "pointer-events-none",
+              )}
+              disabled={disabled && !have}
+              aria-busy={rowActive || undefined}
+              onClick={() => (have ? onUse(id) : onInstall(id))}
+            >
+              {rowActive ? <InstallProgress percent={shown} /> : null}
+              <span
+                className={cn(
+                  "relative z-10 flex items-center gap-1.5 transition-colors duration-200 ease-out",
+                  ready && "text-ready",
+                )}
               >
-                {rowActive ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
+                {rowActive && percent < 100 ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
                 {label}
-              </Button>
-            );
-          })}
-          {hf && model.repo && extra.length === 0 ? (
-            <Button size="sm" variant="ghost" className="h-8" disabled={loadingSizes} onClick={() => void loadSizes()}>
-              {loadingSizes ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
-              More sizes
+                {rowActive ? <span className="font-mono tabular-nums">{Math.round(percent)}%</span> : null}
+              </span>
             </Button>
-          ) : null}
-        </div>
+          );
+        })}
+        {hf && model.repo && extra.length === 0 ? (
+          <Button size="sm" variant="ghost" className="h-8" disabled={loadingSizes} onClick={() => void loadSizes()}>
+            {loadingSizes ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
+            More sizes
+          </Button>
+        ) : null}
       </div>
     </div>
   );
