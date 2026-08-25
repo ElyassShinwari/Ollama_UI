@@ -64,6 +64,8 @@ Ollama_UI is not limited to the official Ollama catalog. With Ollama running, se
 
 Type `qwen` (you do not need the exact tag). Suggestions appear before you finish the word. The list includes Qwen2.5, Qwen2.5-Coder, Qwen3, Hugging Face GGUF builds, and more. Pick a size, or on Hugging Face use **More sizes** for extra quants such as Q4_K_M.
 
+While a model downloads, the percent stays in the log at the top and a shadow line fills across that model’s card. At 100% the model name changes color so you can see it is ready.
+
 The runtime is still Ollama: Hugging Face GGUF files are downloaded through it and then chat like any other local model.
 
 ## Install Ollama by hand (optional)

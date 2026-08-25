@@ -322,3 +322,12 @@ test("each model keeps its own context window, not a size-based guess", async ()
   assert.match(ctx.friendlyOllamaError(oom), /real window/i);
   assert.doesNotMatch(ctx.friendlyOllamaError(oom), /50\.6/);
 });
+
+test("pullProgress maps Ollama completed/total to a percent", async () => {
+  const setup = await import("../src/lib/llm/setup.ts");
+  assert.equal(setup.pullProgress({ completed: 50, total: 100 }), 50);
+  assert.equal(setup.pullProgress({ completed: 100, total: 100 }), 100);
+  assert.equal(setup.pullProgress({ completed: 0, total: 200 }), 0);
+  assert.equal(setup.pullProgress({ completed: 3, total: 0 }), null);
+  assert.equal(setup.pullProgress({}), null);
+});

@@ -44,6 +44,7 @@ export async function readSetupStream(
   url: string,
   onLine: (line: string) => void,
   init?: RequestInit,
+  onProgress?: (percent: number) => void,
 ): Promise<boolean> {
   const res = await fetch(url, init);
   if (!res.ok || !res.body) throw new Error(`Request failed (${res.status})`);
@@ -70,15 +71,20 @@ export async function readSetupStream(
           completed?: number;
           total?: number;
         };
+        const pct = pullProgress(json);
         if (json.line) onLine(json.line);
         else if (json.status) {
-          if (json.total && json.completed != null) {
-            const pct = Math.min(100, Math.round((json.completed / json.total) * 100));
+          if (pct != null) {
             onLine(`${json.status} ${pct}%`);
+            onProgress?.(pct);
           } else onLine(json.status);
         }
+        if (json.status === "success") onProgress?.(100);
         if (json.error) onLine(json.error);
-        if (json.done) ok = Boolean(json.ok) && !json.error;
+        if (json.done) {
+          ok = Boolean(json.ok) && !json.error;
+          if (ok) onProgress?.(100);
+        }
       } catch {
         /* skip */
       }
