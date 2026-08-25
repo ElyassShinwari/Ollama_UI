@@ -10,6 +10,7 @@ type ChatBody = {
   messages?: { role: string; content: string; images?: string[]; documents?: { name: string; mime: string; data: string }[] }[];
   temperature?: number;
   contextLength?: number;
+  modelSize?: number;
   apiKey?: string;
   accountId?: string;
 };
@@ -44,6 +45,10 @@ export const Route = createFileRoute("/api/chat")({
           typeof body.contextLength === "number" && Number.isFinite(body.contextLength)
             ? body.contextLength
             : undefined;
+        const modelSize =
+          typeof body.modelSize === "number" && Number.isFinite(body.modelSize)
+            ? body.modelSize
+            : undefined;
         const apiKey = typeof body.apiKey === "string" ? body.apiKey : "";
         const accountId = typeof body.accountId === "string" ? body.accountId : "";
 
@@ -77,6 +82,7 @@ export const Route = createFileRoute("/api/chat")({
                   })),
                   temperature,
                   contextLength,
+                  modelSize,
                   signal: request.signal,
                 });
               } else if (provider === "anthropic") {

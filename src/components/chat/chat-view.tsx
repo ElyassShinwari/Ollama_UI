@@ -18,6 +18,7 @@ import { estimateTokens, greetingForNow, isContextOverflowError } from "@/lib/ut
 import { selectActiveConversation, chatPersist, useChatStore } from "@/lib/chat/store";
 import { siblingsOf, visibleMessages } from "@/lib/chat/tree";
 import { streamChat } from "@/lib/llm/catalog";
+import { friendlyOllamaError } from "@/lib/llm/context";
 import {
   buildMessageFromFiles,
   readDroppedFile,
@@ -284,6 +285,7 @@ export function ChatView({
           temperature: settingsNow.temperature,
           systemPrompt,
           contextLength: model.contextLength,
+          modelSize: model.size,
           apiKey,
           accountId,
         },
@@ -334,10 +336,10 @@ export function ChatView({
             assistantId,
             isContextOverflowError(message)
               ? "The context window is full. You can keep chatting, but answers may be unexpected or inaccurate."
-              : `I couldn't complete that reply. ${message}`,
+              : `I couldn't complete that reply. ${friendlyOllamaError(message)}`,
           );
         } else if (!isContextOverflowError(message)) {
-          toast.error(message);
+          toast.error(friendlyOllamaError(message));
         }
       }
     } finally {

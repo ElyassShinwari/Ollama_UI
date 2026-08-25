@@ -1,4 +1,12 @@
-import { parseOllamaCapabilities, parseOllamaContextLength, xaiContextLength } from "@/lib/llm/context";
+import {
+  capOllamaNumCtx,
+  friendlyOllamaError,
+  isOllamaMemoryError,
+  nextSmallerOllamaCtx,
+  parseOllamaCapabilities,
+  parseOllamaContextLength,
+  xaiContextLength,
+} from "@/lib/llm/context";
 import { cloudSecret } from "@/lib/llm/cloud";
 import { ensureCloudAuth } from "@/lib/llm/oauth-client";
 import { useChatStore } from "@/lib/chat/store";
@@ -34,7 +42,7 @@ async function attachBrowserContext(host: string, models: ModelRef[]): Promise<M
           projector_info?: unknown;
           details?: { family?: string };
         };
-        const contextLength = parseOllamaContextLength(body);
+        const contextLength = parseOllamaContextLength(body, model.size);
         const capabilities = parseOllamaCapabilities(body, model.id);
         return {
           ...model,
@@ -172,6 +180,7 @@ export type ChatRequestBody = {
   temperature: number;
   systemPrompt?: string;
   contextLength?: number;
+  modelSize?: number;
   apiKey?: string;
   accountId?: string;
 };
@@ -204,6 +213,7 @@ export async function streamChat(
         messages,
         temperature: body.temperature,
         contextLength: body.contextLength,
+        modelSize: body.modelSize,
       },
       onDelta,
       signal,
@@ -222,6 +232,7 @@ export async function streamChat(
       messages,
       temperature: body.temperature,
       contextLength: body.contextLength,
+      modelSize: body.modelSize,
       apiKey,
       accountId,
     }),
@@ -259,6 +270,19 @@ export async function resetModelContext(
   }).catch(() => undefined);
 }
 
+async function unloadOllamaBrowser(host: string, model: string) {
+  await fetch(`${host}/api/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      prompt: "",
+      keep_alive: 0,
+      stream: false,
+    }),
+  }).catch(() => undefined);
+}
+
 async function streamOllamaBrowser(
   opts: {
     host: string;
@@ -266,35 +290,80 @@ async function streamOllamaBrowser(
     messages: ChatTurn[];
     temperature: number;
     contextLength?: number;
+    modelSize?: number;
   },
   onDelta: (text: string) => void,
   signal: AbortSignal,
   onUsage?: (usage: TokenUsage) => void,
 ) {
   const host = opts.host.replace(/\/+$/, "");
-  const options: Record<string, number> = { temperature: opts.temperature };
-  if (opts.contextLength && opts.contextLength > 0) {
-    options.num_ctx = opts.contextLength;
+  let numCtx = capOllamaNumCtx(opts.contextLength, opts.modelSize);
+  let lastMessage = "Ollama failed";
+  while (true) {
+    const options: Record<string, number> = {
+      temperature: opts.temperature,
+      repeat_penalty: 1.2,
+      repeat_last_n: 256,
+      num_ctx: numCtx,
+    };
+    const res = await fetch(`${host}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: opts.model,
+        messages: opts.messages,
+        stream: true,
+        options,
+      }),
+      signal,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      lastMessage = text || `Ollama error ${res.status}`;
+      if (!signal.aborted && isOllamaMemoryError(lastMessage)) {
+        const next = nextSmallerOllamaCtx(numCtx);
+        if (next) {
+          numCtx = next;
+          await unloadOllamaBrowser(host, opts.model);
+          continue;
+        }
+      }
+      throw new Error(friendlyOllamaError(lastMessage));
+    }
+    if (!res.body) throw new Error("Ollama returned an empty stream");
+    let produced = false;
+    try {
+      await readOllamaBrowserBody(
+        res.body,
+        (text) => {
+          produced = true;
+          onDelta(text);
+        },
+        onUsage,
+      );
+      return;
+    } catch (err) {
+      if (signal.aborted) throw err;
+      lastMessage = err instanceof Error ? err.message : String(err);
+      if (!produced && isOllamaMemoryError(lastMessage)) {
+        const next = nextSmallerOllamaCtx(numCtx);
+        if (next) {
+          numCtx = next;
+          await unloadOllamaBrowser(host, opts.model);
+          continue;
+        }
+      }
+      throw new Error(friendlyOllamaError(lastMessage));
+    }
   }
-  options.repeat_penalty = 1.2;
-  options.repeat_last_n = 256;
-  const res = await fetch(`${host}/api/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: opts.model,
-      messages: opts.messages,
-      stream: true,
-      options,
-    }),
-    signal,
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(text || `Ollama error ${res.status}`);
-  }
-  if (!res.body) throw new Error("Ollama returned an empty stream");
-  const reader = res.body.getReader();
+}
+
+async function readOllamaBrowserBody(
+  body: ReadableStream<Uint8Array>,
+  onDelta: (text: string) => void,
+  onUsage?: (usage: TokenUsage) => void,
+) {
+  const reader = body.getReader();
   const dec = new TextDecoder();
   let buf = "";
   while (true) {

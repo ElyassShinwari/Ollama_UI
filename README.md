@@ -236,6 +236,9 @@ Editing a prompt now keeps the original images and files on the new version.
 **Review uses too much memory**  
 Grok + ChatGPT review no longer resends the whole thread and file bytes every cycle. Refresh if an old tab is still running a previous review. Image previews stay in the open chat; large document bytes are not kept after send.
 
+**Phi-3 (or another small model) says it needs 50 GiB**  
+The weights on disk can be about 2 GB while the *architecture* window is 128k tokens. Loading that full window is what asks for tens of gigabytes of RAM. Ollama_UI now uses a working window around 4k–8k for small models and retries smaller if memory is still tight. Close other loaded models if it still fails.
+
 **Node not found**  
 Install Node.js 22+ from [nodejs.org](https://nodejs.org), then `make run`.
 

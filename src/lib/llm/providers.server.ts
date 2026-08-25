@@ -1,5 +1,13 @@
 import { CHATGPT_OAUTH_MODELS, FALLBACK_CLOUD, cloudEndpoint, isChatGptOAuth, responsesTextType, type CloudId } from "@/lib/llm/cloud";
-import { parseOllamaCapabilities, parseOllamaContextLength, xaiContextLength } from "@/lib/llm/context";
+import {
+  capOllamaNumCtx,
+  friendlyOllamaError,
+  isOllamaMemoryError,
+  nextSmallerOllamaCtx,
+  parseOllamaCapabilities,
+  parseOllamaContextLength,
+  xaiContextLength,
+} from "@/lib/llm/context";
 import { sanitizeOllamaHost } from "@/lib/utils";
 import type { ModelRef, TokenUsage } from "@/lib/chat/types";
 
@@ -241,6 +249,7 @@ function displayXaiName(id: string) {
 export async function fetchOllamaContext(
   host: string,
   name: string,
+  sizeBytes?: number,
 ): Promise<{ contextLength?: number; capabilities?: string[] } | undefined> {
   try {
     const res = await fetch(`${host}/api/show`, {
@@ -258,7 +267,7 @@ export async function fetchOllamaContext(
       details?: { family?: string };
     };
     return {
-      contextLength: parseOllamaContextLength(body),
+      contextLength: parseOllamaContextLength(body, sizeBytes),
       capabilities: parseOllamaCapabilities(body, name),
     };
   } catch {
@@ -286,7 +295,7 @@ export async function listOllamaModels(hostRaw: string): Promise<ModelRef[]> {
   }));
   return Promise.all(
     base.map(async (model) => {
-      const meta = await fetchOllamaContext(host, model.id);
+      const meta = await fetchOllamaContext(host, model.id, model.size);
       if (!meta) return model;
       return {
         ...model,
@@ -388,32 +397,52 @@ export async function* streamOllamaChat(opts: {
   messages: { role: string; content: string; images?: string[] }[];
   temperature: number;
   contextLength?: number;
+  modelSize?: number;
   signal: AbortSignal;
 }): AsyncGenerator<ChatStreamEvent> {
   const host = sanitizeOllamaHost(opts.host);
-  const options: Record<string, number> = { temperature: opts.temperature };
-  if (opts.contextLength && opts.contextLength > 0) {
-    options.num_ctx = opts.contextLength;
+  let numCtx = capOllamaNumCtx(opts.contextLength, opts.modelSize);
+  while (true) {
+    const options: Record<string, number> = {
+      temperature: opts.temperature,
+      repeat_penalty: 1.2,
+      repeat_last_n: 256,
+      num_ctx: numCtx,
+    };
+    let produced = false;
+    try {
+      const res = await fetch(`${host}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: opts.model,
+          messages: opts.messages,
+          stream: true,
+          options,
+        }),
+        signal: opts.signal,
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text || `Ollama error ${res.status}`);
+      }
+      if (!res.body) throw new Error("Ollama returned an empty stream");
+      for await (const event of readOllamaNdjson(res.body)) {
+        if (event.content) produced = true;
+        yield event;
+      }
+      return;
+    } catch (err) {
+      if (opts.signal.aborted) throw err;
+      const message = err instanceof Error ? err.message : String(err);
+      const wrapped = new Error(friendlyOllamaError(message));
+      if (produced || !isOllamaMemoryError(message)) throw wrapped;
+      const next = nextSmallerOllamaCtx(numCtx);
+      if (!next) throw wrapped;
+      numCtx = next;
+      await unloadOllamaModel(host, opts.model).catch(() => undefined);
+    }
   }
-  options.repeat_penalty = 1.2;
-  options.repeat_last_n = 256;
-  const res = await fetch(`${host}/api/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: opts.model,
-      messages: opts.messages,
-      stream: true,
-      options,
-    }),
-    signal: opts.signal,
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(text || `Ollama error ${res.status}`);
-  }
-  if (!res.body) throw new Error("Ollama returned an empty stream");
-  yield* readOllamaNdjson(res.body);
 }
 
 export async function* streamXaiChat(opts: {

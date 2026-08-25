@@ -267,3 +267,32 @@ test("parseRss extracts title, link, image, and youtube thumbs", async () => {
     </feed>`);
   assert.equal(nested[0].source, "github-actions[bot]");
 });
+
+test("Phi-3 working context is capped so a 2GB file does not request 128k RAM", async () => {
+  const ctx = await import("../src/lib/llm/context.ts");
+  const phi3Show = {
+    model_info: { "phi3.context_length": 131072 },
+    parameters: "num_ctx                        4096\nstop \"<|end|>\"",
+  };
+  const twoGb = 2.2 * 1024 ** 3;
+  assert.equal(ctx.parseOllamaContextLength(phi3Show, twoGb), 4096);
+  assert.equal(
+    ctx.parseOllamaContextLength({ model_info: { "phi3.context_length": 131072 } }, twoGb),
+    4096,
+  );
+  assert.equal(
+    ctx.parseOllamaContextLength({ model_info: { "phi3.context_length": 131072 } }),
+    4096,
+  );
+  assert.equal(ctx.capOllamaNumCtx(131072, twoGb), 4096);
+  assert.equal(ctx.capOllamaNumCtx(131072), 8192);
+  assert.equal(ctx.ramSafeCtxCap(7.9 * 1024 ** 3), 16384);
+  assert.equal(ctx.nextSmallerOllamaCtx(4096), 2048);
+  assert.equal(ctx.nextSmallerOllamaCtx(2048), undefined);
+
+  const oom = '{"error":"model requires more system memory (50.6 GiB) than is available (11.7 GiB)"}';
+  assert.equal(ctx.isOllamaMemoryError(oom), true);
+  assert.match(ctx.friendlyOllamaError(oom), /smaller working window/i);
+  assert.doesNotMatch(ctx.friendlyOllamaError(oom), /50\.6/);
+  assert.equal(ctx.friendlyOllamaError(ctx.friendlyOllamaError(oom)), ctx.friendlyOllamaError(oom));
+});
