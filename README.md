@@ -244,6 +244,9 @@ Grok + ChatGPT review no longer resends the whole thread and file bytes every cy
 **Replies feel much slower than the terminal**  
 The app now talks to Ollama the same way `ollama run` does: it keeps the model loaded, does not send extra options on each message, and **streams tokens as they arrive** (the phone/WebView `fetch` path was waiting for the whole reply). ChatGPT over the network can still *feel* faster than a tiny local model if the local runner is cold or busy. If you open the app as `http://192.168.x.x:8080` on a phone (Termux), set `OLLAMA_ORIGINS=*` so the page can reach Ollama directly.
 
+**Grok says the CLI is outdated**  
+That was a Grok sign-in bug, not something to run in a terminal. Ollama_UI now sends Grok the client version it expects. Sign out and Sign in again under Studio → Cloud base if an old session still shows it.
+
 **Phi-3 (or another model) says it needs 50 GiB**  
 Ollama_UI reads each model's own context window from the model (GGUF / Ollama) for the meter. Chat itself uses Ollama’s default loaded window, like the terminal. Phi-3’s published window is 128k even though the file is about 2 GB — that long window is what asks for tens of gigabytes of RAM. If a long chat actually needs more than the default and this computer cannot hold it, the reply retries with a shorter window that matches the RAM Ollama reported. Close other loaded models if it still fails.
 

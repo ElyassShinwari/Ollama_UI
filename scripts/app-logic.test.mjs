@@ -28,6 +28,23 @@ test("isChatGptOAuth distinguishes JWT sign-in from API keys", () => {
   assert.equal(cloud.isChatGptOAuth(""), false);
 });
 
+test("Grok sign-in sends a CLI version so chat is not rejected as outdated", () => {
+  const jwt = "aaa.bbb.ccc";
+  assert.equal(cloud.isXaiOAuth("xai-key"), false);
+  assert.equal(cloud.isXaiOAuth(jwt), true);
+  const headers = cloud.extraCloudHeaders("xai", jwt);
+  assert.equal(headers["x-grok-client-version"], cloud.XAI_CLI_VERSION);
+  assert.match(cloud.XAI_CLI_VERSION, /^\d+\.\d+\.\d+$/);
+  assert.ok(cloud.XAI_CLI_VERSION >= "0.1.202");
+  assert.equal(Object.keys(cloud.extraCloudHeaders("xai", "xai-paid-key")).length, 0);
+  assert.equal(
+    cloud.isGrokCliVersionError(
+      "Your Grok CLI version (none) is outdated. Please update to version 0.1.202 or later via grok update",
+    ),
+    true,
+  );
+});
+
 test("ChatGPT OAuth catalog is not the paid GPT-4o list", () => {
   const ids = cloud.CHATGPT_OAUTH_MODELS.map((m) => m.id);
   assert.ok(ids.includes("gpt-5.4"));
@@ -321,6 +338,12 @@ test("each model keeps its own context window, not a size-based guess", async ()
   assert.ok(scaled && scaled < 131072 && scaled >= 2048);
   assert.match(ctx.friendlyOllamaError(oom), /real window/i);
   assert.doesNotMatch(ctx.friendlyOllamaError(oom), /50\.6/);
+  assert.doesNotMatch(
+    ctx.friendlyOllamaError(
+      "Your Grok CLI version (none) is outdated. Please update to version 0.1.202 or later via grok update",
+    ),
+    /grok update/i,
+  );
   assert.equal(ctx.initialOllamaNumCtx(), undefined);
   assert.equal(ctx.ollamaChatOptions(0.7), undefined);
   assert.deepEqual(ctx.ollamaChatOptions(0.7, 4096), { num_ctx: 4096 });

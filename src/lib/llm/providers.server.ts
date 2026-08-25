@@ -1,4 +1,4 @@
-import { CHATGPT_OAUTH_MODELS, FALLBACK_CLOUD, cloudEndpoint, isChatGptOAuth, responsesTextType, type CloudId } from "@/lib/llm/cloud";
+import { CHATGPT_OAUTH_MODELS, FALLBACK_CLOUD, cloudEndpoint, extraCloudHeaders, isChatGptOAuth, isGrokCliVersionError, responsesTextType, type CloudId } from "@/lib/llm/cloud";
 import {
   busyRetryMs,
   friendlyOllamaError,
@@ -217,6 +217,9 @@ function toAnthropicContent(m: ChatTurnIn) {
 }
 
 function fileError(text: string, status: number, fallback: string) {
+  if (isGrokCliVersionError(text)) {
+    return "Grok could not start that reply. Open Studio → Cloud base, sign out of Grok, Sign in again, then send once more.";
+  }
   if (/unsupported|invalid.*file|file type|media type|image|document|mime/i.test(text)) {
     return text || "This model did not accept that file.";
   }
@@ -574,14 +577,14 @@ export async function listCloudModels(
   const fallback = FALLBACK_CLOUD[provider];
   try {
     const ep = cloudEndpoint(provider, apiKey);
-    const headers: Record<string, string> = { Authorization: `Bearer ${apiKey}` };
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${apiKey}`,
+      ...extraCloudHeaders(provider, apiKey),
+    };
     if (provider === "anthropic") {
       headers["x-api-key"] = apiKey;
       headers["anthropic-version"] = "2023-06-01";
       delete headers.Authorization;
-    }
-    if (provider === "kimi" && !apiKey.startsWith("sk-")) {
-      headers["User-Agent"] = "KimiCLI/1.5";
     }
     const res = await fetch(ep.models, { headers, signal: AbortSignal.timeout(6000) });
     if (!res.ok) return fallback;

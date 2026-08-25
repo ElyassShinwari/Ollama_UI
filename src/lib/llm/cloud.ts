@@ -107,7 +107,7 @@ export function isXaiOAuth(secret: string) {
 }
 
 /** Grok CLI client fingerprint required by cli-chat-proxy.grok.com for subscription OAuth. */
-export const XAI_CLI_VERSION = "0.2.103";
+export const XAI_CLI_VERSION = "0.2.112";
 
 export function xaiOAuthHeaders(): Record<string, string> {
   return {
@@ -116,6 +116,19 @@ export function xaiOAuthHeaders(): Record<string, string> {
     "x-grok-client-version": XAI_CLI_VERSION,
     "x-grok-client-identifier": "grok-shell",
   };
+}
+
+/** Extra headers each cloud needs on chat and catalog calls. */
+export function extraCloudHeaders(provider: CloudId, secret: string): Record<string, string> {
+  if (provider === "xai" && isXaiOAuth(secret)) return xaiOAuthHeaders();
+  if (provider === "kimi" && secret.trim() && !secret.startsWith("sk-")) {
+    return { "User-Agent": "KimiCLI/1.5" };
+  }
+  return {};
+}
+
+export function isGrokCliVersionError(message: string): boolean {
+  return /grok cli version|please update to version .+ via|grok update/i.test(message);
 }
 
 export function responsesTextType(role: string) {

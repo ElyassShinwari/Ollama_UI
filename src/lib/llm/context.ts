@@ -277,6 +277,9 @@ const MEMORY_HINT =
 export function friendlyOllamaError(message: string): string {
   if (message === MEMORY_HINT) return message;
   const stripped = stripOllamaErrorPayload(message);
+  if (/grok cli version|please update to version .+ via|grok update/i.test(stripped)) {
+    return "Grok could not start that reply. Open Studio → Cloud base, sign out of Grok, Sign in again, then send once more.";
+  }
   if (isOllamaMemoryError(message) || isOllamaMemoryError(stripped)) return MEMORY_HINT;
   return stripped;
 }

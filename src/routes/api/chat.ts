@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { cloudEndpoint, isChatGptOAuth } from "@/lib/llm/cloud";
+import { cloudEndpoint, extraCloudHeaders, isChatGptOAuth } from "@/lib/llm/cloud";
 import { streamAnthropicChat, streamCodexChat, streamOllamaChat, streamOpenAiCompat, streamXaiChat } from "@/lib/llm/providers.server";
 import type { Provider } from "@/lib/chat/types";
 
@@ -124,9 +124,10 @@ export const Route = createFileRoute("/api/chat")({
                   });
                 } else {
                   const url = cloudEndpoint(provider, key).url;
-                  const extraHeaders: Record<string, string> = {};
+                  const extraHeaders: Record<string, string> = {
+                    ...extraCloudHeaders(provider, key),
+                  };
                   if (provider === "openai" && accountId) extraHeaders["ChatGPT-Account-ID"] = accountId;
-                  if (provider === "kimi" && !key.startsWith("sk-")) extraHeaders["User-Agent"] = "KimiCLI/1.5";
                   const kimiOAuth = provider === "kimi" && !key.startsWith("sk-");
                   iterator = streamOpenAiCompat({
                     url,
