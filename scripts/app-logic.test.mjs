@@ -383,6 +383,13 @@ test("review pairs keep writer and tester different, with a coding pair", async 
       assert.ok(lane.pair.tester.length > 0);
     }
   }
+  const same = pairs.pairStatus(
+    [{ id: "smollm2:135m", name: "smollm2:135m", provider: "ollama", transport: "server" }],
+    { writer: "smollm2:135m", tester: "smollm2:135m", ram: "same" },
+  );
+  assert.equal(same.ready, true);
+  assert.equal(same.writer?.id, same.tester?.id);
+  assert.ok(cloud.REVIEW_SELF_SYSTEM.length > 20);
   const status = pairs.pairStatus(
     [
       { id: "qwen2.5-coder:0.5b", name: "qwen2.5-coder:0.5b", provider: "ollama", transport: "server" },

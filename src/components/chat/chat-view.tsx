@@ -31,6 +31,7 @@ import { combinedInstructions, knowledgeBlock } from "@/lib/studio/store";
 import {
   CLOUD_LABEL,
   FINAL_REVIEW_SYSTEM,
+  REVIEW_SELF_SYSTEM,
   REVIEW_SYSTEM,
   cloudSecret,
   finalHandoff,
@@ -177,13 +178,13 @@ export function ChatView({
 
   useEffect(() => {
     if (!selectedModel) return;
-    const others = models.filter(
+    const valid = models.some((m) => `${m.provider}:${m.id}` === testerKey);
+    if (valid) return;
+    const other = models.find(
       (m) => !(m.id === selectedModel.id && m.provider === selectedModel.provider),
     );
-    const ok = others.some((m) => `${m.provider}:${m.id}` === testerKey);
-    if (ok) return;
-    const pick = others[0];
-    setTesterKey(pick ? `${pick.provider}:${pick.id}` : null);
+    const pick = other ?? selectedModel;
+    setTesterKey(`${pick.provider}:${pick.id}`);
   }, [selectedModel, models, testerKey, setTesterKey]);
 
   function publishUsage(conversationId: string, promptTokens: number, completionTokens: number) {
@@ -416,11 +417,7 @@ export function ChatView({
       return;
     }
     if (!reviewer) {
-      toast.error("Pick a tester model");
-      return;
-    }
-    if (modelKey(author) === modelKey(reviewer)) {
-      toast.error("The tester must be a different model from the one in the header");
+      toast.error("Pick a tester model, or Same model");
       return;
     }
     cancelledRef.current = false;
@@ -502,11 +499,7 @@ export function ChatView({
         setCycleNote("Choose a chat model to keep writing");
         break;
       }
-      if (modelKey(author) === modelKey(reviewer)) {
-        toast.error("Writer and tester are the same model. Switch the chat model or pick another tester.");
-        setCycleNote("Stopped: writer and tester match");
-        break;
-      }
+      const sameReview = modelKey(author) === modelKey(reviewer);
       if (!(testerFirst && i === 1)) {
         setCycleNote(`Cycle ${i}/${max} · ${author.name} writing`);
         const writerTurns: ChatTurn[] =
@@ -548,7 +541,7 @@ export function ChatView({
         testerTurns,
         parentId,
         reviewer,
-        REVIEW_SYSTEM,
+        sameReview ? REVIEW_SELF_SYSTEM : REVIEW_SYSTEM,
       );
       if (cancelledRef.current) {
         setCycleNote("Stopped");
@@ -569,7 +562,7 @@ export function ChatView({
     if (!cancelledRef.current && !satisfied && lastProject.trim()) {
       const author = useChatStore.getState().selectedModel;
       const reviewer = modelFromKey(testerKey ?? "") ?? reviewerStart;
-      if (author && reviewer && modelKey(author) !== modelKey(reviewer)) {
+      if (author && reviewer) {
         setCycleNote(`${reviewer.name} writing final report`);
         const wrap = addUserMessage(`Final report from ${reviewer.name}`, { conversationId });
         await runCompletion(
@@ -806,14 +799,7 @@ export function ChatView({
         <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
           <span>Tester</span>
           <ModelPicker
-            models={models.filter(
-              (m) =>
-                !(
-                  selectedModel &&
-                  m.id === selectedModel.id &&
-                  m.provider === selectedModel.provider
-                ),
-            )}
+            models={models}
             value={
               models.find((m) => `${m.provider}:${m.id}` === testerKey) ?? null
             }
@@ -822,6 +808,30 @@ export function ChatView({
             className="h-8 max-w-[14rem] px-2 text-xs"
             allowCycle={false}
           />
+          <Button
+            size="sm"
+            variant={
+              selectedModel && testerKey === `${selectedModel.provider}:${selectedModel.id}`
+                ? "secondary"
+                : "outline"
+            }
+            className="h-8"
+            disabled={!selectedModel}
+            onClick={() => {
+              if (!selectedModel) return;
+              const key = `${selectedModel.provider}:${selectedModel.id}`;
+              if (testerKey === key) {
+                const other = models.find(
+                  (m) => !(m.id === selectedModel.id && m.provider === selectedModel.provider),
+                );
+                if (other) setTesterKey(`${other.provider}:${other.id}`);
+                return;
+              }
+              setTesterKey(key);
+            }}
+          >
+            Same model
+          </Button>
         </div>
         <label className="flex items-center gap-1 text-xs text-muted-foreground">
           Cycles

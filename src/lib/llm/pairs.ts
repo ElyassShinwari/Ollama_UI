@@ -256,6 +256,6 @@ export function pairStatus(models: ModelRef[], pair: ReviewPair) {
   return {
     writer,
     tester,
-    ready: Boolean(writer && tester && writer.id !== tester.id),
+    ready: Boolean(writer && tester),
   };
 }

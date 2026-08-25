@@ -723,9 +723,9 @@ function AdvisorTab({ selected }: { selected: ModelRef | null }) {
       <div className="rounded-xl border border-border px-4 py-3">
         <p className="font-medium">Review pairs</p>
         <p className="mt-1 text-sm text-muted-foreground text-pretty">
-          Start review needs two different models. The tester should match the job — a general
-          chat model is a weak code reviewer. Four sizes: very light, light, medium, heavy.
-          Open Models to install a pair.
+          Start review can use two models, or the same model twice. When you pick two, the tester
+          should match the job — a general chat model is a weak code reviewer. Four sizes: very
+          light, light, medium, heavy. Open Models to install a pair, or tap Same model on a job.
         </p>
         <ul className="mt-3 flex flex-col gap-2">
           {PAIR_TASKS.map((task) => (

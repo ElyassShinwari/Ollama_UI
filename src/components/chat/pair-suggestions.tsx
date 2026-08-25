@@ -70,8 +70,8 @@ export function PairSuggestions({
         Review pairs
       </h2>
       <p className="mb-3 text-sm text-muted-foreground text-pretty">
-        One model writes, a different model tests. Match the tester to the job — a general
-        chat model is a poor code reviewer.
+        One model writes, a different model tests — or the same model reviews its own work.
+        Match the tester to the job when you use two models.
       </p>
       <div className="flex flex-wrap gap-1.5">
         {tasks.map((task) => (
@@ -136,6 +136,37 @@ function PairTaskBody({
             onUsed={onUsed}
           />
         ))}
+        <SameModelLane taskName={task.task} onUsed={onUsed} />
+      </div>
+    </div>
+  );
+}
+
+function SameModelLane({ taskName, onUsed }: { taskName: string; onUsed?: () => void }) {
+  const selected = useChatStore((s) => s.selectedModel);
+  return (
+    <div className="rounded-lg border border-border px-3 py-2 sm:col-span-2">
+      <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        Same model
+        <span className="ml-2 font-normal normal-case">Writes, then reviews its own work</span>
+      </p>
+      <p className="mt-1 font-mono text-xs leading-5">
+        {selected ? `${selected.name} writes and tests` : "Pick a chat model first"}
+      </p>
+      <div className="mt-2">
+        <Button
+          size="sm"
+          className="h-8"
+          disabled={!selected}
+          onClick={() => {
+            if (!selected) return;
+            useChatStore.getState().setTesterKey(`${selected.provider}:${selected.id}`);
+            toast.success(`${taskName}: ${selected.name} writes and tests`);
+            onUsed?.();
+          }}
+        >
+          Use same model
+        </Button>
       </div>
     </div>
   );

@@ -211,6 +211,9 @@ export function reviewSatisfied(text: string) {
 export const REVIEW_SYSTEM =
   "You are the tester. You receive another model's full answer as your input. If it solves the user's request correctly, completely, and safely, start your reply with SATISFIED on its own first line, then one short note. If it is not good enough, do not write SATISFIED. Quote the errors and list concrete fixes. Your entire reply is passed back to the writer as its next input.";
 
+export const REVIEW_SELF_SYSTEM =
+  "You wrote the previous answer. Now review that answer as a second pass — do not rubber-stamp it. Check it against the original request. If it is correct, complete, and safe, start your reply with SATISFIED on its own first line, then one short note. If it is not good enough, do not write SATISFIED. Quote the errors and list concrete fixes. Your entire reply is passed back as the next writing prompt.";
+
 export const FINAL_REVIEW_SYSTEM =
   "The revision cycles are over and the work is still not accepted. You are the tester. Write a final report for the user that includes: (1) the current project or answer as it stands, complete enough to use, (2) remaining errors that were not fixed, (3) what still must change. Put the project first, then your feedback. Do not write SATISFIED.";
 
