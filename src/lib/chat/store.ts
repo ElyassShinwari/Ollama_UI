@@ -63,6 +63,7 @@ type ChatState = {
   conversations: Conversation[];
   activeId: string | null;
   selectedModel: ModelRef | null;
+  testerKey: string | null;
   settings: Settings;
   sidebarCollapsed: boolean;
   search: string;
@@ -70,6 +71,7 @@ type ChatState = {
   setSidebarCollapsed: (v: boolean) => void;
   setSettings: (patch: Partial<Settings>) => void;
   setSelectedModel: (model: ModelRef) => void;
+  setTesterKey: (key: string | null) => void;
   newChat: () => string;
   setActive: (id: string | null) => void;
   deleteConversation: (id: string) => void;
@@ -104,6 +106,7 @@ type PersistedChat = {
   conversations: Conversation[];
   activeId: string | null;
   selectedModel: ModelRef | null;
+  testerKey: string | null;
   settings: Settings;
   sidebarCollapsed: boolean;
 };
@@ -148,6 +151,7 @@ export const useChatStore = create<ChatState>()(
       conversations: [],
       activeId: null,
       selectedModel: null,
+      testerKey: null,
       settings: defaultSettings,
       sidebarCollapsed: false,
       search: "",
@@ -169,6 +173,7 @@ export const useChatStore = create<ChatState>()(
             };
           }),
         })),
+      setTesterKey: (testerKey) => set({ testerKey }),
       newChat: () => {
         const model = get().selectedModel;
         const empty = get().conversations.find((c) => c.messages.length === 0);
@@ -474,6 +479,7 @@ export const useChatStore = create<ChatState>()(
         conversations: s.conversations,
         activeId: s.activeId,
         selectedModel: s.selectedModel,
+        testerKey: s.testerKey,
         settings: s.settings,
         sidebarCollapsed: s.sidebarCollapsed,
       }),

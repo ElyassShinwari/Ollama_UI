@@ -14,6 +14,7 @@ import { Composer } from "@/components/chat/composer";
 import { ContextMeter } from "@/components/chat/context-meter";
 import { MessageBubble } from "@/components/chat/message-bubble";
 import { ModelPicker } from "@/components/chat/model-picker";
+import { PairBar } from "@/components/chat/pair-suggestions";
 import { estimateTokens, greetingForNow, isContextOverflowError } from "@/lib/utils";
 import { selectActiveConversation, chatPersist, useChatStore } from "@/lib/chat/store";
 import { siblingsOf, visibleMessages } from "@/lib/chat/tree";
@@ -84,6 +85,8 @@ export function ChatView({
   const conversation = useChatStore(selectActiveConversation);
   const selectedModel = useChatStore((s) => s.selectedModel);
   const setSelectedModel = useChatStore((s) => s.setSelectedModel);
+  const testerKey = useChatStore((s) => s.testerKey);
+  const setTesterKey = useChatStore((s) => s.setTesterKey);
   const deleteConversation = useChatStore((s) => s.deleteConversation);
   const dropBinary = useChatStore((s) => s.dropBinary);
   const addUserMessage = useChatStore((s) => s.addUserMessage);
@@ -102,7 +105,6 @@ export function ChatView({
   const [switchWarn, setSwitchWarn] = useState<{ name: string; used: number; limit: number } | null>(
     null,
   );
-  const [reviewerKey, setReviewerKey] = useState("");
   const [cycles, setCycles] = useState(3);
   const [cycleNote, setCycleNote] = useState("");
   const [streamingId, setStreamingId] = useState<string | null>(null);
@@ -200,11 +202,11 @@ export function ChatView({
     const others = models.filter(
       (m) => !(m.id === selectedModel.id && m.provider === selectedModel.provider),
     );
-    const ok = others.some((m) => `${m.provider}:${m.id}` === reviewerKey);
+    const ok = others.some((m) => `${m.provider}:${m.id}` === testerKey);
     if (ok) return;
     const pick = others[0];
-    setReviewerKey(pick ? `${pick.provider}:${pick.id}` : "");
-  }, [selectedModel, models, reviewerKey]);
+    setTesterKey(pick ? `${pick.provider}:${pick.id}` : null);
+  }, [selectedModel, models, testerKey, setTesterKey]);
 
   function publishUsage(conversationId: string, promptTokens: number, completionTokens: number) {
     promptTokensRef.current = promptTokens;
@@ -433,7 +435,7 @@ export function ChatView({
     if (streamingId && streamingConvRef.current === conversation?.id) return;
     if (streamingId) abortRef.current?.abort();
     const author = useChatStore.getState().selectedModel;
-    const reviewer = modelFromKey(reviewerKey);
+    const reviewer = modelFromKey(testerKey ?? "");
     if (!author) {
       toast.error("Choose a chat model first");
       return;
@@ -520,7 +522,7 @@ export function ChatView({
     for (let i = 1; i <= max; i++) {
       if (cancelledRef.current) break;
       const author = useChatStore.getState().selectedModel;
-      const reviewer = modelFromKey(reviewerKey) ?? reviewerStart;
+      const reviewer = modelFromKey(testerKey ?? "") ?? reviewerStart;
       if (!author) {
         setCycleNote("Choose a chat model to keep writing");
         break;
@@ -591,7 +593,7 @@ export function ChatView({
     }
     if (!cancelledRef.current && !satisfied && lastProject.trim()) {
       const author = useChatStore.getState().selectedModel;
-      const reviewer = modelFromKey(reviewerKey) ?? reviewerStart;
+      const reviewer = modelFromKey(testerKey ?? "") ?? reviewerStart;
       if (author && reviewer && modelKey(author) !== modelKey(reviewer)) {
         setCycleNote(`${reviewer.name} writing final report`);
         const wrap = addUserMessage(`Final report from ${reviewer.name}`, { conversationId });
@@ -838,9 +840,9 @@ export function ChatView({
                 ),
             )}
             value={
-              models.find((m) => `${m.provider}:${m.id}` === reviewerKey) ?? null
+              models.find((m) => `${m.provider}:${m.id}` === testerKey) ?? null
             }
-            onChange={(m) => setReviewerKey(`${m.provider}:${m.id}`)}
+            onChange={(m) => setTesterKey(`${m.provider}:${m.id}`)}
             emptyLabel="Testing model…"
             className="h-8 max-w-[14rem] px-2 text-xs"
             allowCycle={false}
@@ -859,6 +861,7 @@ export function ChatView({
         </label>
         {cycleNote ? <span className="text-xs text-muted-foreground">{cycleNote}</span> : null}
       </div>
+      <PairBar models={models} onBrowse={() => onBrowseModels?.()} />
 
       <div
         ref={scrollerRef}

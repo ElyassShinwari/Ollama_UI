@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { TASK_ADVICE, adviceForModel, modelCanFineTune, modelSupportsTools } from "@/lib/studio/advisor";
+import { PAIR_TASKS } from "@/lib/llm/pairs";
 import { randomKey, syncStudio, useStudio } from "@/lib/studio/store";
 import type { McpServerConfig } from "@/lib/studio/types";
 import { useChatStore } from "@/lib/chat/store";
@@ -719,6 +720,27 @@ function AdvisorTab({ selected }: { selected: ModelRef | null }) {
   return (
     <div className="flex flex-col gap-4">
       <p className="rounded-xl border border-border px-4 py-3 text-sm">{adviceForModel(selected)}</p>
+      <div className="rounded-xl border border-border px-4 py-3">
+        <p className="font-medium">Review pairs</p>
+        <p className="mt-1 text-sm text-muted-foreground text-pretty">
+          Start review needs two different models. The tester should match the job — a general
+          chat model is a weak code reviewer. Light pairs are small; heavy pairs are stronger and
+          need more RAM. Open Models to install a pair.
+        </p>
+        <ul className="mt-3 flex flex-col gap-2">
+          {PAIR_TASKS.map((task) => (
+            <li key={task.id} className="text-sm">
+              <span className="font-medium">{task.task}</span>
+              <span className="block font-mono text-xs text-muted-foreground">
+                Light {task.light.writer} → {task.light.tester}
+              </span>
+              <span className="block font-mono text-xs text-muted-foreground">
+                Heavy {task.heavy.writer} → {task.heavy.tester}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
       {TASK_ADVICE.map((item) => (
         <div key={item.id} className="rounded-xl border border-border px-4 py-3">
           <p className="font-medium">{item.task}</p>

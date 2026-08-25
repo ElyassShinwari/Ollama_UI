@@ -20,6 +20,9 @@ import {
   type LibraryModel,
 } from "@/lib/llm/library";
 import { fetchSetup, listHfQuants, readSetupStream, searchLibrary, type SetupStatus } from "@/lib/llm/setup";
+import { findLocalModel } from "@/lib/llm/pairs";
+import { PairSuggestions } from "@/components/chat/pair-suggestions";
+import { useChatStore } from "@/lib/chat/store";
 import type { ModelRef } from "@/lib/chat/types";
 import { cn, formatBytes, formatContextWindow } from "@/lib/utils";
 
@@ -125,12 +128,12 @@ export function ModelHub({
     }
   }
 
-  async function installModel(id: string) {
+  async function installModel(id: string, opts?: { select?: boolean }): Promise<boolean> {
     if (!status?.running) {
       pushLog("Install or start Ollama first.");
-      return;
+      return false;
     }
-    if (pullingRef.current.has(id)) return;
+    if (pullingRef.current.has(id)) return false;
     pullingRef.current.add(id);
     setPulls((cur) => ({ ...cur, [id]: 0 }));
     pushLog(`Installing ${id}…`);
@@ -154,10 +157,12 @@ export function ModelHub({
         succeeded = true;
         setPulls((cur) => ({ ...cur, [id]: 100 }));
         pushLog(`${id} is ready.`);
-        if (match) onChoose(match);
+        if (opts?.select !== false && match) onChoose(match);
       }
+      return ok;
     } catch (err) {
       pushLog(err instanceof Error ? `${id}: ${err.message}` : `${id}: Download failed`);
+      return false;
     } finally {
       pullingRef.current.delete(id);
       if (succeeded) {
@@ -177,6 +182,27 @@ export function ModelHub({
           return next;
         });
       }
+    }
+  }
+
+  async function installPair(writerId: string, testerId: string) {
+    if (!status?.running) {
+      pushLog("Install or start Ollama first.");
+      return;
+    }
+    const haveWriter = Boolean(findLocalModel(localModels, writerId));
+    const haveTester = Boolean(findLocalModel(localModels, testerId));
+    const jobs: Promise<boolean>[] = [];
+    if (!haveWriter) jobs.push(installModel(writerId, { select: false }));
+    if (!haveTester && testerId !== writerId) jobs.push(installModel(testerId, { select: false }));
+    if (jobs.length) await Promise.all(jobs);
+    const models = (await onRefreshLocal()) ?? [];
+    const writer = findLocalModel(models, writerId);
+    const tester = findLocalModel(models, testerId);
+    if (writer) onChoose(writer);
+    if (tester) useChatStore.getState().setTesterKey(`${tester.provider}:${tester.id}`);
+    if (writer && tester) {
+      toast.success(`Pair ready: ${writer.name} writes, ${tester.name} tests`);
     }
   }
 
@@ -328,6 +354,13 @@ export function ModelHub({
           ))}
         </div>
       ) : null}
+
+      <PairSuggestions
+        models={localModels}
+        query={query}
+        canInstall={Boolean(status?.running)}
+        onInstallPair={(writerId, testerId) => void installPair(writerId, testerId)}
+      />
 
       {localFiltered.length > 0 ? (
         <section>
