@@ -26,6 +26,23 @@ const home = await page.locator("body").innerText();
 if (!/Ollama UI|Choose a model|New chat/i.test(home)) await fail("home did not render");
 pass("home");
 
+const search = page.getByPlaceholder(/Search qwen, llama, or paste a Hugging Face link/i).first();
+if (!(await search.count())) await fail("library search missing");
+await search.click();
+await page.keyboard.type("qw", { delay: 40 });
+await page.waitForTimeout(500);
+const typed = await page.locator("body").innerText();
+if (!/qwen2\.5|qwen3|qwen2\.5-coder/i.test(typed)) await fail("search did not suggest qwen queries");
+await page.getByRole("option", { name: "qwen" }).first().click().catch(async () => {
+  await search.fill("qwen");
+});
+await page.waitForTimeout(8000);
+const qwenList = await page.locator("body").innerText();
+if (!/qwen2\.5/i.test(qwenList)) await fail("qwen search did not list library models");
+if (!/Hugging Face/i.test(qwenList)) await fail("Hugging Face results missing");
+pass("library search");
+
+
 const studio = page.getByRole("button", { name: "Studio" }).first();
 if (!(await studio.count())) await fail("Studio missing");
 await studio.click();

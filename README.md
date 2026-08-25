@@ -45,14 +45,26 @@ When you open Ollama_UI, it checks this computer:
 
 1. If Ollama is missing, it shows **Install Ollama** for your OS (Windows, macOS, or Linux) and runs the installer.
 2. If Ollama is installed but not running, click **Start Ollama**.
-3. Search for a model (try `smollm2:135m` or `smollm2:360m`) and click **Install & run**. That downloads it and opens a chat.
+3. Search for a family name such as `qwen` or `llama` — the app suggests queries as you type and lists **every matching model** from the Ollama library and Hugging Face, not only the ones already on this computer. Click **Install & run**. You can also paste a Hugging Face, ModelScope, or Ollama link.
 
-You can also open **Install a model** from the model menu in an existing chat.
+You can also open **Install or remove models** from the model menu in an existing chat. If the menu search only shows models you already have, choose **Search library for “qwen”** (or whatever you typed) to see the rest.
 
 These two SmolLM2 models run on almost any computer:
 
 - `smollm2:135m` — smallest, good first test
 - `smollm2:360m` — a bit stronger, still light
+
+## Find and install local models
+
+Ollama_UI is not limited to the official Ollama catalog. With Ollama running, search installs:
+
+- **Ollama library** — `qwen`, `llama3.2`, `gemma3`, and the rest of ollama.com
+- **Hugging Face GGUF** — any GGUF repo Ollama can pull as `hf.co/org/repo` (Unsloth, bartowski, lmstudio-community, and others)
+- **Pasted links** — Hugging Face model pages or files, Ollama library URLs, or ModelScope pages that have a Hugging Face GGUF mirror
+
+Type `qwen` (you do not need the exact tag). Suggestions appear before you finish the word. The list includes Qwen2.5, Qwen2.5-Coder, Qwen3, Hugging Face GGUF builds, and more. Pick a size, or on Hugging Face use **More sizes** for extra quants such as Q4_K_M.
+
+The runtime is still Ollama: Hugging Face GGUF files are downloaded through it and then chat like any other local model.
 
 ## Install Ollama by hand (optional)
 
@@ -97,7 +109,7 @@ ollama list
 ## Use it
 
 1. Open Ollama_UI. Install Ollama if you want local models, or skip to a cloud model.
-2. Pick a model from the library, from this computer, or from ChatGPT / Claude / Grok / Kimi. Open the model menu to search and scroll the full list, or use the arrows to step through every available model. The tester menu in a review works the same way.
+2. Pick a model from the library, from Hugging Face GGUF, from this computer, or from ChatGPT / Claude / Grok / Kimi. Search suggests names as you type (`qwen` lists every available Qwen, not only ones already installed). Open the model menu to search and scroll the full list, or use the arrows to step through every available model. The tester menu in a review works the same way.
 3. Chat. Switch models from the header. The full conversation is sent to the new model, and the context meter updates to that model's window. Delete a chat from the trash icon in the sidebar history, from **⋯ → Delete**, or from the trash in the chat header. Confirm, and it is removed from this browser.
 4. If the new model’s window is smaller than this chat, you get a warning: answers may be unexpected or inaccurate while the window is full. You can still continue, or start a new chat.
 5. Attach files with **+** or drag and drop. The app takes the file and sends what it can (text, images, PDFs, and other types). Follow-up messages keep their attachments. Grok files go through xAI’s Responses API (assistant turns use `output_text`). ChatGPT, Claude, and Kimi accept many kinds too. If a model cannot read a file, that model’s reply says so — the app does not block unknown types up front.

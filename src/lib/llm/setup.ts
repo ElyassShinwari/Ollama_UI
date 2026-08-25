@@ -24,11 +24,20 @@ export async function fetchSetup(host: string): Promise<SetupStatus> {
   return (await res.json()) as SetupStatus;
 }
 
-export async function searchLibrary(query: string): Promise<LibraryModel[]> {
+export async function searchLibrary(
+  query: string,
+): Promise<{ models: LibraryModel[]; suggestions: string[] }> {
   const res = await fetch(`/api/library?q=${encodeURIComponent(query)}`);
+  if (!res.ok) return { models: [], suggestions: [] };
+  const body = (await res.json()) as { models?: LibraryModel[]; suggestions?: string[] };
+  return { models: body.models ?? [], suggestions: body.suggestions ?? [] };
+}
+
+export async function listHfQuants(repo: string): Promise<string[]> {
+  const res = await fetch(`/api/library?files=${encodeURIComponent(repo)}`);
   if (!res.ok) return [];
-  const body = (await res.json()) as { models?: LibraryModel[] };
-  return body.models ?? [];
+  const body = (await res.json()) as { quants?: string[] };
+  return body.quants ?? [];
 }
 
 export async function readSetupStream(

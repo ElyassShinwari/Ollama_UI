@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Cloud, Cpu, Plus } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Cloud, Cpu, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { cn, formatBytes, formatContextWindow } from "@/lib/utils";
 import { CLOUD_LABEL } from "@/lib/llm/cloud";
+import { suggestQueries } from "@/lib/llm/library";
 import type { ModelRef, Provider } from "@/lib/chat/types";
 
 function groupModels(models: ModelRef[]) {
@@ -44,7 +45,7 @@ export function ModelPicker({
   models: ModelRef[];
   value: ModelRef | null;
   onChange: (model: ModelRef) => void;
-  onBrowse?: () => void;
+  onBrowse?: (query?: string) => void;
   align?: "start" | "center" | "end";
   className?: string;
   allowCycle?: boolean;
@@ -56,6 +57,7 @@ export function ModelPicker({
   const groups = groupModels(visible);
   const label = value?.name ?? emptyLabel;
   const index = models.findIndex((m) => m.id === value?.id && m.provider === value?.provider);
+  const hints = q ? suggestQueries(q, models.map((m) => m.name)) : [];
 
   function cycle(dir: -1 | 1) {
     if (models.length === 0) return;
@@ -97,17 +99,33 @@ export function ModelPicker({
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search models"
+              placeholder="Search or try qwen, llama…"
               autoComplete="off"
               className="h-8"
               onKeyDown={(e) => e.stopPropagation()}
             />
+            {q && hints.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {hints.slice(0, 6).map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    className="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-secondary-foreground hover:bg-accent"
+                    onClick={() => setQuery(item)}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
           <div className="scrollbar-thin max-h-[min(24rem,60vh)] overflow-y-auto p-1">
             {models.length === 0 ? (
               <div className="px-3 py-6 text-center text-sm text-muted-foreground">No models found yet.</div>
             ) : visible.length === 0 ? (
-              <div className="px-3 py-6 text-center text-sm text-muted-foreground">No model matches “{query.trim()}”.</div>
+              <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                No installed model matches “{query.trim()}”.
+              </div>
             ) : (
               groups.map((group, i) => (
                 <div key={group.title}>
@@ -129,7 +147,13 @@ export function ModelPicker({
             <>
               <DropdownMenuSeparator className="my-0" />
               <div className="p-1">
-                <DropdownMenuItem onSelect={onBrowse} className="py-2.5">
+                {q ? (
+                  <DropdownMenuItem onSelect={() => onBrowse(query.trim())} className="py-2.5">
+                    <Search className="size-4" />
+                    <span>Search library for “{query.trim()}”</span>
+                  </DropdownMenuItem>
+                ) : null}
+                <DropdownMenuItem onSelect={() => onBrowse()} className="py-2.5">
                   <Plus className="size-4" />
                   <span>Install or remove models</span>
                 </DropdownMenuItem>
@@ -178,15 +202,16 @@ function ModelItem({
     .join(" · ");
 
   return (
-    <DropdownMenuItem onSelect={onSelect} className="items-start py-2.5">
-      <span className="mt-0.5 text-muted-foreground">
-        {model.provider === "ollama" ? <Cpu className="size-4" /> : <Cloud className="size-4" />}
-      </span>
+    <DropdownMenuItem
+      onSelect={onSelect}
+      className={cn("items-start gap-2 py-2", selected && "bg-accent")}
+    >
+      {model.provider === "ollama" ? <Cpu className="mt-0.5 size-4" /> : <Cloud className="mt-0.5 size-4" />}
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-medium">{model.name}</span>
-        <span className="block truncate text-xs text-muted-foreground">{meta}</span>
+        <span className="block truncate">{model.name}</span>
+        {meta ? <span className="block truncate text-xs text-muted-foreground">{meta}</span> : null}
       </span>
-      {selected && <Check className="mt-0.5 size-4" />}
+      {selected ? <Check className="mt-0.5 size-4" /> : null}
     </DropdownMenuItem>
   );
 }

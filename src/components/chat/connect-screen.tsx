@@ -68,7 +68,7 @@ export function ConnectScreen({
           <p className="mt-3 max-w-lg text-base text-muted-foreground text-pretty">
             {hasCloud
               ? "Chat with a model on this computer, or with ChatGPT, Claude, Grok, Kimi, or DeepSeek from the same window."
-              : "Install Ollama if needed, then search the library and install a model with one click. Add ChatGPT, Claude, Grok, Kimi, or DeepSeek in Settings or Studio."}
+              : "Install Ollama if needed, then search Ollama and Hugging Face (try qwen) and install a model with one click. Add ChatGPT, Claude, Grok, Kimi, or DeepSeek in Settings or Studio."}
           </p>
         </div>
 
@@ -77,7 +77,7 @@ export function ConnectScreen({
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search available models"
+              placeholder="Search ChatGPT, Claude, Grok, Kimi, DeepSeek"
               autoComplete="off"
             />
             {cloudGroups.length === 0 ? (

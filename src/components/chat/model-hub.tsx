@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, LoaderCircle, Search, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -11,30 +11,46 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { pullIdsFor, sameOllamaId, type LibraryModel } from "@/lib/llm/library";
-import { fetchSetup, readSetupStream, searchLibrary, type SetupStatus } from "@/lib/llm/setup";
+import {
+  QUERY_SUGGESTIONS,
+  pullIdsFor,
+  sameOllamaId,
+  stripQuantSuffix,
+  suggestQueries,
+  type LibraryModel,
+} from "@/lib/llm/library";
+import { fetchSetup, listHfQuants, readSetupStream, searchLibrary, type SetupStatus } from "@/lib/llm/setup";
 import type { ModelRef } from "@/lib/chat/types";
 import { cn, formatBytes, formatContextWindow } from "@/lib/utils";
+
+const EMPTY_CHIPS = QUERY_SUGGESTIONS.slice(0, 10);
 
 export function ModelHub({
   host,
   localModels,
   onChoose,
   onRefreshLocal,
+  initialQuery = "",
 }: {
   host: string;
   localModels: ModelRef[];
   onChoose: (model: ModelRef) => void;
   onRefreshLocal: () => Promise<ModelRef[] | void>;
+  initialQuery?: string;
 }) {
   const [status, setStatus] = useState<SetupStatus | null>(null);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [library, setLibrary] = useState<LibraryModel[]>([]);
+  const [suggestions, setSuggestions] = useState<string[]>(EMPTY_CHIPS);
   const [busy, setBusy] = useState<string | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const [pulling, setPulling] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ModelRef | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [openSuggest, setOpenSuggest] = useState(false);
+  const [activeSuggest, setActiveSuggest] = useState(0);
+  const [arrowed, setArrowed] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   async function refreshStatus() {
     const next = await fetchSetup(host);
@@ -43,25 +59,39 @@ export function ModelHub({
   }
 
   useEffect(() => {
+    if (initialQuery) setQuery(initialQuery);
+  }, [initialQuery]);
+
+  useEffect(() => {
     void refreshStatus();
     const id = window.setInterval(() => void refreshStatus(), 8000);
     return () => window.clearInterval(id);
   }, [host]);
 
+  const localSuggest = useMemo(() => suggestQueries(query), [query]);
+
   useEffect(() => {
     const handle = window.setTimeout(() => {
-      void searchLibrary(query).then(setLibrary);
-    }, query ? 250 : 0);
+      void searchLibrary(query).then((next) => {
+        setLibrary(next.models);
+        setSuggestions(next.suggestions.length ? next.suggestions : localSuggest);
+      });
+    }, query ? 220 : 0);
     return () => window.clearTimeout(handle);
-  }, [query]);
+  }, [query, localSuggest]);
+
+  const shownSuggest = (suggestions.length ? suggestions : localSuggest).slice(0, 8);
 
   const localFiltered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return localModels;
     return localModels.filter((m) =>
-      `${m.name} ${m.family ?? ""} ${m.parameterSize ?? ""}`.toLowerCase().includes(q),
+      `${m.name} ${m.id} ${m.family ?? ""} ${m.parameterSize ?? ""}`.toLowerCase().includes(q),
     );
   }, [localModels, query]);
+
+  const ollamaLibrary = library.filter((m) => (m.source || "ollama") === "ollama");
+  const hfLibrary = library.filter((m) => m.source === "huggingface" || m.source === "url");
 
   function pushLog(line: string) {
     setLog((cur) => [...cur.slice(-12), line]);
@@ -102,18 +132,14 @@ export function ModelHub({
     setPulling(id);
     setLog([`Installing ${id}…`]);
     try {
-      const ok = await readSetupStream(
-        "/api/pull",
-        pushLog,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ host, model: id }),
-        },
-      );
+      const ok = await readSetupStream("/api/pull", pushLog, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ host, model: id }),
+      });
       const models = (await onRefreshLocal()) ?? [];
       const match = models.find(
-        (m) => sameOllamaId(m.id, id) || m.id.startsWith(`${id}:`) || id.startsWith(`${m.id}:`),
+        (m) => sameOllamaId(m.id, id) || m.id.startsWith(`${id}:`) || id.startsWith(`${m.id}:`) || m.id.includes(id),
       );
       if (ok) {
         pushLog(`${id} is ready.`);
@@ -150,6 +176,12 @@ export function ModelHub({
     }
   }
 
+  function applySuggest(value: string) {
+    setQuery(value);
+    setOpenSuggest(false);
+    inputRef.current?.focus();
+  }
+
   const osLabel = status?.osLabel ?? "this computer";
 
   return (
@@ -164,10 +196,10 @@ export function ModelHub({
         </p>
         <p className="mt-1 text-sm text-muted-foreground text-pretty">
           {status?.running
-            ? "Search the library and install a model with one click."
+            ? "Search Ollama and Hugging Face, or paste a model link. A name like qwen lists every matching model, not only ones already installed."
             : status?.installed
-              ? "Start Ollama, then install a model from here."
-              : "Install Ollama for this computer, then pick a model such as smollm2:135m."}
+              ? "Start Ollama, then search Ollama and Hugging Face from here."
+              : "Install Ollama for this computer, then search for a model such as qwen or llama."}
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           {!status?.installed ? (
@@ -189,17 +221,85 @@ export function ModelHub({
         ) : null}
       </div>
 
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search local and library models"
-            className="h-11 pl-9"
-          />
-        </div>
+      <div className="relative">
+        <Search className="pointer-events-none absolute top-1/2 left-3 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          ref={inputRef}
+          value={query}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={openSuggest && shownSuggest.length > 0}
+          aria-controls="model-search-suggestions"
+          placeholder="Search qwen, llama, or paste a Hugging Face link"
+          className="h-11 pl-9"
+          autoComplete="off"
+          onFocus={() => setOpenSuggest(true)}
+          onBlur={() => window.setTimeout(() => setOpenSuggest(false), 120)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpenSuggest(true);
+            setActiveSuggest(0);
+            setArrowed(false);
+          }}
+          onKeyDown={(e) => {
+            if (!openSuggest || shownSuggest.length === 0) {
+              if (e.key === "Escape") setOpenSuggest(false);
+              return;
+            }
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setArrowed(true);
+              setActiveSuggest((i) => (i + 1) % shownSuggest.length);
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setArrowed(true);
+              setActiveSuggest((i) => (i - 1 + shownSuggest.length) % shownSuggest.length);
+            } else if (e.key === "Enter") {
+              if (arrowed && shownSuggest[activeSuggest] && query !== shownSuggest[activeSuggest]) {
+                e.preventDefault();
+                applySuggest(shownSuggest[activeSuggest]!);
+              } else {
+                setOpenSuggest(false);
+              }
+            } else if (e.key === "Escape") {
+              setOpenSuggest(false);
+            }
+          }}
+        />
+        {openSuggest && query.trim() && shownSuggest.length > 0 ? (
+          <ul
+            id="model-search-suggestions"
+            role="listbox"
+            className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-border bg-card py-1 shadow-[var(--composer-shadow)]"
+          >
+            {shownSuggest.map((item, i) => (
+              <li key={item} role="option" aria-selected={i === activeSuggest}>
+                <button
+                  type="button"
+                  className={cn(
+                    "flex w-full px-3 py-2 text-left text-sm hover:bg-accent",
+                    i === activeSuggest && "bg-accent",
+                  )}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applySuggest(item)}
+                >
+                  {item}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
+
+      {!query.trim() ? (
+        <div className="flex flex-wrap gap-1.5">
+          {EMPTY_CHIPS.map((item) => (
+            <Button key={item} size="sm" variant="secondary" className="h-8" onClick={() => applySuggest(item)}>
+              {item}
+            </Button>
+          ))}
+        </div>
+      ) : null}
 
       {localFiltered.length > 0 ? (
         <section>
@@ -250,32 +350,41 @@ export function ModelHub({
         </section>
       ) : null}
 
-      <section>
-        <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-          Library
-        </h2>
-        <div className="flex flex-col gap-2">
-          {library.map((item) => (
-            <LibraryCard
-              key={item.name}
-              model={item}
-              localIds={new Set(localModels.map((m) => m.id))}
-              pulling={pulling}
-              disabled={!status?.running || Boolean(pulling)}
-              onInstall={(id) => void installModel(id)}
-              onUse={(id) => {
-                const match = localModels.find((m) => sameOllamaId(m.id, id));
-                if (match) onChoose(match);
-              }}
-            />
-          ))}
-          {library.length === 0 ? (
-            <p className="rounded-xl border border-border px-4 py-6 text-center text-sm text-muted-foreground">
-              No library matches. Try smollm2:135m or llama3.2:1b.
-            </p>
-          ) : null}
-        </div>
-      </section>
+      <LibrarySection
+        title="Ollama library"
+        empty={
+          query.trim()
+            ? "No Ollama library matches. Try qwen, llama, or a Hugging Face link."
+            : "Search above to see every matching model, not only the ones on this computer."
+        }
+        models={ollamaLibrary}
+        localIds={new Set(localModels.map((m) => m.id))}
+        pulling={pulling}
+        disabled={!status?.running || Boolean(pulling)}
+        onInstall={(id) => void installModel(id)}
+        onUse={(id) => {
+          const match = localModels.find((m) => sameOllamaId(m.id, id) || m.id.includes(id));
+          if (match) onChoose(match);
+        }}
+      />
+
+      <LibrarySection
+        title="Hugging Face"
+        empty={
+          query.trim()
+            ? "No GGUF matches on Hugging Face for that search."
+            : "Type a name or paste a Hugging Face / ModelScope / Ollama link."
+        }
+        models={hfLibrary}
+        localIds={new Set(localModels.map((m) => m.id))}
+        pulling={pulling}
+        disabled={!status?.running || Boolean(pulling)}
+        onInstall={(id) => void installModel(id)}
+        onUse={(id) => {
+          const match = localModels.find((m) => sameOllamaId(m.id, id) || m.id.includes(id));
+          if (match) onChoose(match);
+        }}
+      />
 
       <Dialog open={Boolean(pendingDelete)} onOpenChange={(open) => !open && !deleting && setPendingDelete(null)}>
         <DialogContent>
@@ -308,6 +417,48 @@ export function ModelHub({
   );
 }
 
+function LibrarySection({
+  title,
+  empty,
+  models,
+  localIds,
+  pulling,
+  disabled,
+  onInstall,
+  onUse,
+}: {
+  title: string;
+  empty: string;
+  models: LibraryModel[];
+  localIds: Set<string>;
+  pulling: string | null;
+  disabled: boolean;
+  onInstall: (id: string) => void;
+  onUse: (id: string) => void;
+}) {
+  return (
+    <section>
+      <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">{title}</h2>
+      <div className="flex flex-col gap-2">
+        {models.map((item) => (
+          <LibraryCard
+            key={item.pullId || item.name}
+            model={item}
+            localIds={localIds}
+            pulling={pulling}
+            disabled={disabled}
+            onInstall={onInstall}
+            onUse={onUse}
+          />
+        ))}
+        {models.length === 0 ? (
+          <p className="rounded-xl border border-border px-4 py-6 text-center text-sm text-muted-foreground">{empty}</p>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 function LibraryCard({
   model,
   localIds,
@@ -323,17 +474,49 @@ function LibraryCard({
   onInstall: (id: string) => void;
   onUse: (id: string) => void;
 }) {
-  const ids = pullIdsFor(model);
+  const [extra, setExtra] = useState<string[]>([]);
+  const [loadingSizes, setLoadingSizes] = useState(false);
+  const ids = uniqueIds([
+    ...pullIdsFor(model),
+    ...extra.map((tag) => `${stripQuantSuffix(model.pullId || "")}:${tag}`),
+  ]).filter((id) => id && !id.endsWith(":"));
+  const hf = model.source === "huggingface" || model.source === "url";
+
+  async function loadSizes() {
+    if (!model.repo) return;
+    setLoadingSizes(true);
+    try {
+      const quants = await listHfQuants(model.repo);
+      setExtra(quants);
+    } finally {
+      setLoadingSizes(false);
+    }
+  }
+
   return (
     <div className="rounded-xl border border-border bg-card px-4 py-3">
-      <p className="font-medium">{model.name}</p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="min-w-0 font-medium text-pretty">{model.name}</p>
+        <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
+          {hf ? "Hugging Face" : "Ollama"}
+        </span>
+      </div>
       {model.description ? (
         <p className="mt-1 text-sm text-muted-foreground text-pretty">{model.description}</p>
       ) : null}
       <div className="mt-3 flex flex-wrap gap-2">
         {ids.map((id) => {
-          const have = [...localIds].some((local) => sameOllamaId(local, id));
+          const have = [...localIds].some((local) => sameOllamaId(local, id) || local.includes(id));
           const active = pulling === id;
+          const label = hf
+            ? have
+              ? "Use"
+              : id.includes(":")
+                ? `Install ${id.split(":").pop()}`
+                : "Install from Hugging Face"
+            : have
+              ? `Use ${id}`
+              : `Install & run ${id}`;
           return (
             <Button
               key={id}
@@ -344,11 +527,28 @@ function LibraryCard({
               onClick={() => (have ? onUse(id) : onInstall(id))}
             >
               {active ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
-              {have ? `Use ${id}` : `Install & run ${id}`}
+              {label}
             </Button>
           );
         })}
+        {hf && model.repo && extra.length === 0 ? (
+          <Button size="sm" variant="ghost" className="h-8" disabled={loadingSizes} onClick={() => void loadSizes()}>
+            {loadingSizes ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
+            More sizes
+          </Button>
+        ) : null}
       </div>
     </div>
   );
+}
+
+function uniqueIds(ids: string[]) {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const id of ids) {
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
 }

@@ -78,7 +78,7 @@ export function ChatView({
   onOpenSidebar: () => void;
   onToggleSidebar: () => void;
   onNewChat: () => void;
-  onBrowseModels?: () => void;
+  onBrowseModels?: (query?: string) => void;
 }) {
   const conversation = useChatStore(selectActiveConversation);
   const selectedModel = useChatStore((s) => s.selectedModel);

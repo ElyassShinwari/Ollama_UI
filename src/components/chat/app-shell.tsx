@@ -51,6 +51,7 @@ export function ChatApp() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hubOpen, setHubOpen] = useState(false);
+  const [hubQuery, setHubQuery] = useState("");
   const [studioOpen, setStudioOpen] = useState(false);
   const [newsOpen, setNewsOpen] = useState(false);
   const [hydrated, setHydrated] = useState(() => useChatStore.persist.hasHydrated());
@@ -192,7 +193,10 @@ export function ChatApp() {
               onOpenSidebar={() => setMobileOpen(true)}
               onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
               onNewChat={startFreshChat}
-              onBrowseModels={() => setHubOpen(true)}
+              onBrowseModels={(query) => {
+                setHubQuery(query ?? "");
+                setHubOpen(true);
+              }}
             />
           ) : (
             <ConnectScreen
@@ -209,7 +213,13 @@ export function ChatApp() {
           )}
         </main>
       </div>
-      <Dialog open={hubOpen} onOpenChange={setHubOpen}>
+      <Dialog
+        open={hubOpen}
+        onOpenChange={(open) => {
+          setHubOpen(open);
+          if (!open) setHubQuery("");
+        }}
+      >
         <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Models</DialogTitle>
@@ -219,6 +229,7 @@ export function ChatApp() {
             localModels={catalog.models.filter((m) => m.provider === "ollama")}
             onChoose={chooseModel}
             onRefreshLocal={() => refresh()}
+            initialQuery={hubQuery}
           />
         </DialogContent>
       </Dialog>

@@ -150,6 +150,64 @@ test("sameOllamaId treats :latest as the untagged name", async () => {
   assert.equal(library.sameOllamaId("llama3.2:1b", "llama3"), false);
 });
 
+test("library search suggests queries and lists all matching models", async () => {
+  const library = await import("../src/lib/llm/library.ts");
+  const suggested = library.suggestQueries("qw");
+  assert.equal(suggested[0], "qwen");
+  assert.ok(suggested.includes("qwen2.5"));
+  assert.ok(suggested.includes("qwen3"));
+  assert.ok(library.suggestQueries("llama").includes("llama3.2"));
+
+  const html = `
+    <a href="/library/qwen2.5"><h2>qwen2.5</h2><p>Qwen2.5 models.</p>
+      <span>0.5b</span><span>1.5b</span><span>14b</span><span>tools</span></a>
+    <a href="/library/qwen2.5-coder"><h2>qwen2.5-coder</h2><p>Coder.</p>
+      <span>0.5b</span><span>7b</span></a>`;
+  const parsed = library.parseLibraryHtml(html);
+  const qwen = parsed.find((m) => m.name === "qwen2.5");
+  const coder = parsed.find((m) => m.name === "qwen2.5-coder");
+  assert.ok(qwen);
+  assert.deepEqual(qwen.tags, ["0.5b", "1.5b", "14b"]);
+  assert.ok(coder);
+  assert.ok(coder.tags.includes("7b"));
+  assert.ok(!qwen.tags.includes("tools"));
+  const noisy = library.parseLibraryHtml(
+    `<a href="/library/phi3"><span>mini</span><span>3.8b</span><span>18.1m</span><span>766.8k</span></a>`,
+  );
+  assert.deepEqual(noisy[0].tags, ["mini", "3.8b"]);
+
+  const filtered = library.filterLibrary(parsed, "qwen");
+  assert.equal(filtered.length, 2);
+
+  const hf = library.parseHfModels([
+    { id: "unsloth/Qwen2.5-7B-Instruct-GGUF", downloads: 12500, pipeline_tag: "text-generation" },
+  ]);
+  assert.equal(hf[0].source, "huggingface");
+  assert.equal(hf[0].pullId, "hf.co/unsloth/Qwen2.5-7B-Instruct-GGUF");
+  assert.deepEqual(library.pullIdsFor(hf[0]), ["hf.co/unsloth/Qwen2.5-7B-Instruct-GGUF"]);
+  assert.equal(
+    library.stripQuantSuffix("hf.co/unsloth/Qwen2.5-7B-Instruct-GGUF:Q4_K_M"),
+    "hf.co/unsloth/Qwen2.5-7B-Instruct-GGUF",
+  );
+
+  const fromUrl = library.parseModelUrl(
+    "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+  );
+  assert.equal(fromUrl.repo, "bartowski/Llama-3.2-1B-Instruct-GGUF");
+  assert.equal(fromUrl.pullId, "hf.co/bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M");
+  assert.equal(library.quantFromFilename("Qwen3-Instruct-Q5_K_M.gguf"), "Q5_K_M");
+  const quants = library.quantsFromSiblings([
+    { rfilename: "model-Q4_K_M.gguf" },
+    { rfilename: "BF16/model-BF16-00001-of-00002.gguf" },
+  ]);
+  assert.deepEqual(quants, ["Q4_K_M"]);
+
+  const ollamaUrl = library.parseModelUrl("https://ollama.com/library/qwen2.5:1.5b");
+  assert.equal(ollamaUrl.name, "qwen2.5");
+  assert.deepEqual(ollamaUrl.tags, ["1.5b"]);
+});
+
+
 test("parseRss extracts title, link, image, and youtube thumbs", async () => {
   const news = await import("../src/lib/news/feeds.ts");
   assert.equal(news.decodeXml("A &" + "amp; B &" + "lt;ok&" + "gt;"), "A & B <ok>");
