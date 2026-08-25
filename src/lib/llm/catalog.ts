@@ -1,10 +1,12 @@
 import {
-  capOllamaNumCtx,
   friendlyOllamaError,
   isOllamaMemoryError,
-  nextSmallerOllamaCtx,
+  lookupPublishedContext,
+  nextCtxForMemoryError,
   parseOllamaCapabilities,
   parseOllamaContextLength,
+  resolveOllamaNumCtx,
+  estimateContextFromParameters,
   xaiContextLength,
 } from "@/lib/llm/context";
 import { cloudSecret } from "@/lib/llm/cloud";
@@ -34,7 +36,12 @@ async function attachBrowserContext(host: string, models: ModelRef[]): Promise<M
           body: JSON.stringify({ name: model.id }),
           signal: AbortSignal.timeout(2500),
         });
-        if (!res.ok) return model;
+        if (!res.ok) {
+          const fallback =
+            lookupPublishedContext(model.id, model.family) ??
+            estimateContextFromParameters(model.parameterSize, model.size);
+          return fallback ? { ...model, contextLength: fallback } : model;
+        }
         const body = (await res.json()) as {
           model_info?: Record<string, unknown>;
           parameters?: string;
@@ -42,7 +49,13 @@ async function attachBrowserContext(host: string, models: ModelRef[]): Promise<M
           projector_info?: unknown;
           details?: { family?: string };
         };
-        const contextLength = parseOllamaContextLength(body, model.size);
+        const contextLength =
+          parseOllamaContextLength(body, {
+            modelId: model.id,
+            family: model.family,
+            parameterSize: model.parameterSize,
+            sizeBytes: model.size,
+          }) ?? model.contextLength;
         const capabilities = parseOllamaCapabilities(body, model.id);
         return {
           ...model,
@@ -50,7 +63,10 @@ async function attachBrowserContext(host: string, models: ModelRef[]): Promise<M
           capabilities: capabilities.length ? capabilities : model.capabilities,
         };
       } catch {
-        return model;
+        const fallback =
+          lookupPublishedContext(model.id, model.family) ??
+          estimateContextFromParameters(model.parameterSize, model.size);
+        return fallback ? { ...model, contextLength: fallback } : model;
       }
     }),
   );
@@ -297,15 +313,15 @@ async function streamOllamaBrowser(
   onUsage?: (usage: TokenUsage) => void,
 ) {
   const host = opts.host.replace(/\/+$/, "");
-  let numCtx = capOllamaNumCtx(opts.contextLength, opts.modelSize);
+  let numCtx = resolveOllamaNumCtx(opts.contextLength);
   let lastMessage = "Ollama failed";
   while (true) {
     const options: Record<string, number> = {
       temperature: opts.temperature,
       repeat_penalty: 1.2,
       repeat_last_n: 256,
-      num_ctx: numCtx,
     };
+    if (numCtx) options.num_ctx = numCtx;
     const res = await fetch(`${host}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -321,7 +337,7 @@ async function streamOllamaBrowser(
       const text = await res.text().catch(() => "");
       lastMessage = text || `Ollama error ${res.status}`;
       if (!signal.aborted && isOllamaMemoryError(lastMessage)) {
-        const next = nextSmallerOllamaCtx(numCtx);
+        const next = nextCtxForMemoryError(numCtx ?? 8192, lastMessage);
         if (next) {
           numCtx = next;
           await unloadOllamaBrowser(host, opts.model);
@@ -346,7 +362,7 @@ async function streamOllamaBrowser(
       if (signal.aborted) throw err;
       lastMessage = err instanceof Error ? err.message : String(err);
       if (!produced && isOllamaMemoryError(lastMessage)) {
-        const next = nextSmallerOllamaCtx(numCtx);
+        const next = nextCtxForMemoryError(numCtx ?? 8192, lastMessage);
         if (next) {
           numCtx = next;
           await unloadOllamaBrowser(host, opts.model);

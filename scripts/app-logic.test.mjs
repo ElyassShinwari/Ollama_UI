@@ -268,31 +268,57 @@ test("parseRss extracts title, link, image, and youtube thumbs", async () => {
   assert.equal(nested[0].source, "github-actions[bot]");
 });
 
-test("Phi-3 working context is capped so a 2GB file does not request 128k RAM", async () => {
+test("each model keeps its own context window, not a size-based guess", async () => {
   const ctx = await import("../src/lib/llm/context.ts");
-  const phi3Show = {
-    model_info: { "phi3.context_length": 131072 },
-    parameters: "num_ctx                        4096\nstop \"<|end|>\"",
-  };
   const twoGb = 2.2 * 1024 ** 3;
-  assert.equal(ctx.parseOllamaContextLength(phi3Show, twoGb), 4096);
+  const oneGb = 1.1 * 1024 ** 3;
+
   assert.equal(
-    ctx.parseOllamaContextLength({ model_info: { "phi3.context_length": 131072 } }, twoGb),
-    4096,
+    ctx.parseOllamaContextLength(
+      { model_info: { "phi3.context_length": 131072 }, parameters: "num_ctx 4096" },
+      { modelId: "phi3:3.8b", sizeBytes: twoGb },
+    ),
+    131072,
   );
   assert.equal(
-    ctx.parseOllamaContextLength({ model_info: { "phi3.context_length": 131072 } }),
-    4096,
+    ctx.parseOllamaContextLength(
+      { model_info: { "gemma2.context_length": 8192 } },
+      { modelId: "gemma2:2b", sizeBytes: oneGb },
+    ),
+    8192,
   );
-  assert.equal(ctx.capOllamaNumCtx(131072, twoGb), 4096);
-  assert.equal(ctx.capOllamaNumCtx(131072), 8192);
-  assert.equal(ctx.ramSafeCtxCap(7.9 * 1024 ** 3), 16384);
-  assert.equal(ctx.nextSmallerOllamaCtx(4096), 2048);
-  assert.equal(ctx.nextSmallerOllamaCtx(2048), undefined);
+  assert.equal(
+    ctx.parseOllamaContextLength(
+      { model_info: { "qwen2.context_length": 32768 } },
+      { modelId: "qwen2.5:1.5b", sizeBytes: oneGb },
+    ),
+    32768,
+  );
+  assert.equal(
+    ctx.parseOllamaContextLength(
+      { model_info: { "llama.context_length": 131072 } },
+      { modelId: "llama3.2:3b", sizeBytes: twoGb },
+    ),
+    131072,
+  );
+  assert.equal(
+    ctx.parseOllamaContextLength({}, { modelId: "phi3:mini" }),
+    131072,
+  );
+  assert.equal(ctx.lookupPublishedContext("gemma2:2b"), 8192);
+  assert.equal(ctx.lookupPublishedContext("qwen2.5:1.5b"), 32768);
+  assert.equal(ctx.lookupPublishedContext("llama3.2:1b"), 131072);
+  assert.equal(ctx.lookupPublishedContext("Phi-3-mini-4k-instruct"), 4096);
+  assert.equal(ctx.lookupPublishedContext("totally-unknown-model"), undefined);
+  assert.equal(
+    ctx.parseOllamaContextLength({}, { parameterSize: "3.8B" }),
+    8192,
+  );
 
   const oom = '{"error":"model requires more system memory (50.6 GiB) than is available (11.7 GiB)"}';
   assert.equal(ctx.isOllamaMemoryError(oom), true);
-  assert.match(ctx.friendlyOllamaError(oom), /smaller working window/i);
+  const scaled = ctx.nextCtxForMemoryError(131072, oom);
+  assert.ok(scaled && scaled < 131072 && scaled >= 2048);
+  assert.match(ctx.friendlyOllamaError(oom), /real window/i);
   assert.doesNotMatch(ctx.friendlyOllamaError(oom), /50\.6/);
-  assert.equal(ctx.friendlyOllamaError(ctx.friendlyOllamaError(oom)), ctx.friendlyOllamaError(oom));
 });

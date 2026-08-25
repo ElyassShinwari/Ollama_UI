@@ -1,11 +1,13 @@
 import { CHATGPT_OAUTH_MODELS, FALLBACK_CLOUD, cloudEndpoint, isChatGptOAuth, responsesTextType, type CloudId } from "@/lib/llm/cloud";
 import {
-  capOllamaNumCtx,
   friendlyOllamaError,
   isOllamaMemoryError,
-  nextSmallerOllamaCtx,
+  lookupPublishedContext,
+  nextCtxForMemoryError,
   parseOllamaCapabilities,
   parseOllamaContextLength,
+  resolveOllamaNumCtx,
+  estimateContextFromParameters,
   xaiContextLength,
 } from "@/lib/llm/context";
 import { sanitizeOllamaHost } from "@/lib/utils";
@@ -249,14 +251,14 @@ function displayXaiName(id: string) {
 export async function fetchOllamaContext(
   host: string,
   name: string,
-  sizeBytes?: number,
+  extra?: { sizeBytes?: number; family?: string; parameterSize?: string },
 ): Promise<{ contextLength?: number; capabilities?: string[] } | undefined> {
   try {
     const res = await fetch(`${host}/api/show`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
-      signal: AbortSignal.timeout(700),
+      signal: AbortSignal.timeout(2500),
     });
     if (!res.ok) return undefined;
     const body = (await res.json()) as {
@@ -267,7 +269,12 @@ export async function fetchOllamaContext(
       details?: { family?: string };
     };
     return {
-      contextLength: parseOllamaContextLength(body, sizeBytes),
+      contextLength: parseOllamaContextLength(body, {
+        modelId: name,
+        family: extra?.family ?? body.details?.family,
+        parameterSize: extra?.parameterSize,
+        sizeBytes: extra?.sizeBytes,
+      }),
       capabilities: parseOllamaCapabilities(body, name),
     };
   } catch {
@@ -295,12 +302,19 @@ export async function listOllamaModels(hostRaw: string): Promise<ModelRef[]> {
   }));
   return Promise.all(
     base.map(async (model) => {
-      const meta = await fetchOllamaContext(host, model.id, model.size);
-      if (!meta) return model;
+      const meta = await fetchOllamaContext(host, model.id, {
+        sizeBytes: model.size,
+        family: model.family,
+        parameterSize: model.parameterSize,
+      });
+      const contextLength =
+        meta?.contextLength ??
+        lookupPublishedContext(model.id, model.family) ??
+        estimateContextFromParameters(model.parameterSize, model.size);
       return {
         ...model,
-        ...(meta.contextLength ? { contextLength: meta.contextLength } : {}),
-        ...(meta.capabilities?.length ? { capabilities: meta.capabilities } : {}),
+        ...(contextLength ? { contextLength } : {}),
+        ...(meta?.capabilities?.length ? { capabilities: meta.capabilities } : {}),
       };
     }),
   );
@@ -401,14 +415,14 @@ export async function* streamOllamaChat(opts: {
   signal: AbortSignal;
 }): AsyncGenerator<ChatStreamEvent> {
   const host = sanitizeOllamaHost(opts.host);
-  let numCtx = capOllamaNumCtx(opts.contextLength, opts.modelSize);
+  let numCtx = resolveOllamaNumCtx(opts.contextLength);
   while (true) {
     const options: Record<string, number> = {
       temperature: opts.temperature,
       repeat_penalty: 1.2,
       repeat_last_n: 256,
-      num_ctx: numCtx,
     };
+    if (numCtx) options.num_ctx = numCtx;
     let produced = false;
     try {
       const res = await fetch(`${host}/api/chat`, {
@@ -437,7 +451,7 @@ export async function* streamOllamaChat(opts: {
       const message = err instanceof Error ? err.message : String(err);
       const wrapped = new Error(friendlyOllamaError(message));
       if (produced || !isOllamaMemoryError(message)) throw wrapped;
-      const next = nextSmallerOllamaCtx(numCtx);
+      const next = nextCtxForMemoryError(numCtx ?? 8192, message);
       if (!next) throw wrapped;
       numCtx = next;
       await unloadOllamaModel(host, opts.model).catch(() => undefined);
