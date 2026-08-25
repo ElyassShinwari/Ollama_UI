@@ -131,7 +131,7 @@ export function ModelPicker({
               <div className="p-1">
                 <DropdownMenuItem onSelect={onBrowse} className="py-2.5">
                   <Plus className="size-4" />
-                  <span>Install a model</span>
+                  <span>Install or remove models</span>
                 </DropdownMenuItem>
               </div>
             </>

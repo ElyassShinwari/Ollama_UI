@@ -194,7 +194,7 @@ export function ChatApp() {
       <Dialog open={hubOpen} onOpenChange={setHubOpen}>
         <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Install a model</DialogTitle>
+            <DialogTitle>Models</DialogTitle>
           </DialogHeader>
           <ModelHub
             host={settings.ollamaHost}
