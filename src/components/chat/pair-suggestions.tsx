@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { PAIR_TASKS, pairLanes, pairStatus, type PairTask, type ReviewPair } from "@/lib/llm/pairs";
@@ -10,6 +10,29 @@ function applyReadyPair(writer: ModelRef, tester: ModelRef, task: string) {
   useChatStore.getState().setSelectedModel(writer);
   useChatStore.getState().setTesterKey(`${tester.provider}:${tester.id}`);
   toast.success(`${task}: ${writer.name} writes, ${tester.name} tests`);
+}
+
+function useDismiss(open: boolean, onClose: () => void) {
+  const ref = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (event: PointerEvent) => {
+      const node = event.target as Node | null;
+      if (ref.current && node && !ref.current.contains(node)) onCloseRef.current();
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCloseRef.current();
+    };
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  return ref;
 }
 
 export function PairSuggestions({
@@ -27,7 +50,9 @@ export function PairSuggestions({
   onInstallPair?: (writerId: string, testerId: string) => void;
   onBrowse?: () => void;
 }) {
-  const [openId, setOpenId] = useState<string | null>(variant === "bar" ? null : "coding");
+  const [openId, setOpenId] = useState<string | null>(null);
+  const close = () => setOpenId(null);
+  const rootRef = useDismiss(Boolean(openId), close);
   const q = query.trim().toLowerCase();
   const tasks = q
     ? PAIR_TASKS.filter((t) => {
@@ -40,7 +65,7 @@ export function PairSuggestions({
   if (tasks.length === 0) return null;
 
   return (
-    <section>
+    <section ref={rootRef}>
       <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
         Review pairs
       </h2>
@@ -55,6 +80,7 @@ export function PairSuggestions({
             size="sm"
             variant={openId === task.id ? "secondary" : "outline"}
             className="h-8"
+            aria-expanded={openId === task.id}
             onClick={() => setOpenId((cur) => (cur === task.id ? null : task.id))}
           >
             {task.task}
@@ -70,6 +96,7 @@ export function PairSuggestions({
             canInstall={canInstall}
             onInstallPair={onInstallPair}
             onBrowse={onBrowse}
+            onUsed={close}
           />
         ) : null,
       )}
@@ -83,12 +110,14 @@ function PairTaskBody({
   canInstall,
   onInstallPair,
   onBrowse,
+  onUsed,
 }: {
   task: PairTask;
   models: ModelRef[];
   canInstall: boolean;
   onInstallPair?: (writerId: string, testerId: string) => void;
   onBrowse?: () => void;
+  onUsed?: () => void;
 }) {
   return (
     <div className="mt-3 rounded-xl border border-border bg-card px-4 py-3">
@@ -104,6 +133,7 @@ function PairTaskBody({
             taskName={task.task}
             onInstallPair={onInstallPair}
             onBrowse={onBrowse}
+            onUsed={onUsed}
           />
         ))}
       </div>
@@ -119,6 +149,7 @@ function PairLane({
   taskName,
   onInstallPair,
   onBrowse,
+  onUsed,
 }: {
   label: string;
   pair: ReviewPair;
@@ -127,6 +158,7 @@ function PairLane({
   taskName: string;
   onInstallPair?: (writerId: string, testerId: string) => void;
   onBrowse?: () => void;
+  onUsed?: () => void;
 }) {
   const status = pairStatus(models, pair);
   return (
@@ -145,7 +177,10 @@ function PairLane({
           <Button
             size="sm"
             className="h-8"
-            onClick={() => applyReadyPair(status.writer!, status.tester!, taskName)}
+            onClick={() => {
+              applyReadyPair(status.writer!, status.tester!, taskName);
+              onUsed?.();
+            }}
           >
             Use this pair
           </Button>
@@ -176,9 +211,11 @@ export function PairBar({
   onBrowse?: () => void;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
+  const close = () => setOpenId(null);
+  const rootRef = useDismiss(Boolean(openId), close);
   const open = PAIR_TASKS.find((t) => t.id === openId);
   return (
-    <div className="border-b border-border px-3 py-2">
+    <div ref={rootRef} className="border-b border-border px-3 py-2">
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="text-xs text-muted-foreground">Pairs</span>
         {PAIR_TASKS.map((task) => (
@@ -187,6 +224,7 @@ export function PairBar({
             size="sm"
             variant={openId === task.id ? "secondary" : "ghost"}
             className={cn("h-7 px-2 text-xs", openId === task.id && "bg-secondary")}
+            aria-expanded={openId === task.id}
             onClick={() => setOpenId((cur) => (cur === task.id ? null : task.id))}
           >
             {task.task}
@@ -199,6 +237,7 @@ export function PairBar({
           models={models}
           canInstall={false}
           onBrowse={onBrowse}
+          onUsed={close}
         />
       ) : null}
     </div>

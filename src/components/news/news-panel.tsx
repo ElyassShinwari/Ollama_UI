@@ -334,8 +334,25 @@ function MediaGrid({
 
 function VideoStage({ item, onClose }: { item: NewsItem; onClose: () => void }) {
   const id = youtubeId(item.link);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
   return (
-    <div className="mb-6 overflow-hidden rounded-2xl border border-border bg-card">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 p-4"
+      role="presentation"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-label={item.title}
+        className="w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-card shadow-border"
+        onClick={(event) => event.stopPropagation()}
+      >
       {id ? (
         <div className="aspect-video bg-muted">
           <iframe
@@ -366,6 +383,7 @@ function VideoStage({ item, onClose }: { item: NewsItem; onClose: () => void }) 
             <X className="size-4" />
           </Button>
         </div>
+      </div>
       </div>
     </div>
   );
