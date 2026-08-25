@@ -68,7 +68,7 @@ While a model downloads, the percent stays in the log at the top. The shadow lin
 
 The runtime is still Ollama: Hugging Face GGUF files are downloaded through it and then chat like any other local model.
 
-**Review pairs** (Coding, Writing, Math, Science, Translation, Research, Everyday chat, Images) suggest two local models: a writer and a tester. Light pairs are small; heavy pairs are stronger and need more RAM. Install both from Models, or pick a pair under **Start review**.
+**Review pairs** (Coding, Writing, Math, Science, Translation, Research, Everyday chat, Images) suggest two local models: a writer and a tester. Each job has four sizes — **very light**, **light**, **medium**, **heavy**. Install both from Models, or pick a pair under **Start review**.
 
 ## Install Ollama by hand (optional)
 
@@ -157,7 +157,7 @@ Signed-in accounts and keys stay in this browser. Review cycles can use any conn
 
 1. Open any chat (new or already started) and pick a **tester** different from the model in the header.
 2. The **writer** is the model in the header. Switch that model anytime — the next cycle uses the new one (Ollama, ChatGPT, Claude, Grok, Kimi, or DeepSeek).
-3. Or pick a **review pair**: Coding, Writing, Math, Science, Translation, Research, Everyday chat, Images. Each job has a **light** pair (small models) and a **heavy** pair (stronger, more RAM). The tester is chosen for that job — a general chat model is a weak code reviewer.
+3. Or pick a **review pair**: Coding, Writing, Math, Science, Translation, Research, Everyday chat, Images. Each job has **very light**, **light**, **medium**, and **heavy** — not a jump from tiny to huge. The tester is chosen for that job — a general chat model is a weak code reviewer.
 4. Set **Cycles** from 1 to 100.
 5. Click **Start review**. If the last message is already an answer, the tester reviews it first. If you typed a prompt, that is sent, then the cycle runs. Works mid-conversation.
 6. Each cycle: the writer’s full reply is passed to the tester, the tester’s full reply is passed back to the writer.

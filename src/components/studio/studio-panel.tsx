@@ -724,15 +724,21 @@ function AdvisorTab({ selected }: { selected: ModelRef | null }) {
         <p className="font-medium">Review pairs</p>
         <p className="mt-1 text-sm text-muted-foreground text-pretty">
           Start review needs two different models. The tester should match the job — a general
-          chat model is a weak code reviewer. Light pairs are small; heavy pairs are stronger and
-          need more RAM. Open Models to install a pair.
+          chat model is a weak code reviewer. Four sizes: very light, light, medium, heavy.
+          Open Models to install a pair.
         </p>
         <ul className="mt-3 flex flex-col gap-2">
           {PAIR_TASKS.map((task) => (
             <li key={task.id} className="text-sm">
               <span className="font-medium">{task.task}</span>
               <span className="block font-mono text-xs text-muted-foreground">
+                Very light {task.veryLight.writer} → {task.veryLight.tester}
+              </span>
+              <span className="block font-mono text-xs text-muted-foreground">
                 Light {task.light.writer} → {task.light.tester}
+              </span>
+              <span className="block font-mono text-xs text-muted-foreground">
+                Medium {task.medium.writer} → {task.medium.tester}
               </span>
               <span className="block font-mono text-xs text-muted-foreground">
                 Heavy {task.heavy.writer} → {task.heavy.tester}

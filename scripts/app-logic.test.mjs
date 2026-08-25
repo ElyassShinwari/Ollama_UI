@@ -346,21 +346,29 @@ test("review pairs keep writer and tester different, with a coding pair", async 
   const coding = pairs.PAIR_TASKS.find((t) => t.id === "coding");
   assert.ok(coding);
   assert.match(coding.blurb, /coder/i);
+  assert.equal(pairs.PAIR_LANES.length, 4);
   for (const task of pairs.PAIR_TASKS) {
-    assert.notEqual(task.light.writer, task.light.tester);
-    assert.notEqual(task.heavy.writer, task.heavy.tester);
-    assert.ok(task.light.writer.length > 0);
-    assert.ok(task.heavy.tester.length > 0);
+    const lanes = pairs.pairLanes(task);
+    assert.equal(lanes.length, 4);
+    assert.deepEqual(
+      lanes.map((l) => l.label),
+      ["Very light", "Light", "Medium", "Heavy"],
+    );
+    for (const lane of lanes) {
+      assert.notEqual(lane.pair.writer, lane.pair.tester);
+      assert.ok(lane.pair.writer.length > 0);
+      assert.ok(lane.pair.tester.length > 0);
+    }
   }
   const status = pairs.pairStatus(
     [
-      { id: "qwen2.5-coder:1.5b", name: "qwen2.5-coder:1.5b", provider: "ollama", transport: "server" },
-      { id: "codegemma:2b", name: "codegemma:2b", provider: "ollama", transport: "server" },
+      { id: "qwen2.5-coder:0.5b", name: "qwen2.5-coder:0.5b", provider: "ollama", transport: "server" },
+      { id: "deepseek-coder:1.3b", name: "deepseek-coder:1.3b", provider: "ollama", transport: "server" },
     ],
-    coding.light,
+    coding.veryLight,
   );
   assert.equal(status.ready, true);
-  assert.equal(status.writer?.id, "qwen2.5-coder:1.5b");
+  assert.equal(status.writer?.id, "qwen2.5-coder:0.5b");
   assert.equal(
     pairs.findLocalModel(
       [{ id: "phi3:latest", name: "phi3", provider: "ollama", transport: "server" }],

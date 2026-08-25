@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { PAIR_TASKS, pairStatus, type PairTask, type ReviewPair } from "@/lib/llm/pairs";
+import { PAIR_TASKS, pairLanes, pairStatus, type PairTask, type ReviewPair } from "@/lib/llm/pairs";
 import { useChatStore } from "@/lib/chat/store";
 import type { ModelRef } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
@@ -30,15 +30,12 @@ export function PairSuggestions({
   const [openId, setOpenId] = useState<string | null>(variant === "bar" ? null : "coding");
   const q = query.trim().toLowerCase();
   const tasks = q
-    ? PAIR_TASKS.filter(
-        (t) =>
-          t.task.toLowerCase().includes(q) ||
-          t.blurb.toLowerCase().includes(q) ||
-          t.light.writer.includes(q) ||
-          t.light.tester.includes(q) ||
-          t.heavy.writer.includes(q) ||
-          t.heavy.tester.includes(q),
-      )
+    ? PAIR_TASKS.filter((t) => {
+        if (t.task.toLowerCase().includes(q) || t.blurb.toLowerCase().includes(q)) return true;
+        return pairLanes(t).some(
+          (lane) => lane.pair.writer.includes(q) || lane.pair.tester.includes(q),
+        );
+      })
     : PAIR_TASKS;
   if (tasks.length === 0) return null;
 
@@ -97,24 +94,18 @@ function PairTaskBody({
     <div className="mt-3 rounded-xl border border-border bg-card px-4 py-3">
       <p className="text-sm text-muted-foreground text-pretty">{task.blurb}</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <PairLane
-          label="Light"
-          pair={task.light}
-          models={models}
-          canInstall={canInstall}
-          taskName={task.task}
-          onInstallPair={onInstallPair}
-          onBrowse={onBrowse}
-        />
-        <PairLane
-          label="Heavy"
-          pair={task.heavy}
-          models={models}
-          canInstall={canInstall}
-          taskName={task.task}
-          onInstallPair={onInstallPair}
-          onBrowse={onBrowse}
-        />
+        {pairLanes(task).map((lane) => (
+          <PairLane
+            key={lane.id}
+            label={lane.label}
+            pair={lane.pair}
+            models={models}
+            canInstall={canInstall}
+            taskName={task.task}
+            onInstallPair={onInstallPair}
+            onBrowse={onBrowse}
+          />
+        ))}
       </div>
     </div>
   );
