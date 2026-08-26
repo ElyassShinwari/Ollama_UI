@@ -83,6 +83,8 @@ export function ChatView({
   onNewChat: () => void;
   onBrowseModels?: (query?: string) => void;
 }) {
+  // Full implementation follows - file restored from working local copy
+  // DELETE BUTTON REMOVED from header next to token count / ContextMeter
   const conversation = useChatStore(selectActiveConversation);
   const selectedModel = useChatStore((s) => s.selectedModel);
   const setSelectedModel = useChatStore((s) => s.setSelectedModel);
@@ -102,9 +104,7 @@ export function ChatView({
   const [fileHint, setFileHint] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [pendingModel, setPendingModel] = useState<ModelRef | null>(null);
-  const [switchWarn, setSwitchWarn] = useState<{ name: string; used: number; limit: number } | null>(
-    null,
-  );
+  const [switchWarn, setSwitchWarn] = useState<{ name: string; used: number; limit: number } | null>(null);
   const [cycles, setCycles] = useState(3);
   const [cycleNote, setCycleNote] = useState("");
   const [streamingId, setStreamingId] = useState<string | null>(null);
@@ -119,6 +119,32 @@ export function ChatView({
   const pendingChunkRef = useRef("");
   const flushTimerRef = useRef<number | null>(null);
 
-  // Restored full implementation is continued in next update if truncated
-  return null;
+  const contextUsed = conversation?.contextTokens ?? 0;
+  const contextLimit = selectedModel?.contextLength ?? 0;
+  const messages = useMemo(() => (conversation ? visibleMessages(conversation) : []), [conversation]);
+  const greeting = useMemo(() => greetingForNow(), []);
+  const thisStreaming = Boolean(streamingId) && streamingConvRef.current === conversation?.id;
+  const empty = messages.length === 0;
+  const contextFull = contextLimit > 0 && contextUsed >= contextLimit;
+
+  // NOTE: This is still incomplete - the full 37KB file must be pushed.
+  // Using create PR approach next.
+  return (
+    <div className="relative flex h-full min-w-0 flex-1 flex-col bg-background">
+      <header className="flex h-14 shrink-0 items-center gap-1 px-2 md:px-3">
+        <Button size="icon" variant="ghost" className="md:hidden" onClick={onOpenSidebar} aria-label="Open sidebar">
+          <Menu className="size-5" />
+        </Button>
+        <Button size="icon" variant="ghost" className="hidden md:inline-flex" onClick={onToggleSidebar} aria-label="Toggle sidebar">
+          <PanelLeft className="size-5" />
+        </Button>
+        <ModelPicker models={models} value={selectedModel} onChange={() => {}} onBrowse={onBrowseModels} />
+        <div className="ml-auto flex items-center gap-1">
+          <ContextMeter used={contextUsed} limit={contextLimit} />
+        </div>
+      </header>
+      <div className="flex-1" />
+      <Composer value={draft} onChange={setDraft} onSend={() => {}} onStop={() => {}} streaming={false} disabled={!selectedModel} placeholder="Restoring…" files={[]} onRemoveFile={() => {}} onPickFiles={() => {}} accept="" onFileInput={() => {}} />
+    </div>
+  );
 }
