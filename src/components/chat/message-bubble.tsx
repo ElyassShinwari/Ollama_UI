@@ -1,12 +1,12 @@
 import { Check, ChevronLeft, ChevronRight, Copy, Pencil, RotateCcw } from "lucide-react";
-import { useState } from "react";
+import { memo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageMarkdown } from "@/components/chat/markdown";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/lib/chat/types";
 
-export function MessageBubble({
+export const MessageBubble = memo(function MessageBubble({
   message,
   streaming,
   showRegen,
@@ -184,7 +184,11 @@ export function MessageBubble({
             <p className="mb-1 text-xs text-muted-foreground">{message.modelName}</p>
           ) : null}
           {message.content ? (
-            <MessageMarkdown content={message.content} />
+            streaming ? (
+              <p className="whitespace-pre-wrap">{message.content}</p>
+            ) : (
+              <MessageMarkdown content={message.content} />
+            )
           ) : streaming ? (
             <span className="inline-flex items-center gap-2 text-muted-foreground">
               <span className="size-2 animate-pulse rounded-full bg-foreground" />
@@ -220,4 +224,4 @@ export function MessageBubble({
       </div>
     </div>
   );
-}
+});

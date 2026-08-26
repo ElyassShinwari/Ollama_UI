@@ -426,4 +426,13 @@ test("ollama chat payload matches the terminal: stream, no extra options", async
   assert.equal(withCtx.options?.num_ctx, 4096);
   const parsed = ollama.parseOllamaNdjsonLine('{"message":{"role":"assistant","content":"Hello"}}');
   assert.equal(parsed?.content, "Hello");
+  const chunks = [];
+  const parser = ollama.createNdjsonParser((event) => {
+    if (event.content) chunks.push(event.content);
+  });
+  parser.push('{"message":{"content":"Hel"}}\n{"message":{"content":"lo"}}\n');
+  parser.end();
+  assert.deepEqual(chunks, ["Hel", "lo"]);
+  assert.equal(typeof ollama.streamOllamaDirect, "function");
+  assert.equal(typeof ollama.streamOllamaFetch, "function");
 });

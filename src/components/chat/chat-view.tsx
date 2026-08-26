@@ -108,6 +108,7 @@ export function ChatView({
   const [cycles, setCycles] = useState(3);
   const [cycleNote, setCycleNote] = useState("");
   const [streamingId, setStreamingId] = useState<string | null>(null);
+  const [liveText, setLiveText] = useState("");
   const abortRef = useRef<AbortController | null>(null);
   const cancelledRef = useRef(false);
   const streamingConvRef = useRef<string | null>(null);
@@ -118,6 +119,9 @@ export function ChatView({
   const completionTokensRef = useRef(0);
   const pendingChunkRef = useRef("");
   const flushTimerRef = useRef<number | null>(null);
+  const liveRef = useRef("");
+  const lastStoreLenRef = useRef(0);
+  const flushCountRef = useRef(0);
 
   const allMessages = conversation?.messages ?? [];
   const messages = conversation
@@ -191,26 +195,33 @@ export function ChatView({
     setUsage(conversationId, { promptTokens, completionTokens });
   }
 
-  function flushPending(conversationId: string, assistantId: string) {
+  function flushPending(conversationId: string, assistantId: string, toStore = false) {
     if (flushTimerRef.current) {
       window.cancelAnimationFrame(flushTimerRef.current);
       window.clearTimeout(flushTimerRef.current);
       flushTimerRef.current = null;
     }
-    const chunk = pendingChunkRef.current;
-    if (!chunk) return;
-    pendingChunkRef.current = "";
-    appendToMessage(conversationId, assistantId, chunk);
-    const current = useChatStore
-      .getState()
-      .conversations.find((c) => c.id === conversationId)
-      ?.messages.find((m) => m.id === assistantId)?.content;
-    if (!current) return;
-    const cut = repetitionCutoff(current);
-    if (cut != null) {
-      pendingChunkRef.current = "";
-      replaceMessageContent(conversationId, assistantId, current.slice(0, cut).trimEnd());
-      abortRef.current?.abort();
+    const live = liveRef.current;
+    setLiveText(live);
+    flushCountRef.current += 1;
+    const unsaved = live.slice(lastStoreLenRef.current);
+    if (toStore || unsaved.length >= 1200 || flushCountRef.current % 16 === 0) {
+      if (unsaved) {
+        appendToMessage(conversationId, assistantId, unsaved);
+        lastStoreLenRef.current = live.length;
+      }
+    }
+    if (flushCountRef.current % 8 === 0) {
+      const cut = repetitionCutoff(live);
+      if (cut != null) {
+        const kept = live.slice(0, cut).trimEnd();
+        liveRef.current = kept;
+        pendingChunkRef.current = "";
+        setLiveText(kept);
+        replaceMessageContent(conversationId, assistantId, kept);
+        lastStoreLenRef.current = kept.length;
+        abortRef.current?.abort();
+      }
     }
   }
 
@@ -237,18 +248,15 @@ export function ChatView({
       history,
       history.some((m) => Boolean(m.images?.length || m.documents?.some((d) => d.data))),
     );
-    const promptText = formatChatPrompt(systemPrompt, payload);
-    const promptEstimate = estimateTokens(promptText);
-    const limit = model.contextLength;
-    if (limit && promptEstimate >= limit) {
-      markContextExceeded(conversationId);
-    }
-    publishUsage(conversationId, promptEstimate, 0);
 
     chatPersist.enabled = false;
     streamingConvRef.current = conversationId;
     const assistantId = startAssistantMessage(conversationId, model, parentId);
     setStreamingId(assistantId);
+    setLiveText("");
+    liveRef.current = "";
+    lastStoreLenRef.current = 0;
+    flushCountRef.current = 0;
     const controller = new AbortController();
     abortRef.current = controller;
     pendingChunkRef.current = "";
@@ -272,7 +280,13 @@ export function ChatView({
         },
         (chunk) => {
           if (controller.signal.aborted) return;
-          pendingChunkRef.current += chunk;
+          liveRef.current += chunk;
+          pendingChunkRef.current = liveRef.current;
+          if (liveRef.current.length > 400_000) {
+            stoppedLoop = true;
+            controller.abort();
+            return;
+          }
           if (!painted) {
             painted = true;
             flushPending(conversationId, assistantId);
@@ -282,17 +296,6 @@ export function ChatView({
               flushPending(conversationId, assistantId);
             });
           }
-          const nextLen =
-            (useChatStore
-              .getState()
-              .conversations.find((c) => c.id === conversationId)
-              ?.messages.find((m) => m.id === assistantId)?.content.length ?? 0) + pendingChunkRef.current.length;
-          if (nextLen > 400_000) {
-            stoppedLoop = true;
-            pendingChunkRef.current = "";
-            controller.abort();
-          }
-          completionTokensRef.current += Math.max(1, estimateTokens(chunk));
         },
         controller.signal,
         (usage) => {
@@ -309,12 +312,12 @@ export function ChatView({
           markContextExceeded(conversationId);
           toast.error("This model's context window is full");
         }
-        flushPending(conversationId, assistantId);
+        flushPending(conversationId, assistantId, true);
         const current = useChatStore
           .getState()
           .conversations.find((c) => c.id === conversationId)
           ?.messages.find((m) => m.id === assistantId);
-        if (!current?.content) {
+        if (!current?.content && !liveRef.current) {
           appendToMessage(
             conversationId,
             assistantId,
@@ -327,12 +330,20 @@ export function ChatView({
         }
       }
     } finally {
-      if (!controller.signal.aborted || stoppedLoop) flushPending(conversationId, assistantId);
+      if (!controller.signal.aborted || stoppedLoop) flushPending(conversationId, assistantId, true);
       else pendingChunkRef.current = "";
+      if (liveRef.current && lastStoreLenRef.current < liveRef.current.length) {
+        appendToMessage(conversationId, assistantId, liveRef.current.slice(lastStoreLenRef.current));
+        lastStoreLenRef.current = liveRef.current.length;
+      }
       setStreamingId(null);
+      setLiveText("");
       abortRef.current = null;
       if (streamingConvRef.current === conversationId) streamingConvRef.current = null;
       chatPersist.enabled = true;
+      if (!promptTokensRef.current) {
+        publishUsage(conversationId, estimateTokens(payload.map((m) => m.content).join("\n")), estimateTokens(liveRef.current));
+      }
     }
     const text =
       useChatStore
@@ -874,7 +885,11 @@ export function ChatView({
               return (
                 <MessageBubble
                   key={message.id}
-                  message={message}
+                  message={
+                    streamingId === message.id && liveText
+                      ? { ...message, content: liveText }
+                      : message
+                  }
                   streaming={streamingId === message.id}
                   showRegen={message.id === lastAssistant?.id && !streamingId}
                   onRegenerate={regenerate}

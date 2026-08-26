@@ -19,7 +19,7 @@ import {
   isOllamaUnreachable,
   ollamaChatPayload,
   ollamaGate,
-  streamOllamaXhr,
+  streamOllamaDirect,
 } from "@/lib/llm/ollama-client";
 import { useChatStore } from "@/lib/chat/store";
 import type { ModelCatalog, ModelRef, TokenUsage, Transport } from "@/lib/chat/types";
@@ -352,7 +352,7 @@ async function streamOllamaBrowser(
     );
     let produced = false;
     try {
-      await streamOllamaXhr({
+      await streamOllamaDirect({
         url: `${host}/api/chat`,
         payload,
         signal,

@@ -163,6 +163,75 @@ export function streamOllamaXhr(opts: {
   });
 }
 
+/**
+ * True streaming: read NDJSON chunks as Ollama produces them.
+ * Does not grow a full response string the way XHR responseText does.
+ */
+export async function streamOllamaFetch(opts: {
+  url: string;
+  payload: OllamaChatPayload;
+  signal: AbortSignal;
+  onDelta: (text: string) => void;
+  onUsage?: (usage: TokenUsage) => void;
+}): Promise<void> {
+  const res = await fetch(opts.url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/x-ndjson",
+    },
+    body: JSON.stringify(opts.payload),
+    signal: opts.signal,
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text.trim() || `Ollama error ${res.status}`);
+  }
+  if (!res.body) throw new Error("Could not reach Ollama");
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  const parser = createNdjsonParser((event) => {
+    if (event.error) throw new Error(event.error);
+    if (event.content) opts.onDelta(event.content);
+    if (event.usage) opts.onUsage?.(event.usage);
+  });
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      parser.push(dec.decode(value, { stream: true }));
+    }
+    parser.end();
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      /* already released */
+    }
+  }
+}
+
+function androidWebView() {
+  if (typeof navigator === "undefined") return false;
+  return /Android/i.test(navigator.userAgent) && /wv\)|; wv/i.test(navigator.userAgent);
+}
+
+/** Direct to Ollama: fetch stream on desktop, XHR on Android WebView. */
+export async function streamOllamaDirect(opts: {
+  url: string;
+  payload: OllamaChatPayload;
+  signal: AbortSignal;
+  onDelta: (text: string) => void;
+  onUsage?: (usage: TokenUsage) => void;
+}): Promise<void> {
+  if (androidWebView()) {
+    await streamOllamaXhr(opts);
+    return;
+  }
+  await streamOllamaFetch(opts);
+}
+
 export const ollamaGate = {
   chat: false,
 };

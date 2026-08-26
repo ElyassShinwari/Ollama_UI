@@ -311,19 +311,19 @@ export const useChatStore = create<ChatState>()(
         return id;
       },
       appendToMessage: (conversationId, messageId, chunk) =>
-        set((s) => ({
-          conversations: s.conversations.map((c) =>
-            c.id === conversationId
-              ? {
-                  ...c,
-                  updatedAt: Date.now(),
-                  messages: c.messages.map((m) =>
-                    m.id === messageId ? { ...m, content: m.content + chunk } : m,
-                  ),
-                }
-              : c,
-          ),
-        })),
+        set((s) => {
+          const ci = s.conversations.findIndex((c) => c.id === conversationId);
+          if (ci < 0) return s;
+          const conv = s.conversations[ci]!;
+          const mi = conv.messages.findIndex((m) => m.id === messageId);
+          if (mi < 0) return s;
+          const messages = conv.messages.slice();
+          const prev = messages[mi]!;
+          messages[mi] = { ...prev, content: prev.content + chunk };
+          const conversations = s.conversations.slice();
+          conversations[ci] = { ...conv, messages };
+          return { conversations };
+        }),
       finishMessage: (conversationId, messageId) =>
         set((s) => ({
           conversations: s.conversations.map((c) =>

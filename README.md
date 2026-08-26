@@ -242,7 +242,7 @@ Editing a prompt now keeps the original images and files on the new version.
 Grok + ChatGPT review no longer resends the whole thread and file bytes every cycle. Refresh if an old tab is still running a previous review. Image previews stay in the open chat; large document bytes are not kept after send.
 
 **Replies feel much slower than the terminal**  
-The app now talks to Ollama the same way `ollama run` does: it keeps the model loaded, does not send extra options on each message, and **streams tokens as they arrive** (the phone/WebView `fetch` path was waiting for the whole reply). ChatGPT over the network can still *feel* faster than a tiny local model if the local runner is cold or busy. If you open the app as `http://192.168.x.x:8080` on a phone (Termux), set `OLLAMA_ORIGINS=*` so the page can reach Ollama directly.
+Tokens go straight from the model to the page. The app does not wait for the whole reply, does not re-parse markdown while text is still arriving, and does not rewrite the whole chat history on each token — so a large history should not slow the live output. Keep the model loaded (the app talks to Ollama like `ollama run`). If you open the app as `http://192.168.x.x:8080` on a phone (Termux), set `OLLAMA_ORIGINS=*` so the page can reach Ollama directly.
 
 **Grok says the CLI is outdated**  
 That was a Grok sign-in bug, not something to run in a terminal. Ollama_UI now sends Grok the client version it expects. Sign out and Sign in again under Studio → Cloud base if an old session still shows it.
