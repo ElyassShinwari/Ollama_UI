@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { NEWS_TOPICS, relativeTime, youtubeId, type NewsItem, type NewsTopic } from "@/lib/news/feeds";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
+import { useChatStore } from "@/lib/chat/store";
 
 export function NewsPanel({
   onClose,
@@ -18,6 +20,7 @@ export function NewsPanel({
   const [error, setError] = useState("");
   const [playing, setPlaying] = useState<NewsItem | null>(null);
   const nested = typeof window !== "undefined" && window.self !== window.top;
+  const locale = useChatStore((s) => s.settings.locale);
 
   async function load(next: NewsTopic, fresh = false) {
     setBusy(true);
@@ -86,7 +89,7 @@ export function NewsPanel({
               </Button>
             ) : null}
             <div>
-              <h1 className="font-serif text-4xl tracking-tight">News</h1>
+              <h1 className="font-serif text-4xl tracking-tight">{t(locale, "news")}</h1>
               <p className="mt-2 max-w-xl text-sm text-muted-foreground text-pretty">
                 A live feed of local models and the wider AI world. Choose a topic, then open a story or play a video here.
               </p>
@@ -103,7 +106,7 @@ export function NewsPanel({
               <RefreshCw className={cn("size-4", busy && "animate-spin")} />
             </Button>
             <Button variant="outline" onClick={onClose}>
-              Back to chat
+              {t(locale, "backToChat")}
             </Button>
           </div>
         </div>

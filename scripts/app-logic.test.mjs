@@ -7,6 +7,7 @@ const repeat = await import("../src/lib/llm/repeat.ts");
 const tree = await import("../src/lib/chat/tree.ts");
 const git = await import("../src/lib/studio/github.ts");
 const speech = await import("../src/lib/speech.ts");
+const i18n = await import("../src/lib/i18n.ts");
 
 test("reviewSatisfied accepts a tester that is done", () => {
   assert.equal(cloud.reviewSatisfied("SATISFIED\nLooks good."), true);
@@ -448,4 +449,20 @@ test("voice draft joins spoken words onto existing text", () => {
   };
   assert.equal(speech.transcriptFromSpeechEvent(ev), "hello world");
   assert.equal(speech.speechInputAvailable(), false);
+});
+
+test("locales cover the requested languages including Dari and Pashto", () => {
+  assert.equal(i18n.matchLocale("nl-NL"), "nl");
+  assert.equal(i18n.matchLocale("de"), "de");
+  assert.equal(i18n.matchLocale("fa-IR"), "fa");
+  assert.equal(i18n.matchLocale("fa-AF"), "prs");
+  assert.equal(i18n.matchLocale("ps-AF"), "ps");
+  assert.equal(i18n.matchLocale("zh-CN"), "zh");
+  assert.equal(i18n.matchLocale("ar-SA"), "ar");
+  assert.equal(i18n.t("de", "newChat"), "Neuer Chat");
+  assert.equal(i18n.t("ps", "settings"), "تنظیمات");
+  assert.equal(i18n.t("prs", "newChat"), "گفتگوی جدید");
+  assert.equal(i18n.localeInfo("ar").dir, "rtl");
+  assert.equal(i18n.localeInfo("nl").speech, "nl-NL");
+  assert.equal(i18n.t("en", "deleteChatBody", { title: "Hello" }).includes("Hello"), true);
 });

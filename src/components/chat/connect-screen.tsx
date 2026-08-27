@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { FlameMark } from "@/components/chat/sidebar";
 import { ModelHub } from "@/components/chat/model-hub";
 import { CLOUD_LABEL } from "@/lib/llm/cloud";
+import { t } from "@/lib/i18n";
+import { useChatStore } from "@/lib/chat/store";
 import type { ModelCatalog, ModelRef, Provider } from "@/lib/chat/types";
 
 export function ConnectScreen({
@@ -24,6 +26,7 @@ export function ConnectScreen({
 }) {
   const [hostDraft, setHostDraft] = useState(host);
   const [query, setQuery] = useState("");
+  const locale = useChatStore((s) => s.settings.locale);
 
   useEffect(() => {
     setHostDraft(host);
@@ -55,7 +58,7 @@ export function ConnectScreen({
                 variant="ghost"
                 className="md:hidden"
                 onClick={onOpenSidebar}
-                aria-label="Open sidebar"
+                aria-label={t(locale, "openSidebar")}
               >
                 <Menu className="size-5" />
               </Button>
@@ -63,12 +66,10 @@ export function ConnectScreen({
             <FlameMark className="size-10" />
           </div>
           <h1 className="font-serif text-4xl tracking-tight text-balance md:text-5xl">
-            {hasCloud ? "Choose a model" : "Choose a local model"}
+            {hasCloud ? t(locale, "chooseModel") : t(locale, "chooseLocalModel")}
           </h1>
           <p className="mt-3 max-w-lg text-base text-muted-foreground text-pretty">
-            {hasCloud
-              ? "Chat with a model on this computer, or with ChatGPT, Claude, Grok, Kimi, or DeepSeek from the same window."
-              : "Install Ollama if needed, then search Ollama and Hugging Face (try qwen) and install a model with one click. Add ChatGPT, Claude, Grok, Kimi, or DeepSeek in Settings or Studio."}
+            {hasCloud ? t(locale, "connectCloud") : t(locale, "connectLocal")}
           </p>
         </div>
 
@@ -77,7 +78,7 @@ export function ConnectScreen({
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search ChatGPT, Claude, Grok, Kimi, DeepSeek"
+              placeholder={t(locale, "searchCloud")}
               autoComplete="off"
             />
             {cloudGroups.length === 0 ? (

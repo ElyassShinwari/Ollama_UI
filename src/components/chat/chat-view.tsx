@@ -15,7 +15,8 @@ import { ContextMeter } from "@/components/chat/context-meter";
 import { MessageBubble } from "@/components/chat/message-bubble";
 import { ModelPicker } from "@/components/chat/model-picker";
 import { PairBar } from "@/components/chat/pair-suggestions";
-import { estimateTokens, greetingForNow, isContextOverflowError } from "@/lib/utils";
+import { estimateTokens, isContextOverflowError } from "@/lib/utils";
+import { greetingKey, t } from "@/lib/i18n";
 import { selectActiveConversation, chatPersist, useChatStore } from "@/lib/chat/store";
 import { siblingsOf, visibleMessages } from "@/lib/chat/tree";
 import { streamChat } from "@/lib/llm/catalog";
@@ -97,6 +98,7 @@ export function ChatView({
   const selectSibling = useChatStore((s) => s.selectSibling);
   const setUsage = useChatStore((s) => s.setUsage);
   const markContextExceeded = useChatStore((s) => s.markContextExceeded);
+  const locale = useChatStore((s) => s.settings.locale);
   const [draft, setDraft] = useState("");
   const [files, setFiles] = useState<PendingFile[]>([]);
   const [fileHint, setFileHint] = useState<string | null>(null);
@@ -176,7 +178,7 @@ export function ChatView({
     };
   }, [conversation?.id, visibleKey, streamingId, setUsage]);
 
-  const greeting = useMemo(() => greetingForNow(), []);
+  const greeting = useMemo(() => t(locale, greetingKey()), [locale]);
 
   useEffect(() => {
     if (!selectedModel) return;
@@ -759,7 +761,7 @@ export function ChatView({
           variant="ghost"
           className="md:hidden"
           onClick={onOpenSidebar}
-          aria-label="Open sidebar"
+          aria-label={t(locale, "openSidebar")}
         >
           <Menu className="size-5" />
         </Button>
@@ -768,7 +770,7 @@ export function ChatView({
           variant="ghost"
           className="hidden md:inline-flex"
           onClick={onToggleSidebar}
-          aria-label="Toggle sidebar"
+          aria-label={t(locale, "toggleSidebar")}
         >
           <PanelLeft className="size-5" />
         </Button>
@@ -778,32 +780,32 @@ export function ChatView({
           onChange={requestSwitch}
           onBrowse={onBrowseModels}
         />
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ms-auto flex items-center gap-1">
           <ContextMeter used={contextUsed} limit={contextLimit} />
         </div>
       </header>
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
         {streamingId ? (
           <Button size="sm" variant="secondary" onClick={stop}>
-            Stop
+            {t(locale, "stop")}
           </Button>
         ) : (
           <Button size="sm" onClick={() => void startReview()} disabled={!selectedModel}>
-            Start review
+            {t(locale, "startReview")}
           </Button>
         )}
         <span className="text-xs text-muted-foreground">
-          Writer {selectedModel ? writerLabel(selectedModel) : "—"}
+          {t(locale, "writer")} {selectedModel ? writerLabel(selectedModel) : "—"}
         </span>
         <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-          <span>Tester</span>
+          <span>{t(locale, "tester")}</span>
           <ModelPicker
             models={models}
             value={
               models.find((m) => `${m.provider}:${m.id}` === testerKey) ?? null
             }
             onChange={(m) => setTesterKey(`${m.provider}:${m.id}`)}
-            emptyLabel="Testing model…"
+            emptyLabel={t(locale, "testingModel")}
             className="h-8 max-w-[14rem] px-2 text-xs"
             allowCycle={false}
           />
@@ -829,11 +831,11 @@ export function ChatView({
               setTesterKey(key);
             }}
           >
-            Same model
+            {t(locale, "sameModel")}
           </Button>
         </div>
         <label className="flex items-center gap-1 text-xs text-muted-foreground">
-          Cycles
+          {t(locale, "cycles")}
           <input
             type="number"
             min={1}
@@ -861,8 +863,8 @@ export function ChatView({
             <h1 className="font-serif text-4xl tracking-tight md:text-5xl">{greeting}</h1>
             <p className="mt-3 max-w-md text-muted-foreground">
               {selectedModel
-                ? `Talking with ${selectedModel.name}. Switch models anytime from the menu above.`
-                : "Choose a model to begin."}
+                ? t(locale, "talkingWith", { name: selectedModel.name })
+                : t(locale, "chooseModelFirst")}
             </p>
             <div className="mt-8 grid gap-2 sm:grid-cols-2">
               {SUGGESTIONS.map((s) => (
@@ -870,7 +872,7 @@ export function ChatView({
                   key={s}
                   type="button"
                   disabled={!selectedModel}
-                  className="rounded-xl border border-border bg-card px-4 py-3 text-left text-sm leading-6 transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
+                  className="rounded-xl border border-border bg-card px-4 py-3 text-start text-sm leading-6 transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
                   onClick={() => void send(s)}
                 >
                   {s}
@@ -933,7 +935,7 @@ export function ChatView({
               the window is full.
             </p>
             <Button className="h-10 shrink-0" onClick={onNewChat}>
-              New chat
+              {t(locale, "newChat")}
             </Button>
           </div>
         </div>
@@ -953,7 +955,7 @@ export function ChatView({
               unexpected or inaccurate. Start a new chat to reset the window.
             </p>
             <Button className="h-10 shrink-0" onClick={onNewChat}>
-              New chat
+              {t(locale, "newChat")}
             </Button>
           </div>
         </div>
@@ -967,7 +969,7 @@ export function ChatView({
         streaming={thisStreaming}
         disabled={!selectedModel}
         placeholder={
-          selectedModel ? `Message ${selectedModel.name}` : "Choose a model to begin"
+          selectedModel ? t(locale, "messagePh", { name: selectedModel.name }) : t(locale, "chooseModelFirst")
         }
         files={files}
         onRemoveFile={(id) => setFiles((cur) => cur.filter((f) => f.id !== id))}

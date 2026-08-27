@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { applyTheme, resolvedTheme } from "@/lib/theme";
+import { t, type MsgKey } from "@/lib/i18n";
 import { useChatStore } from "@/lib/chat/store";
 import type { Conversation } from "@/lib/chat/types";
 
@@ -39,15 +40,15 @@ function startOfDay(ts: number) {
   return d.getTime();
 }
 
-function groupConversations(conversations: Conversation[]) {
+function groupConversations(conversations: Conversation[], locale: string) {
   const now = startOfDay(Date.now());
   const day = 86400000;
-  const groups: { label: string; items: Conversation[] }[] = [
-    { label: "Pinned", items: [] },
-    { label: "Today", items: [] },
-    { label: "Yesterday", items: [] },
-    { label: "Previous 7 days", items: [] },
-    { label: "Older", items: [] },
+  const groups: { labelKey: MsgKey; items: Conversation[] }[] = [
+    { labelKey: "pinned", items: [] },
+    { labelKey: "today", items: [] },
+    { labelKey: "yesterday", items: [] },
+    { labelKey: "previous7", items: [] },
+    { labelKey: "older", items: [] },
   ];
   for (const c of conversations) {
     if (c.pinned) {
@@ -61,7 +62,9 @@ function groupConversations(conversations: Conversation[]) {
     else if (delta < day * 7) groups[3]!.items.push(c);
     else groups[4]!.items.push(c);
   }
-  return groups.filter((g) => g.items.length > 0);
+  return groups
+    .filter((g) => g.items.length > 0)
+    .map((g) => ({ label: t(locale, g.labelKey), items: g.items }));
 }
 
 export function Sidebar({
@@ -92,6 +95,7 @@ export function Sidebar({
   const renameConversation = useChatStore((s) => s.renameConversation);
   const togglePin = useChatStore((s) => s.togglePin);
   const theme = useChatStore((s) => s.settings.theme);
+  const locale = useChatStore((s) => s.settings.locale);
   const setSettings = useChatStore((s) => s.setSettings);
   const [renaming, setRenaming] = useState<Conversation | null>(null);
   const [title, setTitle] = useState("");
@@ -108,7 +112,7 @@ export function Sidebar({
     );
   }, [conversations, search]);
 
-  const groups = useMemo(() => groupConversations(filtered), [filtered]);
+  const groups = useMemo(() => groupConversations(filtered, locale), [filtered, locale]);
 
   return (
     <aside className={cn("flex h-full flex-col bg-sidebar", className)}>
@@ -117,31 +121,31 @@ export function Sidebar({
           <FlameMark />
           <span className="font-serif text-lg tracking-tight">Ollama UI</span>
         </div>
-        <Button size="icon-sm" variant="ghost" onClick={onNewChat} aria-label="New chat">
+        <Button size="icon-sm" variant="ghost" onClick={onNewChat} aria-label={t(locale, "newChat")}>
           <Plus className="size-4" />
         </Button>
       </div>
       <div className="px-3 pb-3">
         <Button className="h-10 w-full justify-start gap-2" variant="secondary" onClick={onNewChat}>
           <Plus className="size-4" />
-          New chat
+          {t(locale, "newChat")}
         </Button>
       </div>
       <div className="px-3 pb-2">
         <div className="relative">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-subtle" />
+          <Search className="pointer-events-none absolute top-1/2 start-3 size-4 -translate-y-1/2 text-subtle" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search chats"
-            className="h-9 bg-secondary/80 pl-9"
+            placeholder={t(locale, "searchChats")}
+            className="h-9 bg-secondary/80 ps-9"
           />
         </div>
       </div>
       <nav className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2 pb-3">
         {groups.length === 0 ? (
           <p className="px-2 py-8 text-center text-sm text-muted-foreground">
-            Saved conversations will live here.
+            {t(locale, "emptyHistory")}
           </p>
         ) : (
           groups.map((group) => (
@@ -154,13 +158,13 @@ export function Sidebar({
                   <li key={c.id}>
                     <div
                       className={cn(
-                        "group flex items-center rounded-lg pr-1",
+                        "group flex items-center rounded-lg pe-1",
                         c.id === activeId ? "bg-accent" : "hover:bg-accent/70",
                       )}
                     >
                       <button
                         type="button"
-                        className="min-w-0 flex-1 truncate px-2.5 py-2 text-left text-sm"
+                        className="min-w-0 flex-1 truncate px-2.5 py-2 text-start text-sm"
                         onClick={() => {
                           setActive(c.id);
                           onNavigate?.();
@@ -195,18 +199,18 @@ export function Sidebar({
                             }}
                           >
                             <Pencil className="size-4" />
-                            Rename
+                            {t(locale, "rename")}
                           </DropdownMenuItem>
                           <DropdownMenuItem onSelect={() => togglePin(c.id)}>
                             {c.pinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
-                            {c.pinned ? "Unpin" : "Pin"}
+                            {c.pinned ? t(locale, "unpin") : t(locale, "pin")}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onSelect={() => setPendingDelete(c)}
                             className="text-destructive focus:text-destructive"
                           >
                             <Trash2 className="size-4" />
-                            Delete
+                            {t(locale, "delete")}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -229,7 +233,7 @@ export function Sidebar({
           }}
         >
           {resolvedTheme(theme) === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
-          {resolvedTheme(theme) === "dark" ? "Light mode" : "Dark mode"}
+          {resolvedTheme(theme) === "dark" ? t(locale, "lightMode") : t(locale, "darkMode")}
         </Button>
         <Button
           variant="ghost"
@@ -237,7 +241,7 @@ export function Sidebar({
           onClick={onOpenNews}
         >
           <Newspaper className="size-4" />
-          News
+          {t(locale, "news")}
         </Button>
         <Button
           variant="ghost"
@@ -245,7 +249,7 @@ export function Sidebar({
           onClick={onOpenStudio}
         >
           <Blocks className="size-4" />
-          Studio
+          {t(locale, "studio")}
         </Button>
         <Button
           variant="ghost"
@@ -253,36 +257,36 @@ export function Sidebar({
           onClick={onOpenSettings}
         >
           <Settings className="size-4" />
-          Settings
+          {t(locale, "settings")}
         </Button>
       </div>
       <Dialog open={Boolean(renaming)} onOpenChange={(o) => !o && setRenaming(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rename chat</DialogTitle>
+            <DialogTitle>{t(locale, "renameChat")}</DialogTitle>
           </DialogHeader>
           <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && renaming) {
-                renameConversation(renaming.id, title.trim() || "New chat");
+                renameConversation(renaming.id, title.trim() || t(locale, "newChat"));
                 setRenaming(null);
               }
             }}
           />
           <DialogFooter>
             <Button variant="ghost" onClick={() => setRenaming(null)}>
-              Cancel
+              {t(locale, "cancel")}
             </Button>
             <Button
               onClick={() => {
                 if (!renaming) return;
-                renameConversation(renaming.id, title.trim() || "New chat");
+                renameConversation(renaming.id, title.trim() || t(locale, "newChat"));
                 setRenaming(null);
               }}
             >
-              Save
+              {t(locale, "save")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -290,16 +294,14 @@ export function Sidebar({
       <Dialog open={Boolean(pendingDelete)} onOpenChange={(o) => !o && setPendingDelete(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete this chat?</DialogTitle>
+            <DialogTitle>{t(locale, "deleteChat")}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            {pendingDelete
-              ? `“${pendingDelete.title}” will be removed from history. This cannot be undone.`
-              : null}
+            {pendingDelete ? t(locale, "deleteChatBody", { title: pendingDelete.title }) : null}
           </p>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setPendingDelete(null)}>
-              Cancel
+              {t(locale, "cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -309,7 +311,7 @@ export function Sidebar({
                 setPendingDelete(null);
               }}
             >
-              Delete
+              {t(locale, "delete")}
             </Button>
           </DialogFooter>
         </DialogContent>

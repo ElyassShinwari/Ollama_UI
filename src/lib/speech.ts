@@ -30,14 +30,10 @@ export function speechInputAvailable() {
   );
 }
 
-export function speechInputBlockedReason() {
-  if (typeof window === "undefined") return "Voice input is not available here.";
-  if (window.isSecureContext === false) {
-    return "Voice input needs a private page (this computer as localhost, or https).";
-  }
-  if (!speechRecognitionCtor()) {
-    return "Voice input isn’t available in this browser. Chrome, Edge, or Safari work best.";
-  }
+export function speechInputBlockedReason(): "https" | "browser" | "unavailable" | null {
+  if (typeof window === "undefined") return "unavailable";
+  if (window.isSecureContext === false) return "https";
+  if (!speechRecognitionCtor()) return "browser";
   return null;
 }
 

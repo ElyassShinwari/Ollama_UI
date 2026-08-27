@@ -19,6 +19,7 @@ import { fetchCatalog, fillOllamaContext, probeBrowserOllama } from "@/lib/llm/c
 import { ollamaGate } from "@/lib/llm/ollama-client";
 import { cloudSecret } from "@/lib/llm/cloud";
 import { applyTheme, resolvedTheme } from "@/lib/theme";
+import { applyLocale, localeInfo, t } from "@/lib/i18n";
 import { useChatStore } from "@/lib/chat/store";
 import { syncStudio } from "@/lib/studio/store";
 import type { ModelCatalog, ModelRef } from "@/lib/chat/types";
@@ -107,11 +108,12 @@ export function ChatApp() {
   useEffect(() => {
     if (!hydrated) return;
     applyTheme(settings.theme);
+    applyLocale(settings.locale);
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = () => applyTheme(useChatStore.getState().settings.theme);
     media.addEventListener("change", onChange);
     return () => media.removeEventListener("change", onChange);
-  }, [hydrated, settings.theme]);
+  }, [hydrated, settings.theme, settings.locale]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -222,8 +224,8 @@ export function ChatApp() {
         </div>
 
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <SheetContent side="left" className="p-0">
-            <SheetTitle className="sr-only">Conversations</SheetTitle>
+          <SheetContent side={localeInfo(settings.locale).dir === "rtl" ? "right" : "left"} className="p-0">
+            <SheetTitle className="sr-only">{t(settings.locale, "conversations")}</SheetTitle>
             {sidebar}
           </SheetContent>
         </Sheet>

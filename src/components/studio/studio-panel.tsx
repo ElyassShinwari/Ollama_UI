@@ -14,6 +14,7 @@ import type { ModelRef } from "@/lib/chat/types";
 import { CloudConnect } from "@/components/chat/cloud-connect";
 import { cn } from "@/lib/utils";
 import { parseRepoUrl } from "@/lib/studio/github";
+import { t } from "@/lib/i18n";
 
 const TABS = [
   "GitHub",
@@ -38,6 +39,7 @@ export function StudioPanel({
   onOpenSidebar?: () => void;
 }) {
   const [tab, setTab] = useState<Tab>("GitHub");
+  const locale = useChatStore((s) => s.settings.locale);
   const selected = useChatStore((s) => s.selectedModel);
   const apiKey = useStudio((s) => s.apiKey);
   const channelSecret = useStudio((s) => s.channelSecret);
@@ -73,7 +75,7 @@ export function StudioPanel({
               </Button>
             ) : null}
             <div>
-              <h1 className="font-serif text-4xl tracking-tight">Studio</h1>
+              <h1 className="font-serif text-4xl tracking-tight">{t(locale, "studio")}</h1>
               <p className="mt-2 max-w-xl text-sm text-muted-foreground text-pretty">
                 Connect GitHub, MCP servers, a public API, and chatbots. Add instructions and knowledge.
                 Ollama does not train models in place — Studio tells you what is possible.
@@ -81,7 +83,7 @@ export function StudioPanel({
             </div>
           </div>
           <Button variant="outline" onClick={onClose}>
-            Back to chat
+            {t(locale, "backToChat")}
           </Button>
         </div>
         <div className="mb-6 flex flex-wrap gap-1">

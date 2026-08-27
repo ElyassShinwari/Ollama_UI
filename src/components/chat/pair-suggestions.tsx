@@ -5,6 +5,7 @@ import { PAIR_TASKS, pairLanes, pairStatus, type PairTask, type ReviewPair } fro
 import { useChatStore } from "@/lib/chat/store";
 import type { ModelRef } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 function applyReadyPair(writer: ModelRef, tester: ModelRef, task: string) {
   useChatStore.getState().setSelectedModel(writer);
@@ -53,6 +54,7 @@ export function PairSuggestions({
   const [openId, setOpenId] = useState<string | null>(null);
   const close = () => setOpenId(null);
   const rootRef = useDismiss(Boolean(openId), close);
+  const locale = useChatStore((s) => s.settings.locale);
   const q = query.trim().toLowerCase();
   const tasks = q
     ? PAIR_TASKS.filter((t) => {
@@ -67,11 +69,10 @@ export function PairSuggestions({
   return (
     <section ref={rootRef}>
       <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-        Review pairs
+        {t(locale, "reviewPairs")}
       </h2>
       <p className="mb-3 text-sm text-muted-foreground text-pretty">
-        One model writes, a different model tests — or the same model reviews its own work.
-        Match the tester to the job when you use two models.
+        {t(locale, "reviewPairsBlurb")}
       </p>
       <div className="flex flex-wrap gap-1.5">
         {tasks.map((task) => (
@@ -244,11 +245,12 @@ export function PairBar({
   const [openId, setOpenId] = useState<string | null>(null);
   const close = () => setOpenId(null);
   const rootRef = useDismiss(Boolean(openId), close);
+  const locale = useChatStore((s) => s.settings.locale);
   const open = PAIR_TASKS.find((t) => t.id === openId);
   return (
     <div ref={rootRef} className="border-b border-border px-3 py-2">
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-xs text-muted-foreground">Pairs</span>
+        <span className="text-xs text-muted-foreground">{t(locale, "reviewPairs")}</span>
         {PAIR_TASKS.map((task) => (
           <Button
             key={task.id}

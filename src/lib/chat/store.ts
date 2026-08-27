@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist, type PersistStorage } from "zustand/middleware";
+import { t, detectLocale, isLocaleId } from "@/lib/i18n";
 import { linkLinearMessages, visibleMessages } from "./tree";
 import type { Conversation, Message, ModelRef, Settings, TokenUsage } from "./types";
 
@@ -8,6 +9,7 @@ const defaultSettings: Settings = {
   temperature: 0.7,
   systemPrompt: "",
   theme: "light",
+  locale: detectLocale(),
   openaiKey: "",
   anthropicKey: "",
   xaiKey: "",
@@ -22,10 +24,10 @@ function uid() {
   return crypto.randomUUID();
 }
 
-function titleFrom(content: string) {
-  const t = content.replace(/\s+/g, " ").trim();
-  if (!t) return "New chat";
-  return t.length > 42 ? `${t.slice(0, 42)}…` : t;
+function titleFrom(content: string, locale?: string) {
+  const t0 = content.replace(/\s+/g, " ").trim();
+  if (!t0) return t(locale, "newChat");
+  return t0.length > 42 ? `${t0.slice(0, 42)}…` : t0;
 }
 
 function emptyUsage() {
@@ -197,7 +199,7 @@ export const useChatStore = create<ChatState>()(
         const now = Date.now();
         const conversation: Conversation = {
           id: uid(),
-          title: "New chat",
+          title: t(get().settings.locale, "newChat"),
           model: model ?? pendingModel(),
           messages: [],
           createdAt: now,
@@ -268,8 +270,10 @@ export const useChatStore = create<ChatState>()(
         set((s) => ({
           conversations: s.conversations.map((c) => {
             if (c.id !== conversationId) return c;
-            const titled =
-              visible.length === 0 && c.title === "New chat" ? titleFrom(content) : c.title;
+            const untitled =
+              visible.length === 0 &&
+              (c.title === "New chat" || c.title === t(s.settings.locale, "newChat"));
+            const titled = untitled ? titleFrom(content, s.settings.locale) : c.title;
             let messages = [...c.messages, user];
             messages = selectOnParent(messages, parent?.id ?? null, user.id);
             return {
@@ -405,7 +409,9 @@ export const useChatStore = create<ChatState>()(
               messages,
               activeRootId: user.parentId ? c.activeRootId : user.id,
               title:
-                !user.parentId || first?.id === messageId ? titleFrom(content) : c.title,
+                !user.parentId || first?.id === messageId
+                  ? titleFrom(content, s.settings.locale)
+                  : c.title,
               updatedAt: Date.now(),
               contextExceeded: false,
             };
@@ -488,7 +494,11 @@ export const useChatStore = create<ChatState>()(
         return {
           ...current,
           ...p,
-          settings: { ...defaultSettings, ...p.settings },
+          settings: {
+            ...defaultSettings,
+            ...p.settings,
+            locale: isLocaleId(p.settings?.locale) ? p.settings.locale : defaultSettings.locale,
+          },
           conversations: (p.conversations ?? current.conversations).map(normalizeConversation),
         };
       },

@@ -1,6 +1,7 @@
 export type Provider = "ollama" | "openai" | "anthropic" | "xai" | "kimi" | "deepseek";
 export type Transport = "browser" | "server";
 export type ThemeMode = "light" | "dark" | "system";
+export type AppLocale = "en" | "nl" | "de" | "es" | "it" | "ru" | "zh" | "ar" | "fa" | "prs" | "ps";
 
 export type ModelRef = {
   id: string;
@@ -69,6 +70,7 @@ export type Settings = {
   temperature: number;
   systemPrompt: string;
   theme: ThemeMode;
+  locale: AppLocale;
   openaiKey: string;
   anthropicKey: string;
   xaiKey: string;

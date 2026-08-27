@@ -11,6 +11,8 @@ import {
   transcriptFromSpeechEvent,
   type SpeechRec,
 } from "@/lib/speech";
+import { localeInfo, t } from "@/lib/i18n";
+import { useChatStore } from "@/lib/chat/store";
 
 export function Composer({
   value,
@@ -45,6 +47,7 @@ export function Composer({
   const baseRef = useRef("");
   const valueRef = useRef(value);
   const [listening, setListening] = useState(false);
+  const locale = useChatStore((s) => s.settings.locale);
 
   valueRef.current = value;
 
@@ -70,14 +73,20 @@ export function Composer({
     const blocked = speechInputBlockedReason();
     const Ctor = speechRecognitionCtor();
     if (blocked || !Ctor) {
-      toast.error(blocked ?? "Voice input isn’t available in this browser.");
+      toast.error(
+        blocked === "https"
+          ? t(locale, "voiceNeedHttps")
+          : blocked === "browser"
+            ? t(locale, "voiceNeedBrowser")
+            : t(locale, "voiceUnavailable"),
+      );
       return;
     }
     recRef.current?.abort();
     const rec = new Ctor();
     rec.continuous = true;
     rec.interimResults = true;
-    rec.lang = typeof navigator !== "undefined" ? navigator.language || "en-US" : "en-US";
+    rec.lang = localeInfo(locale).speech;
     baseRef.current = valueRef.current.trim();
     rec.onresult = (ev) => {
       const spoken = transcriptFromSpeechEvent(ev);
@@ -86,9 +95,9 @@ export function Composer({
     rec.onerror = (ev) => {
       if (ev.error === "aborted" || ev.error === "no-speech") return;
       if (ev.error === "not-allowed") {
-        toast.error("Microphone permission was denied.");
+        toast.error(t(locale, "micDenied"));
       } else {
-        toast.error("Voice input stopped.");
+        toast.error(t(locale, "voiceStopped"));
       }
       setListening(false);
     };
@@ -102,7 +111,7 @@ export function Composer({
       setListening(true);
     } catch {
       recRef.current = null;
-      toast.error("Could not start the microphone.");
+      toast.error(t(locale, "micFailed"));
     }
   }
 
@@ -145,7 +154,7 @@ export function Composer({
           rows={1}
           value={value}
           disabled={disabled && !streaming}
-          placeholder={listening ? "Listening…" : (placeholder ?? "Message Ollama UI")}
+          placeholder={listening ? t(locale, "listening") : (placeholder ?? t(locale, "chooseModelFirst"))}
           className="max-h-52 min-h-12 w-full resize-none bg-transparent px-3 py-3 text-base leading-6 text-foreground outline-none placeholder:text-subtle"
           onChange={(e) => {
             if (listening) stopListening();
@@ -178,7 +187,7 @@ export function Composer({
               size="icon-sm"
               variant="ghost"
               className="rounded-full"
-              aria-label="Add file"
+              aria-label={t(locale, "addFile")}
               disabled={streaming || disabled}
               onClick={() => {
                 inputRef.current?.click();
@@ -192,7 +201,7 @@ export function Composer({
               size="icon-sm"
               variant={listening ? "secondary" : "ghost"}
               className={cn("rounded-full", listening && "text-primary")}
-              aria-label={listening ? "Stop voice input" : "Voice input"}
+              aria-label={listening ? t(locale, "stopVoice") : t(locale, "voiceInput")}
               aria-pressed={listening}
               disabled={streaming || disabled}
               onClick={() => {
@@ -208,7 +217,7 @@ export function Composer({
               size="icon-sm"
               className="rounded-full"
               onClick={onStop}
-              aria-label="Stop generating"
+              aria-label={t(locale, "stopGenerating")}
             >
               <Square className="size-3.5 fill-current" />
             </Button>
@@ -221,7 +230,7 @@ export function Composer({
                 onSend();
               }}
               disabled={disabled || !canSend}
-              aria-label="Send message"
+              aria-label={t(locale, "send")}
             >
               <ArrowUp className="size-4" />
             </Button>
@@ -229,9 +238,7 @@ export function Composer({
         </div>
       </div>
       <p className="mt-2 text-center text-xs text-muted-foreground">
-        {listening
-          ? "Listening — tap the mic when you’re done, then send."
-          : "Replies come from the model you selected. Check anything important."}
+        {listening ? t(locale, "listeningHint") : t(locale, "disclaimer")}
       </p>
     </div>
   );

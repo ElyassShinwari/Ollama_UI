@@ -118,6 +118,18 @@
     color: var(--foreground);
   }
 
+  html[dir="rtl"] {
+    font-family: "Noto Naskh Arabic", "Tahoma", var(--font-sans);
+  }
+
+  html[dir="rtl"] .font-serif {
+    font-family: "Noto Naskh Arabic", var(--font-serif);
+  }
+
+  html[lang^="zh"] {
+    font-family: "Noto Sans SC", var(--font-sans);
+  }
+
   body {
     min-height: 100dvh;
     background: var(--background);
