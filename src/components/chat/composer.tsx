@@ -5,12 +5,12 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { PendingFile } from "@/lib/llm/files";
 import {
-  joinDraft,
+  createSpeechDraft,
   speechInputBlockedReason,
   speechRecognitionCtor,
-  transcriptFromSpeechEvent,
   type SpeechRec,
 } from "@/lib/speech";
+import { keepNodeInView } from "@/lib/viewport";
 import { localeInfo, t } from "@/lib/i18n";
 import { useChatStore } from "@/lib/chat/store";
 
@@ -44,6 +44,9 @@ export function Composer({
   const ref = useRef<HTMLTextAreaElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const recRef = useRef<SpeechRec | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const draftRef = useRef<ReturnType<typeof createSpeechDraft> | null>(null);
+  const wantListenRef = useRef(false);
   const baseRef = useRef("");
   const valueRef = useRef(value);
   const [listening, setListening] = useState(false);
@@ -51,21 +54,28 @@ export function Composer({
 
   valueRef.current = value;
 
+  function keepComposerVisible() {
+    window.requestAnimationFrame(() => keepNodeInView(wrapRef.current));
+  }
+
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+    if (document.activeElement === el) keepComposerVisible();
   }, [value]);
 
   useEffect(() => {
     return () => {
+      wantListenRef.current = false;
       recRef.current?.abort();
       recRef.current = null;
     };
   }, []);
 
   function stopListening() {
+    wantListenRef.current = false;
     recRef.current?.stop();
   }
 
@@ -84,16 +94,23 @@ export function Composer({
     }
     recRef.current?.abort();
     const rec = new Ctor();
-    rec.continuous = true;
+    rec.continuous = false;
     rec.interimResults = true;
+    rec.maxAlternatives = 1;
     rec.lang = localeInfo(locale).speech;
-    baseRef.current = valueRef.current.trim();
+    if (!wantListenRef.current || !draftRef.current) {
+      baseRef.current = valueRef.current.trim();
+      draftRef.current = createSpeechDraft(baseRef.current);
+    } else {
+      draftRef.current.beginUtterance();
+    }
     rec.onresult = (ev) => {
-      const spoken = transcriptFromSpeechEvent(ev);
-      onChange(joinDraft(baseRef.current, spoken));
+      const next = draftRef.current?.apply(ev);
+      if (next != null) onChange(next);
     };
     rec.onerror = (ev) => {
       if (ev.error === "aborted" || ev.error === "no-speech") return;
+      wantListenRef.current = false;
       if (ev.error === "not-allowed") {
         toast.error(t(locale, "micDenied"));
       } else {
@@ -103,14 +120,24 @@ export function Composer({
     };
     rec.onend = () => {
       recRef.current = null;
+      if (wantListenRef.current) {
+        window.setTimeout(() => {
+          if (wantListenRef.current) startListening();
+        }, 80);
+        return;
+      }
+      draftRef.current = null;
       setListening(false);
     };
     recRef.current = rec;
     try {
       rec.start();
+      wantListenRef.current = true;
       setListening(true);
     } catch {
       recRef.current = null;
+      wantListenRef.current = false;
+      draftRef.current = null;
       toast.error(t(locale, "micFailed"));
     }
   }
@@ -118,7 +145,7 @@ export function Composer({
   const canSend = Boolean(value.trim() || files.length);
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-3 pb-4 md:px-4">
+    <div ref={wrapRef} className="mx-auto w-full max-w-3xl shrink-0 px-3 pb-4 md:px-4">
       <div
         className={cn(
           "rounded-3xl bg-composer p-2 shadow-composer",
@@ -159,7 +186,9 @@ export function Composer({
           onChange={(e) => {
             if (listening) stopListening();
             onChange(e.target.value);
+            keepComposerVisible();
           }}
+          onFocus={keepComposerVisible}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();

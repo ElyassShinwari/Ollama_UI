@@ -20,6 +20,7 @@ import { ollamaGate } from "@/lib/llm/ollama-client";
 import { cloudSecret } from "@/lib/llm/cloud";
 import { applyTheme, resolvedTheme } from "@/lib/theme";
 import { applyLocale, localeInfo, t } from "@/lib/i18n";
+import { useAppViewport } from "@/lib/viewport";
 import { useChatStore } from "@/lib/chat/store";
 import { syncStudio } from "@/lib/studio/store";
 import type { ModelCatalog, ModelRef } from "@/lib/chat/types";
@@ -40,6 +41,7 @@ const emptyCatalog: ModelCatalog = {
 };
 
 export function ChatApp() {
+  useAppViewport();
   const selectedModel = useChatStore((s) => s.selectedModel);
   const setSelectedModel = useChatStore((s) => s.setSelectedModel);
   const settings = useChatStore((s) => s.settings);
@@ -205,7 +207,7 @@ export function ChatApp() {
 
   if (!hydrated) {
     return (
-      <div className="flex h-dvh items-center justify-center bg-background text-foreground">
+      <div className="flex h-app items-center justify-center bg-background text-foreground">
         <FlameMark className="size-10" />
       </div>
     );
@@ -213,7 +215,7 @@ export function ChatApp() {
 
   return (
     <TooltipProvider delayDuration={250}>
-      <div className="flex h-dvh overflow-hidden bg-background text-foreground">
+      <div className="flex h-app overflow-hidden bg-background text-foreground">
         <div
           className={cn(
             "hidden h-full shrink-0 overflow-hidden border-r border-border transition-[width] duration-200 ease-out md:block",
