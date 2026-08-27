@@ -15,6 +15,7 @@ import { ContextMeter } from "@/components/chat/context-meter";
 import { MessageBubble } from "@/components/chat/message-bubble";
 import { ModelPicker } from "@/components/chat/model-picker";
 import { PairBar } from "@/components/chat/pair-suggestions";
+import { LanguagePicker } from "@/components/chat/language-picker";
 import { estimateTokens, isContextOverflowError } from "@/lib/utils";
 import { greetingKey, t } from "@/lib/i18n";
 import { selectActiveConversation, chatPersist, useChatStore } from "@/lib/chat/store";
@@ -781,6 +782,7 @@ export function ChatView({
           onBrowse={onBrowseModels}
         />
         <div className="ms-auto flex items-center gap-1">
+          <LanguagePicker variant="icon" />
           <ContextMeter used={contextUsed} limit={contextLimit} />
         </div>
       </header>

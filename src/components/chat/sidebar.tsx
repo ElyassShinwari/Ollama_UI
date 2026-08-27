@@ -31,6 +31,7 @@ import {
 import { cn } from "@/lib/utils";
 import { applyTheme, resolvedTheme } from "@/lib/theme";
 import { t, type MsgKey } from "@/lib/i18n";
+import { LanguagePicker } from "@/components/chat/language-picker";
 import { useChatStore } from "@/lib/chat/store";
 import type { Conversation } from "@/lib/chat/types";
 
@@ -235,6 +236,7 @@ export function Sidebar({
           {resolvedTheme(theme) === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
           {resolvedTheme(theme) === "dark" ? t(locale, "lightMode") : t(locale, "darkMode")}
         </Button>
+        <LanguagePicker />
         <Button
           variant="ghost"
           className={cn("h-10 w-full justify-start gap-2", newsActive && "bg-accent")}
