@@ -39,8 +39,8 @@ export function speechInputBlockedReason(): "https" | "browser" | "unavailable" 
 }
 
 export function joinDraft(base: string, spoken: string) {
-  const a = base.trim();
-  const b = spoken.trim();
+  const a = norm(base);
+  const b = norm(spoken);
   if (!a) return b;
   if (!b) return a;
   return `${a} ${b}`;
@@ -50,80 +50,105 @@ function norm(text: string) {
   return text.replace(/\s+/g, " ").trim();
 }
 
+function fold(text: string) {
+  return norm(text)
+    .toLowerCase()
+    .replace(/[.,!?;:…"“”‘’'"`_\-–—()[\]{}]/g, "")
+    .replace(/[\u060C\u061B\u061F\u06D4]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function isDuplicateUtterance(prev: string, next: string) {
-  const a = norm(prev).toLowerCase();
-  const b = norm(next).toLowerCase();
+  const a = fold(prev);
+  const b = fold(next);
   if (!b) return true;
   if (!a) return false;
   if (b === a) return true;
-  if (a.endsWith(b) && b.length >= 4) return true;
-  if (b.startsWith(`${a} ${a}`)) return true;
+  if (a.includes(b) && b.length >= 4) return true;
   return false;
 }
 
-/** If the recognizer pasted the same phrase 2–5 times, keep one copy. */
+/** If the recognizer pasted the same phrase several times, keep one copy. */
 export function collapseRepeatedSpeech(text: string) {
   const words = norm(text).split(" ").filter(Boolean);
-  if (words.length < 4) return words.join(" ");
-  const maxUnit = Math.floor(words.length / 2);
-  for (let n = 1; n <= maxUnit; n++) {
-    if (words.length % n !== 0) continue;
-    const copies = words.length / n;
-    if (copies < 2) continue;
+  if (words.length < 2) return words.join(" ");
+  for (let n = 1; n <= Math.floor(words.length / 2); n++) {
     const unit = words.slice(0, n);
-    const unitText = unit.join(" ");
-    if (unitText.length < 8 && n < 2) continue;
-    let tiles = true;
-    for (let i = 0; i < words.length; i++) {
-      if (words[i] !== unit[i % n]) {
-        tiles = false;
-        break;
-      }
+    let copies = 1;
+    let i = n;
+    while (i + n <= words.length && unit.every((w, k) => words[i + k] === w)) {
+      copies += 1;
+      i += n;
     }
-    if (tiles) return unitText;
+    const rest = words.slice(i);
+    const restIsPrefix = rest.every((w, k) => w === unit[k]);
+    if (copies >= 2 && restIsPrefix) {
+      if (n === 1 && copies < 3) continue;
+      return unit.join(" ");
+    }
   }
   return words.join(" ");
 }
 
-export function transcriptFromSpeechEvent(ev: SpeechResultEvent) {
-  let finals = "";
-  let interim = "";
-  const start = Math.max(0, ev.resultIndex);
-  for (let i = start; i < ev.results.length; i++) {
-    const piece = norm(ev.results[i]?.[0]?.transcript ?? "");
-    if (!piece) continue;
-    if (ev.results[i]!.isFinal) finals = joinDraft(finals, piece);
-    else interim = piece;
+/**
+ * Combine two speech chunks without doubling.
+ * Handles extension ("hello" + "hello world"), overlap, and full repeats.
+ */
+export function mergeSpoken(existing: string, incoming: string) {
+  const a = norm(existing);
+  const b = norm(incoming);
+  if (!b) return a;
+  if (!a) return collapseRepeatedSpeech(b);
+  const al = fold(a);
+  const bl = fold(b);
+  if (!bl) return a;
+  if (al === bl) return a.length >= b.length ? a : b;
+  if (bl.startsWith(al) || al.startsWith(bl)) {
+    return collapseRepeatedSpeech(al.length >= bl.length ? a : b);
   }
-  return collapseRepeatedSpeech(joinDraft(finals, interim));
+  if (al.includes(bl) && bl.length >= 6) return collapseRepeatedSpeech(a);
+  if (bl.includes(al) && al.length >= 6) return collapseRepeatedSpeech(b);
+
+  const aw = a.split(" ");
+  const bw = b.split(" ");
+  const maxW = Math.min(aw.length, bw.length);
+  for (let n = maxW; n >= 1; n--) {
+    if (aw.slice(-n).join(" ").toLowerCase() === bw.slice(0, n).join(" ").toLowerCase()) {
+      return collapseRepeatedSpeech(norm([...aw, ...bw.slice(n)].join(" ")));
+    }
+  }
+
+  const maxC = Math.min(a.length, b.length);
+  for (let n = maxC; n >= 4; n--) {
+    if (a.slice(-n).toLowerCase() === b.slice(0, n).toLowerCase()) {
+      return collapseRepeatedSpeech(norm(a + b.slice(n)));
+    }
+  }
+
+  return collapseRepeatedSpeech(joinDraft(a, b));
+}
+
+export function spokenFromResults(ev: SpeechResultEvent) {
+  let out = "";
+  const len = ev.results.length;
+  for (let i = 0; i < len; i++) {
+    const piece = norm(ev.results[i]?.[0]?.transcript ?? "");
+    if (piece) out = mergeSpoken(out, piece);
+  }
+  return collapseRepeatedSpeech(out);
+}
+
+export function transcriptFromSpeechEvent(ev: SpeechResultEvent) {
+  return spokenFromResults(ev);
 }
 
 export function createSpeechDraft(base: string) {
-  let finals = "";
-  let lastFinal = "";
-  let seen = 0;
   const prefix = norm(base);
   return {
-    beginUtterance() {
-      seen = 0;
-    },
+    beginUtterance() {},
     apply(ev: SpeechResultEvent) {
-      let interim = "";
-      const start = Math.max(ev.resultIndex, seen);
-      for (let i = start; i < ev.results.length; i++) {
-        const piece = norm(ev.results[i]?.[0]?.transcript ?? "");
-        if (!piece) continue;
-        if (ev.results[i]!.isFinal) {
-          seen = i + 1;
-          if (isDuplicateUtterance(lastFinal, piece) || isDuplicateUtterance(finals, piece)) continue;
-          finals = joinDraft(finals, piece);
-          lastFinal = piece;
-        } else {
-          if (isDuplicateUtterance(lastFinal, piece) || isDuplicateUtterance(finals, piece)) continue;
-          interim = piece;
-        }
-      }
-      return joinDraft(prefix, collapseRepeatedSpeech(joinDraft(finals, interim)));
+      return joinDraft(prefix, spokenFromResults(ev));
     },
   };
 }

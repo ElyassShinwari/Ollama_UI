@@ -454,6 +454,11 @@ test("voice draft joins spoken words onto existing text", () => {
 test("voice input keeps one copy when the recognizer repeats a phrase", () => {
   const repeated = "install the model install the model install the model install the model";
   assert.equal(speech.collapseRepeatedSpeech(repeated), "install the model");
+  assert.equal(speech.collapseRepeatedSpeech("hello hello hello hello"), "hello");
+  assert.equal(speech.mergeSpoken("hello", "hello world"), "hello world");
+  assert.equal(speech.mergeSpoken("hello world", "hello world"), "hello world");
+  assert.equal(speech.mergeSpoken("hello world", "hello world hello world"), "hello world");
+  assert.equal(speech.mergeSpoken("install the", "the model"), "install the model");
   assert.equal(speech.isDuplicateUtterance("hello there", "hello there"), true);
   assert.equal(speech.isDuplicateUtterance("hello there", "hello there friend"), false);
   const draft = speech.createSpeechDraft("");
@@ -468,9 +473,18 @@ test("voice input keeps one copy when the recognizer repeats a phrase", () => {
       { isFinal: true, 0: { transcript: "open a new chat" } },
       { isFinal: true, 0: { transcript: "open a new chat" } },
       { isFinal: true, 0: { transcript: "open a new chat" } },
+      { isFinal: true, 0: { transcript: "open a new chat" } },
     ],
   };
   assert.equal(draft.apply(again), "open a new chat");
+  const growing = {
+    resultIndex: 0,
+    results: [
+      { isFinal: true, 0: { transcript: "open" } },
+      { isFinal: true, 0: { transcript: "open a new chat" } },
+    ],
+  };
+  assert.equal(draft.apply(growing), "open a new chat");
 });
 
 test("locales cover the requested languages including Dari and Pashto", () => {

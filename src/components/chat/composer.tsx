@@ -45,9 +45,6 @@ export function Composer({
   const inputRef = useRef<HTMLInputElement>(null);
   const recRef = useRef<SpeechRec | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const draftRef = useRef<ReturnType<typeof createSpeechDraft> | null>(null);
-  const wantListenRef = useRef(false);
-  const baseRef = useRef("");
   const valueRef = useRef(value);
   const [listening, setListening] = useState(false);
   const locale = useChatStore((s) => s.settings.locale);
@@ -68,15 +65,15 @@ export function Composer({
 
   useEffect(() => {
     return () => {
-      wantListenRef.current = false;
       recRef.current?.abort();
       recRef.current = null;
     };
   }, []);
 
   function stopListening() {
-    wantListenRef.current = false;
     recRef.current?.stop();
+    recRef.current = null;
+    setListening(false);
   }
 
   function startListening() {
@@ -94,50 +91,34 @@ export function Composer({
     }
     recRef.current?.abort();
     const rec = new Ctor();
-    rec.continuous = false;
+    rec.continuous = true;
     rec.interimResults = true;
     rec.maxAlternatives = 1;
     rec.lang = localeInfo(locale).speech;
-    if (!wantListenRef.current || !draftRef.current) {
-      baseRef.current = valueRef.current.trim();
-      draftRef.current = createSpeechDraft(baseRef.current);
-    } else {
-      draftRef.current.beginUtterance();
-    }
+    const draft = createSpeechDraft(valueRef.current.trim());
     rec.onresult = (ev) => {
-      const next = draftRef.current?.apply(ev);
-      if (next != null) onChange(next);
+      onChange(draft.apply(ev));
     };
     rec.onerror = (ev) => {
       if (ev.error === "aborted" || ev.error === "no-speech") return;
-      wantListenRef.current = false;
       if (ev.error === "not-allowed") {
         toast.error(t(locale, "micDenied"));
       } else {
         toast.error(t(locale, "voiceStopped"));
       }
+      recRef.current = null;
       setListening(false);
     };
     rec.onend = () => {
       recRef.current = null;
-      if (wantListenRef.current) {
-        window.setTimeout(() => {
-          if (wantListenRef.current) startListening();
-        }, 80);
-        return;
-      }
-      draftRef.current = null;
       setListening(false);
     };
     recRef.current = rec;
     try {
       rec.start();
-      wantListenRef.current = true;
       setListening(true);
     } catch {
       recRef.current = null;
-      wantListenRef.current = false;
-      draftRef.current = null;
       toast.error(t(locale, "micFailed"));
     }
   }
