@@ -6,6 +6,7 @@ const files = await import("../src/lib/llm/files.ts");
 const repeat = await import("../src/lib/llm/repeat.ts");
 const tree = await import("../src/lib/chat/tree.ts");
 const git = await import("../src/lib/studio/github.ts");
+const speech = await import("../src/lib/speech.ts");
 
 test("reviewSatisfied accepts a tester that is done", () => {
   assert.equal(cloud.reviewSatisfied("SATISFIED\nLooks good."), true);
@@ -435,4 +436,16 @@ test("ollama chat payload matches the terminal: stream, no extra options", async
   assert.deepEqual(chunks, ["Hel", "lo"]);
   assert.equal(typeof ollama.streamOllamaDirect, "function");
   assert.equal(typeof ollama.streamOllamaFetch, "function");
+});
+
+test("voice draft joins spoken words onto existing text", () => {
+  assert.equal(speech.joinDraft("", "hello there"), "hello there");
+  assert.equal(speech.joinDraft("Write a function", "in rust"), "Write a function in rust");
+  assert.equal(speech.joinDraft("  keep  ", ""), "keep");
+  const ev = {
+    resultIndex: 0,
+    results: [{ isFinal: false, 0: { transcript: "hello" } }, { isFinal: true, 0: { transcript: " world" } }],
+  };
+  assert.equal(speech.transcriptFromSpeechEvent(ev), "hello world");
+  assert.equal(speech.speechInputAvailable(), false);
 });
