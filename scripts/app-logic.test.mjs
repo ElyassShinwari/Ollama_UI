@@ -491,6 +491,13 @@ test("voice input keeps one copy when the recognizer repeats a phrase", () => {
   assert.equal(draft.apply(growing), "open a new chat");
 });
 
+test("abort errors from a cancelled pull are recognized", async () => {
+  const setup = await import("../src/lib/llm/setup.ts");
+  assert.equal(setup.isAbortError(new DOMException("Aborted", "AbortError")), true);
+  assert.equal(setup.isAbortError(new Error("The user aborted a request.")), true);
+  assert.equal(setup.isAbortError(new Error("disk full")), false);
+});
+
 test("locales cover the requested languages including Dari and Pashto", () => {
   assert.equal(i18n.matchLocale("nl-NL"), "nl");
   assert.equal(i18n.matchLocale("de"), "de");

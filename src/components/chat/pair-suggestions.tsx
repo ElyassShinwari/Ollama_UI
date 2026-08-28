@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { PAIR_TASKS, findLocalModel, pairLanes, pairStatus, type PairTask, type ReviewPair } from "@/lib/llm/pairs";
 import { pullOllamaModel } from "@/lib/llm/pull-client";
+import { isAbortError } from "@/lib/llm/setup";
 import { useChatStore } from "@/lib/chat/store";
 import type { ModelRef } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
@@ -168,10 +170,31 @@ function SameModelLane({ taskName, onUsed }: { taskName: string; onUsed?: () => 
   );
 }
 
-function PullBar({ label, pct }: { label: string; pct: number }) {
+function PullBar({
+  label,
+  pct,
+  onCancel,
+}: {
+  label: string;
+  pct: number;
+  onCancel?: () => void;
+}) {
   const n = Math.max(0, Math.min(100, Math.round(pct)));
+  const canStop = Boolean(onCancel) && n < 100;
   return (
-    <div className="space-y-1">
+    <div className="relative space-y-1 pe-7 pt-1">
+      {canStop ? (
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          className="absolute top-0 end-0 z-10 size-6 rounded-full border border-border bg-card text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
+          aria-label={`Cancel ${label}`}
+          onClick={onCancel}
+        >
+          <X className="size-3.5" />
+        </Button>
+      ) : null}
       <p className="font-mono text-[11px] text-muted-foreground">
         {label} · {n}%
       </p>
@@ -201,20 +224,59 @@ function PairLane({
 }) {
   const status = pairStatus(models, pair);
   const [pct, setPct] = useState<{ w: number; t: number } | null>(null);
+  const abortRef = useRef<{ w?: AbortController; t?: AbortController }>({});
   const installing = pct != null;
+
+  useEffect(() => {
+    return () => {
+      abortRef.current.w?.abort();
+      abortRef.current.t?.abort();
+    };
+  }, []);
+
+  async function pullOne(
+    which: "w" | "t",
+    id: string,
+    host: string,
+  ): Promise<"ok" | "cancelled" | "failed"> {
+    const ac = abortRef.current[which] ?? new AbortController();
+    abortRef.current[which] = ac;
+    if (ac.signal.aborted) return "cancelled";
+    try {
+      const ok = await pullOllamaModel(
+        host,
+        id,
+        (p) =>
+          setPct((cur) =>
+            which === "w" ? { w: p, t: cur?.t ?? 1 } : { w: cur?.w ?? 100, t: p },
+          ),
+        ac.signal,
+      );
+      return ok ? "ok" : ac.signal.aborted ? "cancelled" : "failed";
+    } catch (err) {
+      if (isAbortError(err) || ac.signal.aborted) {
+        toast.message(`Stopped ${id}`);
+        return "cancelled";
+      }
+      throw err;
+    }
+  }
 
   async function installBoth() {
     const host = useChatStore.getState().settings.ollamaHost;
     const haveW = Boolean(findLocalModel(models, pair.writer));
     const haveT = Boolean(findLocalModel(models, pair.tester));
+    abortRef.current = { w: new AbortController(), t: new AbortController() };
     setPct({ w: haveW ? 100 : 1, t: haveT ? 100 : 1 });
     toast.message(`Installing ${pair.writer} and ${pair.tester}…`);
     try {
       if (!haveW) {
-        await pullOllamaModel(host, pair.writer, (p) => setPct((cur) => ({ w: p, t: cur?.t ?? 1 })));
+        const result = await pullOne("w", pair.writer, host);
+        if (result === "failed") throw new Error(`Could not install ${pair.writer}`);
       }
       if (!haveT && pair.tester !== pair.writer) {
-        await pullOllamaModel(host, pair.tester, (p) => setPct((cur) => ({ w: cur?.w ?? 100, t: p })));
+        const result = await pullOne("t", pair.tester, host);
+        if (result === "failed") throw new Error(`Could not install ${pair.tester}`);
       }
       const fresh = (await onRefreshLocal?.()) ?? models;
       const writer = findLocalModel(fresh, pair.writer);
@@ -222,13 +284,18 @@ function PairLane({
       if (writer && tester) {
         applyReadyPair(writer, tester, taskName);
         onUsed?.();
+      } else if (writer || tester) {
+        toast.message("One model is ready. Install the other when you want it.");
+        if (writer) useChatStore.getState().setSelectedModel(writer);
+        if (tester) useChatStore.getState().setTesterKey(`${tester.provider}:${tester.id}`);
       } else {
-        toast.error("Download did not finish. Open Models if you need to retry.");
-        onBrowse?.();
+        toast.message("Install cancelled");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not install this pair");
-      onBrowse?.();
+      if (!isAbortError(err)) {
+        toast.error(err instanceof Error ? err.message : "Could not install this pair");
+        onBrowse?.();
+      }
     } finally {
       setPct(null);
     }
@@ -248,8 +315,16 @@ function PairLane({
       <div className="mt-2">
         {installing ? (
           <div className="space-y-2">
-            <PullBar label={pair.writer} pct={pct.w} />
-            <PullBar label={pair.tester} pct={pct.t} />
+            <PullBar
+              label={pair.writer}
+              pct={pct.w}
+              onCancel={pct.w < 100 ? () => abortRef.current.w?.abort() : undefined}
+            />
+            <PullBar
+              label={pair.tester}
+              pct={pct.t}
+              onCancel={pct.t < 100 ? () => abortRef.current.t?.abort() : undefined}
+            />
           </div>
         ) : status.ready && status.writer && status.tester ? (
           <Button

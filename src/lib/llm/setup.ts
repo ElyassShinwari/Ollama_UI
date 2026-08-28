@@ -40,6 +40,15 @@ export async function listHfQuants(repo: string): Promise<string[]> {
   return body.quants ?? [];
 }
 
+export function isAbortError(err: unknown) {
+  if (!err) return false;
+  if (typeof err === "object" && "name" in err && (err as { name?: string }).name === "AbortError") {
+    return true;
+  }
+  const msg = err instanceof Error ? err.message : String(err);
+  return /aborted|AbortError|The user aborted/i.test(msg);
+}
+
 export async function readSetupStream(
   url: string,
   onLine: (line: string) => void,

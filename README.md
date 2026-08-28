@@ -68,7 +68,7 @@ While a model downloads, the percent stays in the log at the top. The shadow lin
 
 The runtime is still Ollama: Hugging Face GGUF files are downloaded through it and then chat like any other local model.
 
-**Review pairs** (Coding, Writing, Math, Science, Translation, Research, Everyday chat, Images) suggest two local models: a writer and a tester. Each job has four sizes — **very light**, **light**, **medium**, **heavy** — plus **Same model**, so the writer can review its own work. Tap **Install both** to download the pair automatically (Ollama must be running). If the tester is still not satisfied on the last cycle, that tester finishes the answer itself.
+**Review pairs** (Coding, Writing, Math, Science, Translation, Research, Everyday chat, Images) suggest two local models: a writer and a tester. Each job has four sizes — **very light**, **light**, **medium**, **heavy** — plus **Same model**, so the writer can review its own work. Tap **Install both** to download the pair automatically (Ollama must be running). While a model is downloading, the **×** on that model stops only that install. If the tester is still not satisfied on the last cycle, that tester finishes the answer itself.
 
 ## Install Ollama by hand (optional)
 

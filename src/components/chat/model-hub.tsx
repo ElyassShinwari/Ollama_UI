@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, LoaderCircle, Search, Sparkles, Trash2 } from "lucide-react";
+import { Download, LoaderCircle, Search, Sparkles, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,9 +19,8 @@ import {
   suggestQueries,
   type LibraryModel,
 } from "@/lib/llm/library";
-import { fetchSetup, listHfQuants, readSetupStream, searchLibrary, type SetupStatus } from "@/lib/llm/setup";
+import { fetchSetup, isAbortError, listHfQuants, readSetupStream, searchLibrary, type SetupStatus } from "@/lib/llm/setup";
 import { PairSuggestions } from "@/components/chat/pair-suggestions";
-import { useChatStore } from "@/lib/chat/store";
 import type { ModelRef } from "@/lib/chat/types";
 import { cn, formatBytes, formatContextWindow } from "@/lib/utils";
 
@@ -48,6 +47,7 @@ export function ModelHub({
   const [log, setLog] = useState<string[]>([]);
   const [pulls, setPulls] = useState<Record<string, number>>({});
   const pullingRef = useRef(new Set<string>());
+  const abortRef = useRef(new Map<string, AbortController>());
   const [pendingDelete, setPendingDelete] = useState<ModelRef | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [openSuggest, setOpenSuggest] = useState(false);
@@ -68,7 +68,11 @@ export function ModelHub({
   useEffect(() => {
     void refreshStatus();
     const id = window.setInterval(() => void refreshStatus(), 8000);
-    return () => window.clearInterval(id);
+    return () => {
+      window.clearInterval(id);
+      for (const ac of abortRef.current.values()) ac.abort();
+      abortRef.current.clear();
+    };
   }, [host]);
 
   const localSuggest = useMemo(() => suggestQueries(query), [query]);
@@ -134,6 +138,8 @@ export function ModelHub({
     }
     if (pullingRef.current.has(id)) return false;
     pullingRef.current.add(id);
+    const ac = new AbortController();
+    abortRef.current.set(id, ac);
     setPulls((cur) => ({ ...cur, [id]: 0 }));
     pushLog(`Installing ${id}…`);
     let succeeded = false;
@@ -145,6 +151,7 @@ export function ModelHub({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ host, model: id }),
+          signal: ac.signal,
         },
         (pct) => setPulls((cur) => ({ ...cur, [id]: pct })),
       );
@@ -160,10 +167,16 @@ export function ModelHub({
       }
       return ok;
     } catch (err) {
+      if (isAbortError(err) || ac.signal.aborted) {
+        pushLog(`${id}: cancelled`);
+        toast.message(`Stopped ${id}`);
+        return false;
+      }
       pushLog(err instanceof Error ? `${id}: ${err.message}` : `${id}: Download failed`);
       return false;
     } finally {
       pullingRef.current.delete(id);
+      abortRef.current.delete(id);
       if (succeeded) {
         window.setTimeout(() => {
           setPulls((cur) => {
@@ -182,6 +195,12 @@ export function ModelHub({
         });
       }
     }
+  }
+
+  function cancelInstall(id: string) {
+    const ac = abortRef.current.get(id);
+    if (!ac) return;
+    ac.abort();
   }
 
   async function deleteModel(model: ModelRef) {
@@ -400,6 +419,7 @@ export function ModelHub({
         pulls={pulls}
         disabled={!status?.running}
         onInstall={(id) => void installModel(id)}
+        onCancel={cancelInstall}
         onUse={(id) => {
           const match = localModels.find((m) => sameOllamaId(m.id, id) || m.id.includes(id));
           if (match) onChoose(match);
@@ -418,6 +438,7 @@ export function ModelHub({
         pulls={pulls}
         disabled={!status?.running}
         onInstall={(id) => void installModel(id)}
+        onCancel={cancelInstall}
         onUse={(id) => {
           const match = localModels.find((m) => sameOllamaId(m.id, id) || m.id.includes(id));
           if (match) onChoose(match);
@@ -463,6 +484,7 @@ function LibrarySection({
   pulls,
   disabled,
   onInstall,
+  onCancel,
   onUse,
 }: {
   title: string;
@@ -472,6 +494,7 @@ function LibrarySection({
   pulls: Record<string, number>;
   disabled: boolean;
   onInstall: (id: string) => void;
+  onCancel: (id: string) => void;
   onUse: (id: string) => void;
 }) {
   return (
@@ -486,6 +509,7 @@ function LibrarySection({
             pulls={pulls}
             disabled={disabled}
             onInstall={onInstall}
+            onCancel={onCancel}
             onUse={onUse}
           />
         ))}
@@ -510,6 +534,7 @@ function LibraryCard({
   pulls,
   disabled,
   onInstall,
+  onCancel,
   onUse,
 }: {
   model: LibraryModel;
@@ -517,6 +542,7 @@ function LibraryCard({
   pulls: Record<string, number>;
   disabled: boolean;
   onInstall: (id: string) => void;
+  onCancel: (id: string) => void;
   onUse: (id: string) => void;
 }) {
   const [extra, setExtra] = useState<string[]>([]);
@@ -549,7 +575,7 @@ function LibraryCard({
       {model.description ? (
         <p className="mt-1 text-sm text-muted-foreground text-pretty">{model.description}</p>
       ) : null}
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-3 flex flex-wrap gap-2 pt-2 pe-2">
         {ids.map((id) => {
           const have = [...localIds].some((local) => sameOllamaId(local, id) || local.includes(id));
           const percent = pulls[id];
@@ -565,32 +591,48 @@ function LibraryCard({
                 : "Install from Hugging Face"
               : `Install ${short}`;
           return (
-            <Button
-              key={id}
-              size="sm"
-              variant={have ? "secondary" : "outline"}
-              className={cn(
-                "relative h-8 overflow-hidden",
-                rowActive && "min-w-40",
-                have && "ring-1 ring-ring/30",
-                rowActive && !have && "pointer-events-none",
-              )}
-              disabled={disabled && !have}
-              aria-busy={rowActive || undefined}
-              onClick={() => (have ? onUse(id) : onInstall(id))}
-            >
-              {rowActive ? <InstallProgress percent={shown} /> : null}
-              <span
+            <div key={id} className="relative flex items-start gap-0.5">
+              {rowActive && percent < 100 ? (
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  className="absolute -top-2 -end-2 z-20 size-6 rounded-full border border-border bg-card text-muted-foreground shadow-sm hover:bg-destructive hover:text-destructive-foreground"
+                  aria-label={`Cancel ${id}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onCancel(id);
+                  }}
+                >
+                  <X className="size-3.5" />
+                </Button>
+              ) : null}
+              <Button
+                size="sm"
+                variant={have ? "secondary" : "outline"}
                 className={cn(
-                  "relative z-10 flex items-center gap-1.5 transition-colors duration-200 ease-out",
-                  ready && "text-ready",
+                  "relative h-8 overflow-hidden",
+                  rowActive && "min-w-40 pe-8",
+                  have && "ring-1 ring-ring/30",
                 )}
+                disabled={(disabled && !have) || (rowActive && percent < 100)}
+                aria-busy={rowActive || undefined}
+                onClick={() => (have ? onUse(id) : onInstall(id))}
               >
-                {rowActive && percent < 100 ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
-                {label}
-                {rowActive ? <span className="font-mono tabular-nums">{Math.round(percent)}%</span> : null}
-              </span>
-            </Button>
+                {rowActive ? <InstallProgress percent={shown} /> : null}
+                <span
+                  className={cn(
+                    "relative z-10 flex items-center gap-1.5 transition-colors duration-200 ease-out",
+                    ready && "text-ready",
+                  )}
+                >
+                  {rowActive && percent < 100 ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
+                  {label}
+                  {rowActive ? <span className="font-mono tabular-nums">{Math.round(percent)}%</span> : null}
+                </span>
+              </Button>
+            </div>
           );
         })}
         {hf && model.repo && extra.length === 0 ? (
