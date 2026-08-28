@@ -14,10 +14,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { CloudConnect } from "@/components/chat/cloud-connect";
 import { applyTheme } from "@/lib/theme";
 import { applyLocale, LOCALES, t, type LocaleId } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import { useChatStore } from "@/lib/chat/store";
 import { syncStudio } from "@/lib/studio/store";
 import type { ThemeMode } from "@/lib/chat/types";
-import { cn } from "@/lib/utils";
+import { conversationsBackup, downloadText } from "@/lib/chat/export";
 
 export function SettingsDialog({
   open,
@@ -163,6 +164,21 @@ export function SettingsDialog({
               rows={4}
             />
           </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10"
+            onClick={() => {
+              const data = conversationsBackup(useChatStore.getState().conversations);
+              downloadText(
+                `ollama-ui-chats.json`,
+                JSON.stringify(data, null, 2),
+                "application/json;charset=utf-8",
+              );
+            }}
+          >
+            {t(lang, "exportAll")}
+          </Button>
         </div>
         <DialogFooter>
           <Button

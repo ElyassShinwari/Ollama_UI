@@ -304,7 +304,7 @@ export function ChatApp() {
       >
         <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Models</DialogTitle>
+            <DialogTitle>{t(settings.locale, "modelsTitle")}</DialogTitle>
           </DialogHeader>
           <ModelHub
             host={settings.ollamaHost}

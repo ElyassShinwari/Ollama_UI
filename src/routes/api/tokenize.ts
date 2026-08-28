@@ -14,10 +14,18 @@ export const Route = createFileRoute("/api/tokenize")({
         }
         const model = typeof body.model === "string" ? body.model : "";
         const prompt = typeof body.prompt === "string" ? body.prompt : "";
-        const host = typeof body.host === "string" ? body.host : "http://127.0.0.1:11434";
+        let host: string;
+        try {
+          host = sanitizeOllamaHost(typeof body.host === "string" ? body.host : "http://127.0.0.1:11434");
+        } catch (err) {
+          return Response.json(
+            { error: err instanceof Error ? err.message : "Invalid host" },
+            { status: 400 },
+          );
+        }
         if (!model) return Response.json({ error: "Model is required" }, { status: 400 });
         try {
-          const count = await tokenizeOllama(sanitizeOllamaHost(host), model, prompt);
+          const count = await tokenizeOllama(host, model, prompt);
           if (count == null) {
             return Response.json({ error: "Tokenizer unavailable" }, { status: 502 });
           }

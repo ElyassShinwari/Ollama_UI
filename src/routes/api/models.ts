@@ -1,12 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { listCloudModels, listOllamaModels } from "@/lib/llm/providers.server";
+import { sanitizeOllamaHost } from "@/lib/utils";
 
 export const Route = createFileRoute("/api/models")({
   server: {
     handlers: {
       GET: async ({ request }) => {
         const url = new URL(request.url);
-        const host = url.searchParams.get("host") || "http://127.0.0.1:11434";
+        let host: string;
+        try {
+          host = sanitizeOllamaHost(url.searchParams.get("host") || "http://127.0.0.1:11434");
+        } catch (err) {
+          return Response.json(
+            { error: err instanceof Error ? err.message : "Invalid host" },
+            { status: 400 },
+          );
+        }
         const openaiKey = request.headers.get("x-openai-key") || "";
         const anthropicKey = request.headers.get("x-anthropic-key") || "";
         const xaiKey = request.headers.get("x-xai-key") || process.env.XAI_API_KEY || "";

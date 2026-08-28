@@ -15,7 +15,7 @@ export type ModelRef = {
   capabilities?: string[];
 };
 
-export type Role = "user" | "assistant" | "system";
+export type Role = "user" | "assistant" | "system" | "note";
 
 export type MessageAttachment = {
   name: string;

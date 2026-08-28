@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Blocks,
+  Download,
   Moon,
   MoreHorizontal,
   Newspaper,
@@ -31,6 +32,7 @@ import {
 import { cn } from "@/lib/utils";
 import { applyTheme, resolvedTheme } from "@/lib/theme";
 import { t, type MsgKey } from "@/lib/i18n";
+import { conversationMarkdown, conversationsBackup, downloadText } from "@/lib/chat/export";
 import { LanguagePicker } from "@/components/chat/language-picker";
 import { useChatStore } from "@/lib/chat/store";
 import type { Conversation } from "@/lib/chat/types";
@@ -91,6 +93,7 @@ export function Sidebar({
   const activeId = useChatStore((s) => s.activeId);
   const search = useChatStore((s) => s.search);
   const setSearch = useChatStore((s) => s.setSearch);
+  const [searchDraft, setSearchDraft] = useState(search);
   const setActive = useChatStore((s) => s.setActive);
   const deleteConversation = useChatStore((s) => s.deleteConversation);
   const renameConversation = useChatStore((s) => s.renameConversation);
@@ -101,6 +104,11 @@ export function Sidebar({
   const [renaming, setRenaming] = useState<Conversation | null>(null);
   const [title, setTitle] = useState("");
   const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setSearch(searchDraft), 150);
+    return () => window.clearTimeout(id);
+  }, [searchDraft, setSearch]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -136,8 +144,8 @@ export function Sidebar({
         <div className="relative">
           <Search className="pointer-events-none absolute top-1/2 start-3 size-4 -translate-y-1/2 text-subtle" />
           <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchDraft}
+            onChange={(e) => setSearchDraft(e.target.value)}
             placeholder={t(locale, "searchChats")}
             className="h-9 bg-secondary/80 ps-9"
           />
@@ -177,7 +185,7 @@ export function Sidebar({
                         size="icon-sm"
                         variant="ghost"
                         className="text-muted-foreground hover:text-destructive"
-                        aria-label={`Delete ${c.title}`}
+                        aria-label={t(locale, "deleteNamed", { title: c.title })}
                         onClick={() => setPendingDelete(c)}
                       >
                         <Trash2 className="size-4" />
@@ -187,12 +195,24 @@ export function Sidebar({
                           <Button
                             size="icon-sm"
                             variant="ghost"
-                            aria-label="Conversation actions"
+                            aria-label={t(locale, "conversationActions")}
                           >
                             <MoreHorizontal className="size-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onSelect={() => {
+                              downloadText(
+                                `${c.title.replace(/[^\w.-]+/g, "_") || "chat"}.md`,
+                                conversationMarkdown(c),
+                                "text/markdown;charset=utf-8",
+                              );
+                            }}
+                          >
+                            <Download className="size-4" />
+                            {t(locale, "exportChat")}
+                          </DropdownMenuItem>
                           <DropdownMenuItem
                             onSelect={() => {
                               setRenaming(c);
@@ -223,7 +243,7 @@ export function Sidebar({
           ))
         )}
       </nav>
-      <div className="flex flex-col gap-1 border-t border-border p-3">
+      <div className="flex flex-col gap-1 border-t border-border p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <LanguagePicker />
         <Button
           variant="ghost"

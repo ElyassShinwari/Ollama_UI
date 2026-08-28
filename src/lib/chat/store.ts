@@ -79,7 +79,7 @@ type ChatState = {
   deleteConversation: (id: string) => void;
   renameConversation: (id: string, title: string) => void;
   togglePin: (id: string) => void;
-  addUserMessage: (content: string, extra?: { images?: string[]; documents?: Message["documents"]; attachments?: Message["attachments"]; conversationId?: string }) => { conversationId: string; user: Message };
+  addUserMessage: (content: string, extra?: { images?: string[]; documents?: Message["documents"]; attachments?: Message["attachments"]; conversationId?: string; role?: "user" | "note" }) => { conversationId: string; user: Message };
   startAssistantMessage: (conversationId: string, model: ModelRef, parentId: string) => string;
   appendToMessage: (conversationId: string, messageId: string, chunk: string) => void;
   finishMessage: (conversationId: string, messageId: string) => void;
@@ -256,9 +256,10 @@ export const useChatStore = create<ChatState>()(
         const conv = get().conversations.find((c) => c.id === conversationId)!;
         const visible = visibleMessages(conv.messages, conv.activeRootId);
         const parent = visible[visible.length - 1];
+        const isNote = extra?.role === "note";
         const user: Message = {
           id: uid(),
-          role: "user",
+          role: isNote ? "note" : "user",
           content,
           createdAt: now,
           parentId: parent?.id ?? null,
@@ -271,6 +272,7 @@ export const useChatStore = create<ChatState>()(
           conversations: s.conversations.map((c) => {
             if (c.id !== conversationId) return c;
             const untitled =
+              !isNote &&
               visible.length === 0 &&
               (c.title === "New chat" || c.title === t(s.settings.locale, "newChat"));
             const titled = untitled ? titleFrom(content, s.settings.locale) : c.title;

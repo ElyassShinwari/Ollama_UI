@@ -1,4 +1,7 @@
+import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
+import { useChatStore } from "@/lib/chat/store";
 
 function exact(n: number) {
   return Math.max(0, Math.round(n)).toLocaleString();
@@ -11,19 +14,61 @@ export function ContextMeter({
   used: number;
   limit?: number;
 }) {
+  const locale = useChatStore((s) => s.settings.locale);
+  const [open, setOpen] = useState(false);
   if (!limit || limit <= 0) {
     return (
-      <div className="px-2 text-right text-xs text-muted-foreground">
-        {used > 0 ? `${exact(used)} tok` : "Context —"}
+      <div className="hidden px-2 text-right text-xs text-muted-foreground md:block">
+        {used > 0 ? `${exact(used)} tok` : `${t(locale, "contextLabel")} —`}
       </div>
     );
   }
   const ratio = Math.min(1, used / limit);
+  const pct = Math.round(ratio * 100);
   const full = ratio >= 1;
   const warn = ratio >= 0.85;
+  const title = `${exact(used)} of ${exact(limit)} tokens`;
+  return (
+    <div className="relative shrink-0">
+      <button
+        type="button"
+        className={cn(
+          "font-mono text-[11px] tabular-nums md:hidden",
+          full ? "text-destructive" : warn ? "text-foreground" : "text-muted-foreground",
+        )}
+        title={title}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {pct}%
+      </button>
+      {open ? (
+        <div className="absolute end-0 top-full z-30 mt-1 w-40 rounded-lg border border-border bg-card px-2 py-2 shadow-[var(--composer-shadow)] md:hidden">
+          <MeterBody used={used} limit={limit} ratio={ratio} full={full} warn={warn} />
+        </div>
+      ) : null}
+      <div className="hidden md:block">
+        <MeterBody used={used} limit={limit} ratio={ratio} full={full} warn={warn} />
+      </div>
+    </div>
+  );
+}
+
+function MeterBody({
+  used,
+  limit,
+  ratio,
+  full,
+  warn,
+}: {
+  used: number;
+  limit: number;
+  ratio: number;
+  full: boolean;
+  warn: boolean;
+}) {
   return (
     <div
-      className="flex min-w-36 flex-col items-end gap-1 px-2"
+      className="flex min-w-28 flex-col items-end gap-1 px-2"
       title={`${exact(used)} of ${exact(limit)} tokens in this chat`}
     >
       <p

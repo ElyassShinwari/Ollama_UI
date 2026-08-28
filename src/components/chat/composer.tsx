@@ -126,7 +126,10 @@ export function Composer({
   const canSend = Boolean(value.trim() || files.length);
 
   return (
-    <div ref={wrapRef} className="mx-auto w-full max-w-3xl shrink-0 px-3 pb-4 md:px-4">
+    <div
+      ref={wrapRef}
+      className="mx-auto w-full max-w-3xl shrink-0 px-3 pb-[max(1rem,env(safe-area-inset-bottom))] md:px-4"
+    >
       <div
         className={cn(
           "rounded-3xl bg-composer p-2 shadow-composer",
@@ -148,7 +151,7 @@ export function Composer({
                 <Button
                   size="icon-sm"
                   variant="ghost"
-                  aria-label={`Remove ${file.name}`}
+                  aria-label={t(locale, "removeFile", { name: file.name })}
                   onClick={() => onRemoveFile(file.id)}
                 >
                   <X className="size-3.5" />
@@ -170,6 +173,13 @@ export function Composer({
             keepComposerVisible();
           }}
           onFocus={keepComposerVisible}
+          onPaste={(e) => {
+            const pasted = e.clipboardData?.files;
+            if (pasted && pasted.length > 0) {
+              e.preventDefault();
+              onFileInput(pasted);
+            }
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();

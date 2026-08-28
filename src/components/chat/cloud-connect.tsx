@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CLOUD_ACCOUNTS, oauthNote } from "@/lib/llm/cloud";
 import { useChatStore } from "@/lib/chat/store";
+import { t } from "@/lib/i18n";
 import type { CloudId } from "@/lib/llm/cloud";
 import type { OAuthSession, Settings } from "@/lib/chat/types";
 
@@ -50,6 +51,7 @@ function canOauth(id: CloudId) {
 export function CloudConnect({ compact = false }: { compact?: boolean }) {
   const settings = useChatStore((s) => s.settings);
   const setSettings = useChatStore((s) => s.setSettings);
+  const locale = settings.locale;
   const [draft, setDraft] = useState(() => keysFrom(settings));
   const [pending, setPending] = useState<Pending | null>(null);
   const [busy, setBusy] = useState<CloudId | null>(null);
@@ -91,7 +93,7 @@ export function CloudConnect({ compact = false }: { compact?: boolean }) {
         body: JSON.stringify({ action: "start", provider }),
       });
       const json = (await res.json()) as Pending & { error?: string };
-      if (!res.ok) throw new Error(json.error || "Could not start sign-in");
+      if (!res.ok) throw new Error(json.error || t(locale, "couldNotStartSignIn"));
       const next: Pending = {
         provider,
         userCode: json.userCode,
@@ -107,7 +109,7 @@ export function CloudConnect({ compact = false }: { compact?: boolean }) {
       window.open(json.verificationUrl, "_blank", "noopener,noreferrer");
       schedulePoll(next);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Sign-in failed");
+      toast.error(err instanceof Error ? err.message : t(locale, "signInFailed"));
     } finally {
       setBusy(null);
     }
@@ -133,7 +135,7 @@ export function CloudConnect({ compact = false }: { compact?: boolean }) {
         }),
       });
       const json = (await res.json()) as { pending?: boolean; session?: OAuthSession; error?: string };
-      if (!res.ok) throw new Error(json.error || "Sign-in failed");
+      if (!res.ok) throw new Error(json.error || t(locale, "signInFailed"));
       if (json.pending || !json.session) {
         schedulePoll(next);
         return;
@@ -141,9 +143,13 @@ export function CloudConnect({ compact = false }: { compact?: boolean }) {
       saveSession(next.provider, json.session);
       setPending(null);
       const label = CLOUD_ACCOUNTS.find((item) => item.id === next.provider)?.label || next.provider;
-      toast.success(json.session.email ? `Signed in to ${label} as ${json.session.email}` : `Signed in to ${label}`);
+      toast.success(
+        json.session.email
+          ? t(locale, "signedInAs", { label, email: json.session.email })
+          : t(locale, "signedIn", { label }),
+      );
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Sign-in failed";
+      const msg = err instanceof Error ? err.message : t(locale, "signInFailed");
       if (/fetch|network|Failed to fetch|timeout/i.test(msg)) {
         schedulePoll(next);
         return;
@@ -162,13 +168,17 @@ export function CloudConnect({ compact = false }: { compact?: boolean }) {
         body: JSON.stringify({ action: "complete", provider: pending.provider, handle: pending.handle, callback: paste.trim() }),
       });
       const json = (await res.json()) as { session?: OAuthSession; error?: string };
-      if (!res.ok || !json.session) throw new Error(json.error || "Could not finish ChatGPT sign-in");
+      if (!res.ok || !json.session) throw new Error(json.error || t(locale, "couldNotFinishSignIn"));
       saveSession("openai", json.session);
       setPending(null);
       setPaste("");
-      toast.success(json.session.email ? `Signed in to ChatGPT as ${json.session.email}` : "Signed in to ChatGPT");
+      toast.success(
+        json.session.email
+          ? t(locale, "signedInAs", { label: "ChatGPT", email: json.session.email })
+          : t(locale, "signedIn", { label: "ChatGPT" }),
+      );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Sign-in failed");
+      toast.error(err instanceof Error ? err.message : t(locale, "signInFailed"));
     }
   }
 
@@ -178,15 +188,13 @@ export function CloudConnect({ compact = false }: { compact?: boolean }) {
       if (pollRef.current) window.clearTimeout(pollRef.current);
       setPending(null);
     }
-    toast.success("Signed out");
+    toast.success(t(locale, "signedOut"));
   }
 
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground text-pretty">
-        Sign in here for ChatGPT, Grok, and Kimi. After you approve, those models work in chat and
-        in Start review. Claude and DeepSeek do not let other apps use a web login — sign in on
-        their site, then paste an API key.
+        {t(locale, "cloudConnectLead")}
       </p>
       {CLOUD_ACCOUNTS.map((account) => {
         const setting = account.setting as keyof typeof draft;
@@ -200,7 +208,7 @@ export function CloudConnect({ compact = false }: { compact?: boolean }) {
               <div className="flex gap-1">
                 {oauth && session?.accessToken ? (
                   <Button type="button" size="sm" variant="ghost" onClick={() => signOut(account.id)}>
-                    Sign out
+                    {t(locale, "signOut")}
                   </Button>
                 ) : (
                   <Button
@@ -209,14 +217,16 @@ export function CloudConnect({ compact = false }: { compact?: boolean }) {
                     onClick={() => void startSignIn(account.id)}
                     disabled={busy === account.id || waiting}
                   >
-                    {busy === account.id || waiting ? "Waiting…" : "Sign in"}
+                    {busy === account.id || waiting ? t(locale, "waiting") : t(locale, "signIn")}
                   </Button>
                 )}
               </div>
             </div>
             {session?.accessToken ? (
               <p className="text-xs text-muted-foreground">
-                Signed in{session.email ? ` as ${session.email}` : ""}. Ready for chat and review.
+                {session.email
+                  ? t(locale, "signedInReadyAs", { email: session.email })
+                  : t(locale, "signedInReady")}
               </p>
             ) : waiting ? (
               <div className="rounded-lg bg-secondary px-3 py-2 text-sm">
@@ -224,14 +234,12 @@ export function CloudConnect({ compact = false }: { compact?: boolean }) {
                   <>
                     <p className="font-medium tracking-wide">{pending.userCode}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Finish sign-in in the window that opened. Enter this code if they ask for one.
+                      {t(locale, "enterDeviceCode")}
                     </p>
                   </>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    Finish ChatGPT login in the window that opened. Do not use device-code settings.
-                    If the browser then says it cannot connect, copy the full address from the address
-                    bar and paste it below.
+                    {t(locale, "chatgptPasteHint")}
                   </p>
                 )}
                 <Button
@@ -241,18 +249,18 @@ export function CloudConnect({ compact = false }: { compact?: boolean }) {
                   className="mt-1 h-8 px-2"
                   onClick={() => window.open(pending.verificationUrl, "_blank", "noopener,noreferrer")}
                 >
-                  Open sign-in page again
+                  {t(locale, "openSignInAgain")}
                 </Button>
                 {pending.pasteHint ? (
                   <div className="mt-2 flex gap-2">
                     <Input
                       value={paste}
                       onChange={(e) => setPaste(e.target.value)}
-                      placeholder="Paste http://localhost:1455/auth/callback?code=…"
+                      placeholder={t(locale, "pasteCallbackPh")}
                       autoComplete="off"
                     />
                     <Button type="button" size="sm" onClick={() => void finishPaste()} disabled={!paste.trim()}>
-                      Finish
+                      {t(locale, "finish")}
                     </Button>
                   </div>
                 ) : null}
@@ -265,7 +273,7 @@ export function CloudConnect({ compact = false }: { compact?: boolean }) {
                 type="password"
                 value={draft[setting]}
                 onChange={(e) => setField(setting, e.target.value)}
-                placeholder={oauth ? "API key (optional if you signed in)" : "API key after you sign in on their site"}
+                placeholder={oauth ? t(locale, "apiKeyOptional") : t(locale, "apiKeyAfter")}
                 autoComplete="off"
               />
             ) : null}
@@ -281,10 +289,10 @@ export function CloudConnect({ compact = false }: { compact?: boolean }) {
             kimiKey: draft.kimiKey.trim(),
             deepseekKey: draft.deepseekKey.trim(),
           });
-          toast.success("Saved. Signed-in and API accounts appear in the model menu.");
+          toast.success(t(locale, "cloudSaved"));
         }}
       >
-        Save API keys
+        {t(locale, "saveApiKeys")}
       </Button>
     </div>
   );

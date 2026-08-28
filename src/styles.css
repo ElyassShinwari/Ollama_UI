@@ -236,10 +236,17 @@
   }
 
   .prose-hearth table {
-    width: 100%;
+    width: max-content;
+    min-width: 100%;
     border-collapse: collapse;
     font-size: 0.9rem;
+    margin: 0;
+  }
+
+  .prose-hearth .table-wrap {
+    overflow-x: auto;
     margin: 0.8em 0;
+    max-width: 100%;
   }
 
   .prose-hearth th,
@@ -260,6 +267,35 @@
     background: var(--secondary);
     border-radius: 6px;
     padding: 0.12em 0.38em;
+  }
+
+  .hljs {
+    color: var(--foreground);
+    background: transparent;
+  }
+  .hljs-comment,
+  .hljs-quote {
+    color: var(--muted-foreground);
+  }
+  .hljs-keyword,
+  .hljs-selector-tag,
+  .hljs-type {
+    color: var(--primary);
+  }
+  .hljs-string,
+  .hljs-attr,
+  .hljs-attribute,
+  .hljs-symbol {
+    color: var(--foreground);
+  }
+  .hljs-number,
+  .hljs-literal {
+    color: var(--foreground);
+    opacity: 0.8;
+  }
+  .hljs-title,
+  .hljs-section {
+    font-weight: 600;
   }
 
   .scrollbar-thin {

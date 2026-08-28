@@ -11,9 +11,12 @@ import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 
 function applyReadyPair(writer: ModelRef, tester: ModelRef, task: string) {
+  const locale = useChatStore.getState().settings.locale;
   useChatStore.getState().setSelectedModel(writer);
   useChatStore.getState().setTesterKey(`${tester.provider}:${tester.id}`);
-  toast.success(`${task}: ${writer.name} writes, ${tester.name} tests`);
+  toast.success(
+    t(locale, "pairReady", { task, writer: writer.name, tester: tester.name }),
+  );
 }
 
 function useDismiss(open: boolean, onClose: () => void) {
@@ -142,14 +145,15 @@ function PairTaskBody({
 
 function SameModelLane({ taskName, onUsed }: { taskName: string; onUsed?: () => void }) {
   const selected = useChatStore((s) => s.selectedModel);
+  const locale = useChatStore((s) => s.settings.locale);
   return (
     <div className="rounded-lg border border-border px-3 py-2 sm:col-span-2">
       <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-        Same model
-        <span className="ml-2 font-normal normal-case">Writes, then reviews its own work</span>
+        {t(locale, "sameModel")}
+        <span className="ml-2 font-normal normal-case">{t(locale, "sameModelBlurb")}</span>
       </p>
       <p className="mt-1 font-mono text-xs leading-5">
-        {selected ? `${selected.name} writes and tests` : "Pick a chat model first"}
+        {selected ? t(locale, "writesAndTests", { name: selected.name }) : t(locale, "chooseChatModelFirst")}
       </p>
       <div className="mt-2">
         <Button
@@ -159,11 +163,11 @@ function SameModelLane({ taskName, onUsed }: { taskName: string; onUsed?: () => 
           onClick={() => {
             if (!selected) return;
             useChatStore.getState().setTesterKey(`${selected.provider}:${selected.id}`);
-            toast.success(`${taskName}: ${selected.name} writes and tests`);
+            toast.success(t(locale, "pairSameReady", { task: taskName, name: selected.name }));
             onUsed?.();
           }}
         >
-          Use same model
+          {t(locale, "useSameModel")}
         </Button>
       </div>
     </div>
@@ -179,6 +183,7 @@ function PullBar({
   pct: number;
   onCancel?: () => void;
 }) {
+  const locale = useChatStore((s) => s.settings.locale);
   const n = Math.max(0, Math.min(100, Math.round(pct)));
   const canStop = Boolean(onCancel) && n < 100;
   return (
@@ -189,7 +194,7 @@ function PullBar({
           size="icon-sm"
           variant="ghost"
           className="absolute top-0 end-0 z-10 size-6 rounded-full border border-border bg-card text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
-          aria-label={`Cancel ${label}`}
+          aria-label={t(locale, "cancelNamed", { label })}
           onClick={onCancel}
         >
           <X className="size-3.5" />
@@ -223,6 +228,7 @@ function PairLane({
   onUsed?: () => void;
 }) {
   const status = pairStatus(models, pair);
+  const locale = useChatStore((s) => s.settings.locale);
   const [pct, setPct] = useState<{ w: number; t: number } | null>(null);
   const abortRef = useRef<{ w?: AbortController; t?: AbortController }>({});
   const installing = pct != null;
@@ -255,7 +261,7 @@ function PairLane({
       return ok ? "ok" : ac.signal.aborted ? "cancelled" : "failed";
     } catch (err) {
       if (isAbortError(err) || ac.signal.aborted) {
-        toast.message(`Stopped ${id}`);
+        toast.message(t(locale, "pairStopped", { id }));
         return "cancelled";
       }
       throw err;
@@ -268,15 +274,15 @@ function PairLane({
     const haveT = Boolean(findLocalModel(models, pair.tester));
     abortRef.current = { w: new AbortController(), t: new AbortController() };
     setPct({ w: haveW ? 100 : 1, t: haveT ? 100 : 1 });
-    toast.message(`Installing ${pair.writer} and ${pair.tester}…`);
+    toast.message(t(locale, "pairInstalling", { writer: pair.writer, tester: pair.tester }));
     try {
       if (!haveW) {
         const result = await pullOne("w", pair.writer, host);
-        if (result === "failed") throw new Error(`Could not install ${pair.writer}`);
+        if (result === "failed") throw new Error(t(locale, "pairInstallFailed"));
       }
       if (!haveT && pair.tester !== pair.writer) {
         const result = await pullOne("t", pair.tester, host);
-        if (result === "failed") throw new Error(`Could not install ${pair.tester}`);
+        if (result === "failed") throw new Error(t(locale, "pairInstallFailed"));
       }
       const fresh = (await onRefreshLocal?.()) ?? models;
       const writer = findLocalModel(fresh, pair.writer);
@@ -285,15 +291,15 @@ function PairLane({
         applyReadyPair(writer, tester, taskName);
         onUsed?.();
       } else if (writer || tester) {
-        toast.message("One model is ready. Install the other when you want it.");
+        toast.message(t(locale, "pairOneReady"));
         if (writer) useChatStore.getState().setSelectedModel(writer);
         if (tester) useChatStore.getState().setTesterKey(`${tester.provider}:${tester.id}`);
       } else {
-        toast.message("Install cancelled");
+        toast.message(t(locale, "pairCancelled"));
       }
     } catch (err) {
       if (!isAbortError(err)) {
-        toast.error(err instanceof Error ? err.message : "Could not install this pair");
+        toast.error(err instanceof Error ? err.message : t(locale, "pairInstallFailed"));
         onBrowse?.();
       }
     } finally {
@@ -308,9 +314,9 @@ function PairLane({
         <span className="ml-2 font-normal normal-case">{pair.ram}</span>
       </p>
       <p className="mt-1 font-mono text-xs leading-5">
-        Writer {pair.writer}
+        {t(locale, "writer")} {pair.writer}
         <br />
-        Tester {pair.tester}
+        {t(locale, "tester")} {pair.tester}
       </p>
       <div className="mt-2">
         {installing ? (
@@ -335,11 +341,11 @@ function PairLane({
               onUsed?.();
             }}
           >
-            Use this pair
+            {t(locale, "useThisPair")}
           </Button>
         ) : (
           <Button size="sm" className="h-8" onClick={() => void installBoth()}>
-            Install both
+            {t(locale, "installBoth")}
           </Button>
         )}
       </div>

@@ -1,5 +1,19 @@
 import type { Message } from "./types";
 
+const LEGACY_NOTE =
+  /^(Cycle\s+\d+\s*\/\s*\d+\s*·\s+|Finished by\s+)/i;
+
+export function isNoteMessage(message: Pick<Message, "role" | "content" | "images" | "documents" | "attachments">) {
+  if (message.role === "note") return true;
+  if (message.role !== "user") return false;
+  if (message.images?.length || message.documents?.length || message.attachments?.length) return false;
+  return LEGACY_NOTE.test(message.content.trim());
+}
+
+export function chatTurnsOf(messages: Message[]) {
+  return messages.filter((m) => !isNoteMessage(m) && (m.role === "user" || m.role === "assistant"));
+}
+
 export function childrenOf(messages: Message[], parentId: string | null): Message[] {
   return messages.filter((m) => (m.parentId ?? null) === parentId);
 }

@@ -8,6 +8,7 @@ const tree = await import("../src/lib/chat/tree.ts");
 const git = await import("../src/lib/studio/github.ts");
 const speech = await import("../src/lib/speech.ts");
 const i18n = await import("../src/lib/i18n.ts");
+const utils = await import("../src/lib/utils.ts");
 
 test("reviewSatisfied accepts a tester that is done", () => {
   assert.equal(cloud.reviewSatisfied("SATISFIED\nLooks good."), true);
@@ -136,6 +137,43 @@ test("conversation tree follows selected children", () => {
   assert.equal(visible.map((m) => m.id).join(","), "u1,a1");
   const switched = messages.map((m) => (m.id === "u1" ? { ...m, selectedChildId: "a2" } : m));
   assert.equal(tree.visibleMessages(switched, "u1").at(-1)?.content, "two");
+});
+
+test("review cycle markers are notes and stay out of chat turns", () => {
+  assert.equal(
+    tree.isNoteMessage({ role: "note", content: "Cycle 1/3 · llama testing" }),
+    true,
+  );
+  assert.equal(
+    tree.isNoteMessage({ role: "user", content: "Cycle 2/5 · qwen revising" }),
+    true,
+  );
+  assert.equal(
+    tree.isNoteMessage({ role: "user", content: "Finished by qwen2.5" }),
+    true,
+  );
+  assert.equal(tree.isNoteMessage({ role: "user", content: "Please review this" }), false);
+  const path = [
+    { id: "u1", role: "user", content: "write code", createdAt: 1, parentId: null, selectedChildId: "a1" },
+    { id: "a1", role: "assistant", content: "fn()", createdAt: 2, parentId: "u1", selectedChildId: "n1" },
+    { id: "n1", role: "note", content: "Cycle 1/2 · tester testing", createdAt: 3, parentId: "a1", selectedChildId: "a2" },
+    { id: "a2", role: "assistant", content: "looks ok", createdAt: 4, parentId: "n1", selectedChildId: null },
+  ];
+  const visible = tree.visibleMessages(path, "u1");
+  assert.equal(visible.length, 4);
+  const turns = tree.chatTurnsOf(visible);
+  assert.deepEqual(
+    turns.map((m) => m.role),
+    ["user", "assistant", "assistant"],
+  );
+});
+
+test("sanitizeOllamaHost accepts http hosts and rejects others", () => {
+  assert.equal(utils.sanitizeOllamaHost("http://127.0.0.1:11434/"), "http://127.0.0.1:11434");
+  assert.equal(utils.sanitizeOllamaHost("https://ollama.example"), "https://ollama.example");
+  assert.throws(() => utils.sanitizeOllamaHost("file:///etc/passwd"));
+  assert.throws(() => utils.sanitizeOllamaHost("javascript:alert(1)"));
+  assert.throws(() => utils.sanitizeOllamaHost("not a url"));
 });
 
 test("responses API uses output_text on assistant turns", () => {
@@ -512,4 +550,61 @@ test("locales cover the requested languages including Dari and Pashto", () => {
   assert.equal(i18n.localeInfo("ar").dir, "rtl");
   assert.equal(i18n.localeInfo("nl").speech, "nl-NL");
   assert.equal(i18n.t("en", "deleteChatBody", { title: "Hello" }).includes("Hello"), true);
+});
+
+test("/api/chat and other host routes sanitize Ollama hosts", async () => {
+  const fs = await import("node:fs");
+  const routes = [
+    "chat.ts",
+    "pull.ts",
+    "delete-model.ts",
+    "models.ts",
+    "reset.ts",
+    "setup.ts",
+    "tokenize.ts",
+    "v1.chat.completions.ts",
+    "channel.ts",
+  ];
+  for (const name of routes) {
+    const src = fs.readFileSync(new URL(`../src/routes/api/${name}`, import.meta.url), "utf8");
+    assert.match(src, /sanitizeOllamaHost/, `${name} must sanitize host`);
+  }
+  const chat = fs.readFileSync(new URL("../src/routes/api/chat.ts", import.meta.url), "utf8");
+  assert.match(chat, /status:\s*400/);
+});
+
+test("chat export keeps user text and omits secrets", async () => {
+  const chatExport = await import("../src/lib/chat/export.ts");
+  const conv = {
+    id: "c1",
+    title: "Hello",
+    createdAt: 1,
+    updatedAt: 2,
+    pinned: false,
+    model: { id: "llama", name: "Llama", provider: "ollama", transport: "server" },
+    messages: [
+      { id: "u", role: "user", content: "the secret plan", createdAt: 1, parentId: null },
+      { id: "n", role: "note", content: "Cycle 1/2 · tester testing", createdAt: 2, parentId: "u" },
+      { id: "a", role: "assistant", content: "ok", createdAt: 3, parentId: "n", modelName: "Llama" },
+    ],
+  };
+  const backup = chatExport.conversationsBackup([conv]);
+  const json = JSON.stringify(backup);
+  assert.match(json, /the secret plan/);
+  assert.match(json, /Cycle 1\/2/);
+  assert.equal(json.includes("openaiKey"), false);
+  assert.equal(json.includes("accessToken"), false);
+  assert.equal("settings" in backup, false);
+  const md = chatExport.conversationMarkdown(conv);
+  assert.match(md, /the secret plan/);
+  assert.match(md, /Cycle 1\/2/);
+  assert.match(md, /^# Hello/m);
+});
+
+test("new i18n keys resolve in English and inherit in other locales", () => {
+  assert.match(i18n.t("en", "streamOtherChat"), /streaming/);
+  assert.match(i18n.t("en", "replyReady"), /Reply ready/);
+  assert.equal(i18n.t("nl", "streamOtherChat"), i18n.t("en", "streamOtherChat"));
+  assert.equal(i18n.t("ar", "jumpToLatest"), i18n.t("en", "jumpToLatest"));
+  assert.equal(i18n.localeInfo("fa").dir, "rtl");
 });

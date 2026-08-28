@@ -26,7 +26,7 @@ SheetOverlay.displayName = DialogPrimitive.Overlay.displayName;
 const SheetContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
-    side?: "left" | "right";
+    side?: "left" | "right" | "bottom";
   }
 >(({ className, children, side = "left", ...props }, ref) => (
   <SheetPortal>
@@ -34,11 +34,13 @@ const SheetContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed z-50 flex h-full flex-col bg-sidebar text-foreground shadow-border transition ease-[var(--ease-smooth-out)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-400",
+        "fixed z-50 flex flex-col bg-sidebar text-foreground shadow-border transition ease-[var(--ease-smooth-out)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-400",
         side === "left" &&
-          "inset-y-0 left-0 w-[min(100%,20rem)] border-r border-border data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left",
+          "inset-y-0 left-0 h-full w-[min(100%,20rem)] border-r border-border pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left",
         side === "right" &&
-          "inset-y-0 right-0 w-[min(100%,20rem)] border-l border-border data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
+          "inset-y-0 right-0 h-full w-[min(100%,20rem)] border-l border-border pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
+        side === "bottom" &&
+          "inset-x-0 bottom-0 h-auto max-h-[85vh] rounded-t-2xl border-t border-border bg-background pb-[max(1rem,env(safe-area-inset-bottom))] data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
         className,
       )}
       {...props}

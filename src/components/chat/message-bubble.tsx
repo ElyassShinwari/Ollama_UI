@@ -2,8 +2,10 @@ import { Check, ChevronLeft, ChevronRight, Copy, Pencil, RotateCcw } from "lucid
 import { memo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { MessageMarkdown } from "@/components/chat/markdown";
+import { MessageMarkdown, StreamingMarkdown } from "@/components/chat/markdown";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
+import { useChatStore } from "@/lib/chat/store";
 import type { Message } from "@/lib/chat/types";
 
 export const MessageBubble = memo(function MessageBubble({
@@ -15,21 +17,24 @@ export const MessageBubble = memo(function MessageBubble({
   onEdit,
   versionIndex,
   versionCount,
-  onVersionPrev,
-  onVersionNext,
+  prevId,
+  nextId,
+  onSelectSibling,
 }: {
   message: Message;
   streaming?: boolean;
   showRegen?: boolean;
   onRegenerate?: () => void;
-  onRetry?: () => void;
-  onEdit?: (content: string) => void;
+  onRetry?: (id: string) => void;
+  onEdit?: (id: string, content: string) => void;
   versionIndex?: number;
   versionCount?: number;
-  onVersionPrev?: () => void;
-  onVersionNext?: () => void;
+  prevId?: string;
+  nextId?: string;
+  onSelectSibling?: (id: string) => void;
 }) {
   const isUser = message.role === "user";
+  const locale = useChatStore((s) => s.settings.locale);
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.content);
@@ -46,9 +51,9 @@ export const MessageBubble = memo(function MessageBubble({
       <Button
         size="icon-sm"
         variant="ghost"
-        aria-label="Previous version"
-        disabled={!onVersionPrev}
-        onClick={onVersionPrev}
+        aria-label={t(locale, "prevVersion")}
+        disabled={!prevId}
+        onClick={() => prevId && onSelectSibling?.(prevId)}
       >
         <ChevronLeft className="size-4" />
       </Button>
@@ -58,9 +63,9 @@ export const MessageBubble = memo(function MessageBubble({
       <Button
         size="icon-sm"
         variant="ghost"
-        aria-label="Next version"
-        disabled={!onVersionNext}
-        onClick={onVersionNext}
+        aria-label={t(locale, "nextVersion")}
+        disabled={!nextId}
+        onClick={() => nextId && onSelectSibling?.(nextId)}
       >
         <ChevronRight className="size-4" />
       </Button>
@@ -87,7 +92,7 @@ export const MessageBubble = memo(function MessageBubble({
                   setEditing(false);
                 }}
               >
-                Cancel
+                {t(locale, "cancel")}
               </Button>
               <Button
                 size="sm"
@@ -96,15 +101,15 @@ export const MessageBubble = memo(function MessageBubble({
                   const next = draft.trim();
                   if (!next) return;
                   setEditing(false);
-                  onEdit?.(next);
+                  onEdit?.(message.id, next);
                 }}
               >
-                Save
+                {t(locale, "save")}
               </Button>
             </div>
           </div>
         ) : (
-          <div className="max-w-[min(100%,42rem)] rounded-3xl bg-secondary px-5 py-3 text-[15px] leading-7 whitespace-pre-wrap">
+          <div className="max-w-[min(100%,42rem)] rounded-3xl bg-secondary px-5 py-3 text-[15px] leading-7 break-words [overflow-wrap:anywhere] whitespace-pre-wrap">
             {message.attachments?.length ? (
               <div className="mb-2 flex flex-wrap gap-1.5">
                 {message.attachments.map((file) => (
@@ -140,13 +145,13 @@ export const MessageBubble = memo(function MessageBubble({
             )}
           >
             {pager}
-            <Button size="icon-sm" variant="ghost" aria-label="Copy" onClick={() => void copy()}>
+            <Button size="icon-sm" variant="ghost" aria-label={t(locale, "copy")} onClick={() => void copy()}>
               {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
             </Button>
             <Button
               size="icon-sm"
               variant="ghost"
-              aria-label="Edit"
+              aria-label={t(locale, "edit")}
               onClick={() => {
                 setDraft(message.content);
                 setEditing(true);
@@ -155,7 +160,7 @@ export const MessageBubble = memo(function MessageBubble({
               <Pencil className="size-4" />
             </Button>
             {onRetry ? (
-              <Button size="icon-sm" variant="ghost" aria-label="Retry" onClick={onRetry}>
+              <Button size="icon-sm" variant="ghost" aria-label={t(locale, "retry")} onClick={() => onRetry(message.id)}>
                 <RotateCcw className="size-4" />
               </Button>
             ) : null}
@@ -179,32 +184,29 @@ export const MessageBubble = memo(function MessageBubble({
             />
           </svg>
         </div>
-        <div className="min-w-0 flex-1 pt-0.5 text-[15px] leading-7">
+        <div className="min-w-0 flex-1 pt-0.5 text-[15px] leading-7 break-words [overflow-wrap:anywhere]">
           {message.modelName ? (
             <p className="mb-1 text-xs text-muted-foreground">{message.modelName}</p>
           ) : null}
           {message.content ? (
             streaming ? (
-              <p className="whitespace-pre-wrap">{message.content}</p>
+              <StreamingMarkdown content={message.content} />
             ) : (
               <MessageMarkdown content={message.content} />
             )
           ) : streaming ? (
             <span className="inline-flex items-center gap-2 text-muted-foreground">
               <span className="size-2 animate-pulse rounded-full bg-foreground" />
-              Thinking
+              {t(locale, "thinking")}
             </span>
           ) : (
-            <span className="text-muted-foreground">No reply</span>
+            <span className="text-muted-foreground">{t(locale, "noReply")}</span>
           )}
-          {streaming && message.content ? (
-            <span className="ml-0.5 inline-block h-4 w-1.5 translate-y-0.5 animate-pulse bg-foreground align-middle" />
-          ) : null}
         </div>
       </div>
       <div
         className={cn(
-          "ml-10 flex items-center gap-0.5",
+          "ms-10 flex items-center gap-0.5",
           streaming
             ? "opacity-0"
             : versions
@@ -213,11 +215,11 @@ export const MessageBubble = memo(function MessageBubble({
         )}
       >
         {pager}
-        <Button size="icon-sm" variant="ghost" aria-label="Copy" onClick={() => void copy()}>
+        <Button size="icon-sm" variant="ghost" aria-label={t(locale, "copy")} onClick={() => void copy()}>
           {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
         </Button>
         {showRegen && onRegenerate ? (
-          <Button size="icon-sm" variant="ghost" aria-label="Regenerate" onClick={onRegenerate}>
+          <Button size="icon-sm" variant="ghost" aria-label={t(locale, "retry")} onClick={onRegenerate}>
             <RotateCcw className="size-4" />
           </Button>
         ) : null}

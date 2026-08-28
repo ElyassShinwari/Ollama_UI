@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { cloudEndpoint, extraCloudHeaders, isChatGptOAuth } from "@/lib/llm/cloud";
 import { streamAnthropicChat, streamCodexChat, streamOllamaChat, streamOpenAiCompat, streamXaiChat } from "@/lib/llm/providers.server";
 import type { Provider } from "@/lib/chat/types";
+import { sanitizeOllamaHost } from "@/lib/utils";
 
 type ChatBody = {
   provider?: Provider;
@@ -40,7 +41,15 @@ export const Route = createFileRoute("/api/chat")({
           typeof body.temperature === "number" && Number.isFinite(body.temperature)
             ? Math.min(2, Math.max(0, body.temperature))
             : 0.7;
-        const host = typeof body.host === "string" ? body.host : "http://127.0.0.1:11434";
+        let host: string;
+        try {
+          host = sanitizeOllamaHost(typeof body.host === "string" ? body.host : "http://127.0.0.1:11434");
+        } catch (err) {
+          return Response.json(
+            { error: err instanceof Error ? err.message : "Invalid host" },
+            { status: 400 },
+          );
+        }
         const contextLength =
           typeof body.contextLength === "number" && Number.isFinite(body.contextLength)
             ? body.contextLength

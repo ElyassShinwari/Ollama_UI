@@ -41,7 +41,7 @@ export function OllamaLaunch({
 
   async function run(kind: "start" | "install") {
     setBusy(kind);
-    setLog([kind === "install" ? "Installing Ollama…" : "Starting Ollama…"]);
+    setLog([kind === "install" ? t(locale, "installingOllama") : t(locale, "startingOllama")]);
     try {
       const ok = await readSetupStream(
         kind === "install" ? "/api/setup-install" : "/api/setup-start",
@@ -51,12 +51,17 @@ export function OllamaLaunch({
       const next = await refresh();
       await onReady?.();
       if (ok && next.running) {
-        toast.success("Ollama is running");
+        toast.success(t(locale, "ollamaRunningToast"));
       } else if (!ok) {
-        toast.error(kind === "install" ? "Could not install Ollama" : "Could not start Ollama");
+        toast.error(kind === "install" ? t(locale, "ollamaInstallFailed") : t(locale, "ollamaStartFailed"));
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : kind === "install" ? "Install failed" : "Could not start Ollama";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : kind === "install"
+            ? t(locale, "ollamaInstallFailed")
+            : t(locale, "ollamaStartFailed");
       pushLog(msg);
       toast.error(msg);
     } finally {

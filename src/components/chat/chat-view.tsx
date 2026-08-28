@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Menu, PanelLeft } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, Menu, PanelLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,10 +16,11 @@ import { MessageBubble } from "@/components/chat/message-bubble";
 import { ModelPicker } from "@/components/chat/model-picker";
 import { PairBar } from "@/components/chat/pair-suggestions";
 import { LanguagePicker } from "@/components/chat/language-picker";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { estimateTokens, isContextOverflowError } from "@/lib/utils";
 import { greetingKey, t } from "@/lib/i18n";
 import { selectActiveConversation, chatPersist, useChatStore } from "@/lib/chat/store";
-import { siblingsOf, visibleMessages } from "@/lib/chat/tree";
+import { siblingsOf, visibleMessages, isNoteMessage, chatTurnsOf } from "@/lib/chat/tree";
 import { streamChat } from "@/lib/llm/catalog";
 import { friendlyOllamaError } from "@/lib/llm/context";
 import {
@@ -42,12 +43,7 @@ import {
 } from "@/lib/llm/cloud";
 import type { Message, ModelRef } from "@/lib/chat/types";
 
-const SUGGESTIONS = [
-  "Explain a hard idea in plain language",
-  "Draft a short, direct email",
-  "Find holes in this plan",
-  "Write a small function and walk through it",
-];
+const SUGGESTION_KEYS = ["suggestExplain", "suggestEmail", "suggestHoles", "suggestFunction"] as const;
 
 const MAX_TURN_CHARS = 80_000;
 
@@ -112,6 +108,9 @@ export function ChatView({
   );
   const [cycles, setCycles] = useState(3);
   const [cycleNote, setCycleNote] = useState("");
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [farFromBottom, setFarFromBottom] = useState(false);
+  const [liveAnnounce, setLiveAnnounce] = useState("");
   const [streamingId, setStreamingId] = useState<string | null>(null);
   const [liveText, setLiveText] = useState("");
   const abortRef = useRef<AbortController | null>(null);
@@ -153,13 +152,14 @@ export function ChatView({
     const model = useChatStore.getState().selectedModel;
     if (!model) return;
     const visible = visibleMessages(conversation.messages, conversation.activeRootId);
-    if (visible.length === 0) {
+    const turns = chatTurnsOf(visible);
+    if (turns.length === 0) {
       useChatStore.getState().resetUsage(conversation.id);
       return;
     }
-    const last = visible[visible.length - 1];
+    const last = turns[turns.length - 1];
     const promptMsgs =
-      last?.role === "assistant" ? visible.slice(0, -1) : visible;
+      last?.role === "assistant" ? turns.slice(0, -1) : turns;
     const completionText = last?.role === "assistant" ? last.content : "";
     let cancelled = false;
     void (async () => {
@@ -239,7 +239,7 @@ export function ChatView({
   ): Promise<string> {
     const model = using ?? useChatStore.getState().selectedModel;
     if (!model) {
-      toast.error("Choose a model first");
+      toast.error(t(useChatStore.getState().settings.locale, "chooseModelFirstToast"));
       return "";
     }
     const settingsNow = useChatStore.getState().settings;
@@ -309,13 +309,14 @@ export function ChatView({
       );
     } catch (err) {
       if ((err as { name?: string }).name === "AbortError") {
-        if (stoppedLoop) toast("Stopped a repeating reply");
+        if (stoppedLoop) toast(t(useChatStore.getState().settings.locale, "stoppedRepeating"));
       } else {
         failed = true;
-        const message = err instanceof Error ? err.message : "The model failed to reply";
+        const loc = useChatStore.getState().settings.locale;
+        const message = err instanceof Error ? err.message : t(loc, "modelFailed");
         if (isContextOverflowError(message)) {
           markContextExceeded(conversationId);
-          toast.error("This model's context window is full");
+          toast.error(t(loc, "contextWindowFull"));
         }
         flushPending(conversationId, assistantId, true);
         const current = useChatStore
@@ -327,8 +328,8 @@ export function ChatView({
             conversationId,
             assistantId,
             isContextOverflowError(message)
-              ? "The context window is full. You can keep chatting, but answers may be unexpected or inaccurate."
-              : `I couldn't complete that reply. ${friendlyOllamaError(message)}`,
+              ? t(loc, "contextFullReply")
+              : t(loc, "couldntComplete", { error: friendlyOllamaError(message) }),
           );
         } else if (!isContextOverflowError(message)) {
           toast.error(friendlyOllamaError(message));
@@ -355,14 +356,17 @@ export function ChatView({
         .getState()
         .conversations.find((c) => c.id === conversationId)
         ?.messages.find((m) => m.id === assistantId)?.content ?? "";
+    const loc = useChatStore.getState().settings.locale;
     if (!text) {
-      if (cancelledRef.current) appendToMessage(conversationId, assistantId, "Stopped.");
+      if (cancelledRef.current) appendToMessage(conversationId, assistantId, t(loc, "stopped"));
+      dropBinary(conversationId);
       return "";
     }
-    if (!failed && !text.startsWith("I couldn't complete")) {
-      dropBinary(conversationId);
+    dropBinary(conversationId);
+    if (!failed && !cancelledRef.current) {
+      setLiveAnnounce(t(loc, "replyReady"));
     }
-    if (failed || text.startsWith("I couldn't complete") || text === "Stopped.") return "";
+    if (failed || cancelledRef.current) return failed ? "" : text;
     return text;
   }
 
@@ -383,7 +387,7 @@ export function ChatView({
     const conv = useChatStore.getState().conversations.find((c) => c.id === conversationId);
     if (!conv) return [] as { role: string; content: string; images?: string[]; documents?: Message["documents"] }[];
     return visibleMessages(conv.messages, conv.activeRootId)
-      .filter((m) => m.role === "user" || m.role === "assistant")
+      .filter((m) => !isNoteMessage(m) && (m.role === "user" || m.role === "assistant"))
       .map((m) => ({ role: m.role, content: m.content, images: m.images, documents: m.documents }));
   }
 
@@ -397,12 +401,15 @@ export function ChatView({
 
   async function send(text: string, extraFiles: PendingFile[] = files) {
     if (!useChatStore.getState().selectedModel) {
-      toast.error("Choose a model first");
+      toast.error(t(useChatStore.getState().settings.locale, "chooseModelFirstToast"));
       return;
     }
     const built = buildMessageFromFiles(text, extraFiles);
     if (streamingId && streamingConvRef.current === conversation?.id) return;
-    if (streamingId) abortRef.current?.abort();
+    if (streamingId) {
+      toast.error(t(locale, "streamOtherChat"));
+      return;
+    }
     if (!built.content.trim() && !built.images?.length && !built.documents?.length) return;
     setDraft("");
     setFiles([]);
@@ -423,15 +430,18 @@ export function ChatView({
 
   async function startReview() {
     if (streamingId && streamingConvRef.current === conversation?.id) return;
-    if (streamingId) abortRef.current?.abort();
+    if (streamingId) {
+      toast.error(t(locale, "streamOtherChat"));
+      return;
+    }
     const author = useChatStore.getState().selectedModel;
     const reviewer = modelFromKey(testerKey ?? "");
     if (!author) {
-      toast.error("Choose a chat model first");
+      toast.error(t(locale, "chooseChatModelFirst"));
       return;
     }
     if (!reviewer) {
-      toast.error("Pick a tester model, or Same model");
+      toast.error(t(locale, "pickTester"));
       return;
     }
     cancelledRef.current = false;
@@ -452,12 +462,12 @@ export function ChatView({
     }
     const conversationId = conversation?.id;
     if (!conversationId) {
-      toast.error("Open a chat or type a prompt, then Start review");
+      toast.error(t(locale, "reviewNeedChat"));
       return;
     }
     const hist = visibleHistory(conversationId);
     if (hist.length === 0) {
-      toast.error("Write something first, or type a prompt and click Start review");
+      toast.error(t(locale, "reviewNeedPrompt"));
       return;
     }
     const path = visibleMessages(
@@ -466,7 +476,7 @@ export function ChatView({
     );
     const lastMsg = path.at(-1);
     if (!lastMsg) {
-      toast.error("Write something first, or type a prompt and click Start review");
+      toast.error(t(locale, "reviewNeedPrompt"));
       return;
     }
     if (lastMsg.role === "assistant" && lastMsg.content.trim()) {
@@ -510,12 +520,12 @@ export function ChatView({
       const author = useChatStore.getState().selectedModel;
       const reviewer = modelFromKey(testerKey ?? "") ?? reviewerStart;
       if (!author) {
-        setCycleNote("Choose a chat model to keep writing");
+        setCycleNote(t(locale, "cycleChooseWriter"));
         break;
       }
       const sameReview = modelKey(author) === modelKey(reviewer);
       if (!(testerFirst && i === 1)) {
-        setCycleNote(`Cycle ${i}/${max} · ${author.name} writing`);
+        setCycleNote(t(locale, "cycleWriting", { i: String(i), max: String(max), name: author.name }));
         const writerTurns: ChatTurn[] =
           i === 1 && !testerFirst
             ? slimTurns(startHistory, true)
@@ -528,23 +538,27 @@ export function ChatView({
               ];
         const written = await runCompletion(conversationId, writerTurns, parentId, author);
         if (cancelledRef.current) {
-          setCycleNote("Stopped");
+          setCycleNote(t(locale, "cycleStopped"));
           break;
         }
         if (!written.trim()) {
-          setCycleNote(`${author.name} did not finish a reply`);
+          setCycleNote(t(locale, "cycleNoReply", { name: author.name }));
           break;
         }
         lastProject = written;
         parentId = lastAssistantId(conversationId) ?? parentId;
       } else {
-        setCycleNote(`Cycle ${i}/${max} · testing the current answer`);
+        setCycleNote(t(locale, "cycleTestingCurrent", { i: String(i), max: String(max) }));
       }
-      const reviewUser = addUserMessage(`Cycle ${i}/${max} · ${reviewer.name} testing`, {
-        conversationId,
-      });
+      const reviewUser = addUserMessage(
+        t(locale, "cycleTesting", { i: String(i), max: String(max), name: reviewer.name }),
+        {
+          conversationId,
+          role: "note",
+        },
+      );
       parentId = reviewUser.user.id;
-      setCycleNote(`Cycle ${i}/${max} · ${reviewer.name} testing`);
+      setCycleNote(t(locale, "cycleTesting", { i: String(i), max: String(max), name: reviewer.name }));
       const testerTurns: ChatTurn[] = [
         i === 1 ? originalWithMedia : originalText,
         { role: "assistant", content: clipTurn(lastProject) },
@@ -558,27 +572,41 @@ export function ChatView({
         sameReview ? REVIEW_SELF_SYSTEM : REVIEW_SYSTEM,
       );
       if (cancelledRef.current) {
-        setCycleNote("Stopped");
+        setCycleNote(t(locale, "cycleStopped"));
         break;
       }
       parentId = lastAssistantId(conversationId) ?? parentId;
       lastReview = review;
       if (reviewSatisfied(review)) {
         satisfied = true;
-        setCycleNote(`Stopped on cycle ${i}: ${reviewer.name} is satisfied`);
-        toast.success(`${reviewer.name} is satisfied after ${i} cycle${i === 1 ? "" : "s"}`);
+        setCycleNote(t(locale, "cycleSatisfied", { i: String(i), name: reviewer.name }));
+        toast.success(
+          t(locale, i === 1 ? "cycleSatisfiedToast" : "cycleSatisfiedToastPlural", {
+            name: reviewer.name,
+            i: String(i),
+          }),
+        );
         break;
       }
       if (i === max) break;
-      const revise = addUserMessage(`Cycle ${i}/${max} · ${author.name} revising`, { conversationId });
+      const revise = addUserMessage(
+        t(locale, "cycleRevising", { i: String(i), max: String(max), name: author.name }),
+        {
+          conversationId,
+          role: "note",
+        },
+      );
       parentId = revise.user.id;
     }
     if (!cancelledRef.current && !satisfied && lastProject.trim()) {
       const author = useChatStore.getState().selectedModel;
       const reviewer = modelFromKey(testerKey ?? "") ?? reviewerStart;
       if (author && reviewer) {
-        setCycleNote(`${reviewer.name} finishing the answer`);
-        const wrap = addUserMessage(`Finished by ${reviewer.name}`, { conversationId });
+        setCycleNote(t(locale, "cycleFinishing", { name: reviewer.name }));
+        const wrap = addUserMessage(t(locale, "cycleFinishedBy", { name: reviewer.name }), {
+          conversationId,
+          role: "note",
+        });
         await runCompletion(
           conversationId,
           [
@@ -591,8 +619,13 @@ export function ChatView({
           FINAL_REVIEW_SYSTEM,
         );
         if (!cancelledRef.current) {
-          setCycleNote(`Finished ${max} cycle${max === 1 ? "" : "s"} · ${reviewer.name} completed the work`);
-          toast.message(`${reviewer.name} finished the answer after the last cycle`);
+          setCycleNote(
+            t(locale, max === 1 ? "cycleFinishedNote" : "cycleFinishedNotePlural", {
+              max: String(max),
+              name: reviewer.name,
+            }),
+          );
+          toast.message(t(locale, "cycleFinishedToast", { name: reviewer.name }));
         }
       }
     }
@@ -666,7 +699,7 @@ export function ChatView({
     if (!lastUser) return;
     const history = messages
       .filter((m) => m.id !== lastAssistant?.id)
-      .filter((m) => m.role === "user" || m.role === "assistant")
+      .filter((m) => !isNoteMessage(m) && (m.role === "user" || m.role === "assistant"))
       .map((m) => ({ role: m.role, content: m.content, images: m.images, documents: m.documents }));
     stickToBottomRef.current = true;
     await runCompletion(conversation.id, history, lastUser.id);
@@ -680,7 +713,7 @@ export function ChatView({
     const conv = useChatStore.getState().conversations.find((c) => c.id === conversation.id);
     if (!conv) return;
     const path = visibleMessages(conv.messages, conv.activeRootId).filter(
-      (m) => m.role === "user" || m.role === "assistant",
+      (m) => !isNoteMessage(m) && (m.role === "user" || m.role === "assistant"),
     );
     const history = [];
     for (const m of path) {
@@ -697,7 +730,7 @@ export function ChatView({
     const conv = useChatStore.getState().conversations.find((c) => c.id === conversation.id);
     if (!conv) return;
     const path = visibleMessages(conv.messages, conv.activeRootId).filter(
-      (m) => m.role === "user" || m.role === "assistant",
+      (m) => !isNoteMessage(m) && (m.role === "user" || m.role === "assistant"),
     );
     const history = [];
     for (const m of path) {
@@ -721,6 +754,25 @@ export function ChatView({
 
   const thisStreaming = Boolean(streamingId) && streamingConvRef.current === conversation?.id;
   const empty = messages.length === 0;
+  const retryFromRef = useRef(retryFrom);
+  retryFromRef.current = retryFrom;
+  const editFromRef = useRef(editFrom);
+  editFromRef.current = editFrom;
+  const regenerateRef = useRef(regenerate);
+  regenerateRef.current = regenerate;
+  const onRetry = useCallback((id: string) => {
+    void retryFromRef.current(id);
+  }, []);
+  const onEdit = useCallback((id: string, content: string) => {
+    void editFromRef.current(id, content);
+  }, []);
+  const onRegenerate = useCallback(() => {
+    void regenerateRef.current();
+  }, []);
+  const onSelectSibling = useCallback((id: string) => {
+    const cid = useChatStore.getState().activeId;
+    if (cid) selectSibling(cid, id);
+  }, [selectSibling]);
 
   useEffect(() => {
     return () => {
@@ -754,11 +806,11 @@ export function ChatView({
       {dragging ? (
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-none bg-background/80">
           <p className="rounded-2xl border border-border bg-card px-5 py-3 text-sm">
-            Drop files to attach
+            {t(locale, "dropFiles")}
           </p>
         </div>
       ) : null}
-      <header className="relative z-20 flex h-14 shrink-0 items-center gap-1 overflow-visible px-2 md:px-3">
+      <header className="relative z-20 flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-1 overflow-visible px-2 pt-[env(safe-area-inset-top)] md:px-3">
         <Button
           size="icon"
           variant="ghost"
@@ -788,7 +840,7 @@ export function ChatView({
           <ContextMeter used={contextUsed} limit={contextLimit} />
         </div>
       </header>
-      <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+      <div className="hidden flex-wrap items-center gap-2 border-b border-border px-3 py-2 md:flex">
         {streamingId ? (
           <Button size="sm" variant="secondary" onClick={stop}>
             {t(locale, "stop")}
@@ -851,15 +903,100 @@ export function ChatView({
         </label>
         {cycleNote ? <span className="text-xs text-muted-foreground">{cycleNote}</span> : null}
       </div>
+      <div className="flex items-center gap-2 border-b border-border px-3 py-2 md:hidden">
+        {streamingId ? (
+          <Button size="sm" variant="secondary" onClick={stop}>
+            {t(locale, "stop")}
+          </Button>
+        ) : (
+          <Button size="sm" onClick={() => setReviewOpen(true)} disabled={!selectedModel}>
+            {t(locale, "review")}
+          </Button>
+        )}
+        {cycleNote ? <span className="truncate text-xs text-muted-foreground">{cycleNote}</span> : null}
+      </div>
+      <Sheet open={reviewOpen} onOpenChange={setReviewOpen}>
+        <SheetContent side="bottom" className="gap-3 p-4">
+          <SheetTitle>{t(locale, "review")}</SheetTitle>
+          <p className="text-sm text-muted-foreground">
+            {t(locale, "writer")} {selectedModel ? writerLabel(selectedModel) : "—"}
+          </p>
+          <div className="flex flex-col gap-2">
+            <span className="text-xs text-muted-foreground">{t(locale, "tester")}</span>
+            <ModelPicker
+              models={models}
+              value={models.find((m) => `${m.provider}:${m.id}` === testerKey) ?? null}
+              onChange={(m) => setTesterKey(`${m.provider}:${m.id}`)}
+              emptyLabel={t(locale, "testingModel")}
+              className="h-10 w-full justify-between px-3"
+              allowCycle={false}
+            />
+            <Button
+              variant={
+                selectedModel && testerKey === `${selectedModel.provider}:${selectedModel.id}`
+                  ? "secondary"
+                  : "outline"
+              }
+              disabled={!selectedModel}
+              onClick={() => {
+                if (!selectedModel) return;
+                const key = `${selectedModel.provider}:${selectedModel.id}`;
+                if (testerKey === key) {
+                  const other = models.find(
+                    (m) => !(m.id === selectedModel.id && m.provider === selectedModel.provider),
+                  );
+                  if (other) setTesterKey(`${other.provider}:${other.id}`);
+                  return;
+                }
+                setTesterKey(key);
+              }}
+            >
+              {t(locale, "sameModel")}
+            </Button>
+            <div className="flex items-center justify-between">
+              <span className="text-sm">{t(locale, "cycles")}</span>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="icon"
+                  variant="outline"
+                  aria-label={t(locale, "decreaseCycles")}
+                  onClick={() => setCycles((n) => Math.max(1, n - 1))}
+                >
+                  −
+                </Button>
+                <span className="w-8 text-center font-mono tabular-nums">{cycles}</span>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  aria-label={t(locale, "increaseCycles")}
+                  onClick={() => setCycles((n) => Math.min(100, n + 1))}
+                >
+                  +
+                </Button>
+              </div>
+            </div>
+            <Button
+              disabled={!selectedModel || Boolean(streamingId)}
+              onClick={() => {
+                setReviewOpen(false);
+                void startReview();
+              }}
+            >
+              {t(locale, "startReview")}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
       <PairBar models={models} onBrowse={() => onBrowseModels?.()} onRefreshLocal={onRefreshModels} />
 
       <div
         ref={scrollerRef}
-        className="scrollbar-thin min-h-0 flex-1 overflow-y-auto"
+        className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain"
         onScroll={(e) => {
           const el = e.currentTarget;
           const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
           stickToBottomRef.current = dist < 96;
+          setFarFromBottom(dist > 96);
         }}
       >
         {empty ? (
@@ -871,15 +1008,15 @@ export function ChatView({
                 : t(locale, "chooseModelFirst")}
             </p>
             <div className="mt-8 grid gap-2 sm:grid-cols-2">
-              {SUGGESTIONS.map((s) => (
+              {SUGGESTION_KEYS.map((key) => (
                 <button
-                  key={s}
+                  key={key}
                   type="button"
                   disabled={!selectedModel}
                   className="rounded-xl border border-border bg-card px-4 py-3 text-start text-sm leading-6 transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
-                  onClick={() => void send(s)}
+                  onClick={() => void send(t(locale, key))}
                 >
-                  {s}
+                  {t(locale, key)}
                 </button>
               ))}
             </div>
@@ -887,6 +1024,16 @@ export function ChatView({
         ) : (
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6">
             {messages.map((message) => {
+              if (isNoteMessage(message)) {
+                return (
+                  <p
+                    key={message.id}
+                    className="mx-auto max-w-lg px-2 text-center text-xs text-muted-foreground"
+                  >
+                    {message.content}
+                  </p>
+                );
+              }
               const version = versionMeta(message);
               return (
                 <MessageBubble
@@ -898,29 +1045,18 @@ export function ChatView({
                   }
                   streaming={streamingId === message.id}
                   showRegen={message.id === lastAssistant?.id && !streamingId}
-                  onRegenerate={regenerate}
+                  onRegenerate={onRegenerate}
                   onRetry={
-                    message.role === "user" && !streamingId
-                      ? () => void retryFrom(message.id)
-                      : undefined
+                    message.role === "user" && !streamingId ? onRetry : undefined
                   }
                   onEdit={
-                    message.role === "user" && !streamingId
-                      ? (content) => void editFrom(message.id, content)
-                      : undefined
+                    message.role === "user" && !streamingId ? onEdit : undefined
                   }
                   versionIndex={version.index}
                   versionCount={version.count}
-                  onVersionPrev={
-                    version.prevId && conversation && !streamingId
-                      ? () => selectSibling(conversation.id, version.prevId!)
-                      : undefined
-                  }
-                  onVersionNext={
-                    version.nextId && conversation && !streamingId
-                      ? () => selectSibling(conversation.id, version.nextId!)
-                      : undefined
-                  }
+                  prevId={!streamingId ? version.prevId : undefined}
+                  nextId={!streamingId ? version.nextId : undefined}
+                  onSelectSibling={onSelectSibling}
                 />
               );
             })}
@@ -928,15 +1064,33 @@ export function ChatView({
           </div>
         )}
       </div>
+      {farFromBottom && !empty ? (
+        <button
+          type="button"
+          className="absolute bottom-28 left-1/2 z-20 -translate-x-1/2 rounded-full border border-border bg-card px-3 py-2 text-xs shadow-[var(--composer-shadow)]"
+          onClick={() => {
+            stickToBottomRef.current = true;
+            setFarFromBottom(false);
+            bottomRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+          }}
+        >
+          <ChevronDown className="me-1 inline size-3.5" />
+          {t(locale, "jumpToLatest")}
+        </button>
+      ) : null}
+      <div className="sr-only" aria-live="polite">
+        {liveAnnounce}
+      </div>
 
       {switchWarn ? (
         <div className="mx-auto mb-2 w-full max-w-3xl px-3 md:px-4">
           <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-pretty">
-              {switchWarn.name} has a smaller context window ({switchWarn.used.toLocaleString()}{" "}
-              tokens in this chat, {switchWarn.limit.toLocaleString()} available). The full
-              conversation is still passed over, but answers may be unexpected or inaccurate while
-              the window is full.
+              {t(locale, "switchWarnBanner", {
+                name: switchWarn.name,
+                used: switchWarn.used.toLocaleString(),
+                limit: switchWarn.limit.toLocaleString(),
+              })}
             </p>
             <Button className="h-10 shrink-0" onClick={onNewChat}>
               {t(locale, "newChat")}
@@ -955,8 +1109,7 @@ export function ChatView({
         <div className="mx-auto mb-2 w-full max-w-3xl px-3 md:px-4">
           <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-pretty">
-              This model's context window is full. You can keep chatting, but answers may be
-              unexpected or inaccurate. Start a new chat to reset the window.
+              {t(locale, "contextFullBanner")}
             </p>
             <Button className="h-10 shrink-0" onClick={onNewChat}>
               {t(locale, "newChat")}
@@ -986,16 +1139,20 @@ export function ChatView({
       <Dialog open={Boolean(pendingModel)} onOpenChange={(open) => !open && setPendingModel(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>This model has a smaller context window</DialogTitle>
+            <DialogTitle>{t(locale, "smallerWindowTitle")}</DialogTitle>
             <DialogDescription>
               {pendingModel
-                ? `${pendingModel.name} can hold about ${(pendingModel.contextLength ?? 0).toLocaleString()} tokens. This chat is already using ${(conversation?.contextTokens ?? 0).toLocaleString()} tokens. The whole conversation will still be sent, but answers may be unexpected or inaccurate because the new context window is full.`
+                ? t(locale, "smallerWindowBody", {
+                    name: pendingModel.name,
+                    limit: (pendingModel.contextLength ?? 0).toLocaleString(),
+                    used: (conversation?.contextTokens ?? 0).toLocaleString(),
+                  })
                 : null}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setPendingModel(null)}>
-              Keep current model
+              {t(locale, "keepCurrentModel")}
             </Button>
             <Button
               onClick={() => {
@@ -1003,7 +1160,7 @@ export function ChatView({
                 setPendingModel(null);
               }}
             >
-              Switch anyway
+              {t(locale, "switchAnyway")}
             </Button>
           </DialogFooter>
         </DialogContent>

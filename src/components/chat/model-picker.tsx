@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { cn, formatBytes, formatContextWindow } from "@/lib/utils";
 import { CLOUD_LABEL } from "@/lib/llm/cloud";
 import { suggestQueries } from "@/lib/llm/library";
+import { t } from "@/lib/i18n";
+import { useChatStore } from "@/lib/chat/store";
 import type { ModelRef, Provider } from "@/lib/chat/types";
 
 function groupModels(models: ModelRef[]) {
@@ -40,7 +42,7 @@ export function ModelPicker({
   align = "start",
   className,
   allowCycle = true,
-  emptyLabel = "Choose a model",
+  emptyLabel,
 }: {
   models: ModelRef[];
   value: ModelRef | null;
@@ -51,11 +53,12 @@ export function ModelPicker({
   allowCycle?: boolean;
   emptyLabel?: string;
 }) {
+  const locale = useChatStore((s) => s.settings.locale);
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
   const visible = useMemo(() => models.filter((m) => matchesQuery(m, q)), [models, q]);
   const groups = groupModels(visible);
-  const label = value?.name ?? emptyLabel;
+  const label = value?.name ?? emptyLabel ?? t(locale, "chooseModel");
   const index = models.findIndex((m) => m.id === value?.id && m.provider === value?.provider);
   const hints = q ? suggestQueries(q, models.map((m) => m.name)) : [];
 
@@ -73,7 +76,8 @@ export function ModelPicker({
           type="button"
           size="icon-sm"
           variant="ghost"
-          aria-label="Previous model"
+          className="hidden md:inline-flex"
+          aria-label={t(locale, "prevModel")}
           disabled={models.length < 2}
           onClick={() => cycle(-1)}
         >
@@ -88,7 +92,7 @@ export function ModelPicker({
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
-            className={cn("h-9 max-w-[min(100%,20rem)] gap-1.5 px-2.5 font-medium", className)}
+            className={cn("h-9 min-w-0 max-w-full gap-1.5 px-2 font-medium md:max-w-[min(100%,20rem)] md:px-2.5", className)}
           >
             <span className="truncate">{label}</span>
             <ChevronDown className="size-4 text-muted-foreground" />
@@ -167,7 +171,8 @@ export function ModelPicker({
           type="button"
           size="icon-sm"
           variant="ghost"
-          aria-label="Next model"
+          className="hidden md:inline-flex"
+          aria-label={t(locale, "nextModel")}
           disabled={models.length < 2}
           onClick={() => cycle(1)}
         >
