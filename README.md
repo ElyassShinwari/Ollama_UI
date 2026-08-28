@@ -68,7 +68,7 @@ While a model downloads, the percent stays in the log at the top. The shadow lin
 
 The runtime is still Ollama: Hugging Face GGUF files are downloaded through it and then chat like any other local model.
 
-**Review pairs** (Coding, Writing, Math, Science, Translation, Research, Everyday chat, Images) suggest two local models: a writer and a tester. Each job has four sizes — **very light**, **light**, **medium**, **heavy** — plus **Same model**, so the writer can review its own work. Install both from Models, or pick a pair under **Start review**.
+**Review pairs** (Coding, Writing, Math, Science, Translation, Research, Everyday chat, Images) suggest two local models: a writer and a tester. Each job has four sizes — **very light**, **light**, **medium**, **heavy** — plus **Same model**, so the writer can review its own work. Tap **Install both** to download the pair automatically (Ollama must be running). If the tester is still not satisfied on the last cycle, that tester finishes the answer itself.
 
 ## Install Ollama by hand (optional)
 
@@ -121,7 +121,7 @@ ollama list
 7. Open **Studio** in the sidebar for GitHub, **Cloud base**, MCP, the local API, website/WhatsApp webhooks, instructions, knowledge, and model advice. **Back to chat** closes Studio and returns to the conversation you were in. Clicking a chat in the sidebar also closes Studio and opens that chat. On a phone, use the menu in Studio to open the chat list.
 8. Click **Start review** to run a writer/tester cycle on the current chat — including chats you already started. The **writer** is the model in the header. A **tester** is picked automatically when another model is available (you can change it). Set 1–100 cycles. Each cycle passes the latest answer between the two models. If the tester is not satisfied when the cycles end, it posts a final report with the project and remaining errors.
 
-Default theme is light (switch in the left menu or Settings). Change the language from **Language** in the left menu, from the globe next to the token count, or in Settings. English, Dutch, German, Spanish, Italian, Russian, Chinese, Arabic, Persian, Dari, and Pashto. Menus, buttons, and voice input follow that language (Arabic-script languages are right-to-left). API keys stay in this browser and are sent only to this computer’s server, then to the matching provider.
+Default theme is light (switch in the left menu or Settings). Change the language from the **Language** button in the top bar (it shows the current name, e.g. English), from **Language** at the top of the left menu, from the grid on the first screen, or in Settings. English, Dutch, German, Spanish, Italian, Russian, Chinese, Arabic, Persian, Dari, and Pashto. Menus, buttons, and voice input follow that language (Arabic-script languages are right-to-left). API keys stay in this browser and are sent only to this computer’s server, then to the matching provider.
 
 ## News
 

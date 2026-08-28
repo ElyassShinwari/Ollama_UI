@@ -254,6 +254,7 @@ export function ChatApp() {
                 setHubQuery(query ?? "");
                 setHubOpen(true);
               }}
+              onRefreshModels={() => refresh()}
             />
           ) : (
             <ConnectScreen

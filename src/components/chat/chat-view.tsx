@@ -78,12 +78,14 @@ export function ChatView({
   onToggleSidebar,
   onNewChat,
   onBrowseModels,
+  onRefreshModels,
 }: {
   models: ModelRef[];
   onOpenSidebar: () => void;
   onToggleSidebar: () => void;
   onNewChat: () => void;
   onBrowseModels?: (query?: string) => void;
+  onRefreshModels?: () => Promise<ModelRef[] | void>;
 }) {
   const conversation = useChatStore(selectActiveConversation);
   const selectedModel = useChatStore((s) => s.selectedModel);
@@ -575,8 +577,8 @@ export function ChatView({
       const author = useChatStore.getState().selectedModel;
       const reviewer = modelFromKey(testerKey ?? "") ?? reviewerStart;
       if (author && reviewer) {
-        setCycleNote(`${reviewer.name} writing final report`);
-        const wrap = addUserMessage(`Final report from ${reviewer.name}`, { conversationId });
+        setCycleNote(`${reviewer.name} finishing the answer`);
+        const wrap = addUserMessage(`Finished by ${reviewer.name}`, { conversationId });
         await runCompletion(
           conversationId,
           [
@@ -589,8 +591,8 @@ export function ChatView({
           FINAL_REVIEW_SYSTEM,
         );
         if (!cancelledRef.current) {
-          setCycleNote(`Finished ${max} cycle${max === 1 ? "" : "s"} · tester left a final report`);
-          toast.message(`${reviewer.name} left remaining issues with the project`);
+          setCycleNote(`Finished ${max} cycle${max === 1 ? "" : "s"} · ${reviewer.name} completed the work`);
+          toast.message(`${reviewer.name} finished the answer after the last cycle`);
         }
       }
     }
@@ -756,7 +758,7 @@ export function ChatView({
           </p>
         </div>
       ) : null}
-      <header className="flex h-14 shrink-0 items-center gap-1 px-2 md:px-3">
+      <header className="relative z-20 flex h-14 shrink-0 items-center gap-1 overflow-visible px-2 md:px-3">
         <Button
           size="icon"
           variant="ghost"
@@ -782,7 +784,7 @@ export function ChatView({
           onBrowse={onBrowseModels}
         />
         <div className="ms-auto flex items-center gap-1">
-          <LanguagePicker variant="icon" />
+          <LanguagePicker variant="header" />
           <ContextMeter used={contextUsed} limit={contextLimit} />
         </div>
       </header>
@@ -849,7 +851,7 @@ export function ChatView({
         </label>
         {cycleNote ? <span className="text-xs text-muted-foreground">{cycleNote}</span> : null}
       </div>
-      <PairBar models={models} onBrowse={() => onBrowseModels?.()} />
+      <PairBar models={models} onBrowse={() => onBrowseModels?.()} onRefreshLocal={onRefreshModels} />
 
       <div
         ref={scrollerRef}

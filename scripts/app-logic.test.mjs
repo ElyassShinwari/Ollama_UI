@@ -22,6 +22,10 @@ test("handoffs pass the latest answer, not an empty shell", () => {
   const toWriter = cloud.handoffToWriter("ChatGPT", "Fix the name.");
   assert.match(toWriter, /ChatGPT/);
   assert.match(toWriter, /Fix the name/);
+  const last = cloud.finalHandoff("Grok", "function add(){}");
+  assert.match(last, /yourself/);
+  assert.match(last, /function add/);
+  assert.match(cloud.FINAL_REVIEW_SYSTEM, /yourself/i);
 });
 
 test("isChatGptOAuth distinguishes JWT sign-in from API keys", () => {

@@ -20,7 +20,6 @@ import {
   type LibraryModel,
 } from "@/lib/llm/library";
 import { fetchSetup, listHfQuants, readSetupStream, searchLibrary, type SetupStatus } from "@/lib/llm/setup";
-import { findLocalModel } from "@/lib/llm/pairs";
 import { PairSuggestions } from "@/components/chat/pair-suggestions";
 import { useChatStore } from "@/lib/chat/store";
 import type { ModelRef } from "@/lib/chat/types";
@@ -185,27 +184,6 @@ export function ModelHub({
     }
   }
 
-  async function installPair(writerId: string, testerId: string) {
-    if (!status?.running) {
-      pushLog("Install or start Ollama first.");
-      return;
-    }
-    const haveWriter = Boolean(findLocalModel(localModels, writerId));
-    const haveTester = Boolean(findLocalModel(localModels, testerId));
-    const jobs: Promise<boolean>[] = [];
-    if (!haveWriter) jobs.push(installModel(writerId, { select: false }));
-    if (!haveTester && testerId !== writerId) jobs.push(installModel(testerId, { select: false }));
-    if (jobs.length) await Promise.all(jobs);
-    const models = (await onRefreshLocal()) ?? [];
-    const writer = findLocalModel(models, writerId);
-    const tester = findLocalModel(models, testerId);
-    if (writer) onChoose(writer);
-    if (tester) useChatStore.getState().setTesterKey(`${tester.provider}:${tester.id}`);
-    if (writer && tester) {
-      toast.success(`Pair ready: ${writer.name} writes, ${tester.name} tests`);
-    }
-  }
-
   async function deleteModel(model: ModelRef) {
     setDeleting(true);
     pushLog(`Removing ${model.id}…`);
@@ -358,8 +336,7 @@ export function ModelHub({
       <PairSuggestions
         models={localModels}
         query={query}
-        canInstall={Boolean(status?.running)}
-        onInstallPair={(writerId, testerId) => void installPair(writerId, testerId)}
+        onRefreshLocal={onRefreshLocal}
       />
 
       {localFiltered.length > 0 ? (

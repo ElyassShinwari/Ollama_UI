@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { PAIR_TASKS, pairLanes, pairStatus, type PairTask, type ReviewPair } from "@/lib/llm/pairs";
+import { PAIR_TASKS, findLocalModel, pairLanes, pairStatus, type PairTask, type ReviewPair } from "@/lib/llm/pairs";
+import { pullOllamaModel } from "@/lib/llm/pull-client";
 import { useChatStore } from "@/lib/chat/store";
 import type { ModelRef } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
@@ -40,15 +41,13 @@ export function PairSuggestions({
   models,
   variant = "cards",
   query = "",
-  canInstall = false,
-  onInstallPair,
+  onRefreshLocal,
   onBrowse,
 }: {
   models: ModelRef[];
   variant?: "cards" | "bar";
   query?: string;
-  canInstall?: boolean;
-  onInstallPair?: (writerId: string, testerId: string) => void;
+  onRefreshLocal?: () => Promise<ModelRef[] | void>;
   onBrowse?: () => void;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
@@ -94,8 +93,7 @@ export function PairSuggestions({
             key={task.id}
             task={task}
             models={models}
-            canInstall={canInstall}
-            onInstallPair={onInstallPair}
+            onRefreshLocal={onRefreshLocal}
             onBrowse={onBrowse}
             onUsed={close}
           />
@@ -108,15 +106,13 @@ export function PairSuggestions({
 function PairTaskBody({
   task,
   models,
-  canInstall,
-  onInstallPair,
+  onRefreshLocal,
   onBrowse,
   onUsed,
 }: {
   task: PairTask;
   models: ModelRef[];
-  canInstall: boolean;
-  onInstallPair?: (writerId: string, testerId: string) => void;
+  onRefreshLocal?: () => Promise<ModelRef[] | void>;
   onBrowse?: () => void;
   onUsed?: () => void;
 }) {
@@ -130,9 +126,8 @@ function PairTaskBody({
             label={lane.label}
             pair={lane.pair}
             models={models}
-            canInstall={canInstall}
             taskName={task.task}
-            onInstallPair={onInstallPair}
+            onRefreshLocal={onRefreshLocal}
             onBrowse={onBrowse}
             onUsed={onUsed}
           />
@@ -173,26 +168,72 @@ function SameModelLane({ taskName, onUsed }: { taskName: string; onUsed?: () => 
   );
 }
 
+function PullBar({ label, pct }: { label: string; pct: number }) {
+  const n = Math.max(0, Math.min(100, Math.round(pct)));
+  return (
+    <div className="space-y-1">
+      <p className="font-mono text-[11px] text-muted-foreground">
+        {label} · {n}%
+      </p>
+      <span className="block h-1 overflow-hidden rounded-full bg-secondary">
+        <span className="block h-full rounded-full bg-primary/70" style={{ width: `${n}%` }} />
+      </span>
+    </div>
+  );
+}
+
 function PairLane({
   label,
   pair,
   models,
-  canInstall,
   taskName,
-  onInstallPair,
+  onRefreshLocal,
   onBrowse,
   onUsed,
 }: {
   label: string;
   pair: ReviewPair;
   models: ModelRef[];
-  canInstall: boolean;
   taskName: string;
-  onInstallPair?: (writerId: string, testerId: string) => void;
+  onRefreshLocal?: () => Promise<ModelRef[] | void>;
   onBrowse?: () => void;
   onUsed?: () => void;
 }) {
   const status = pairStatus(models, pair);
+  const [pct, setPct] = useState<{ w: number; t: number } | null>(null);
+  const installing = pct != null;
+
+  async function installBoth() {
+    const host = useChatStore.getState().settings.ollamaHost;
+    const haveW = Boolean(findLocalModel(models, pair.writer));
+    const haveT = Boolean(findLocalModel(models, pair.tester));
+    setPct({ w: haveW ? 100 : 1, t: haveT ? 100 : 1 });
+    toast.message(`Installing ${pair.writer} and ${pair.tester}…`);
+    try {
+      if (!haveW) {
+        await pullOllamaModel(host, pair.writer, (p) => setPct((cur) => ({ w: p, t: cur?.t ?? 1 })));
+      }
+      if (!haveT && pair.tester !== pair.writer) {
+        await pullOllamaModel(host, pair.tester, (p) => setPct((cur) => ({ w: cur?.w ?? 100, t: p })));
+      }
+      const fresh = (await onRefreshLocal?.()) ?? models;
+      const writer = findLocalModel(fresh, pair.writer);
+      const tester = findLocalModel(fresh, pair.tester);
+      if (writer && tester) {
+        applyReadyPair(writer, tester, taskName);
+        onUsed?.();
+      } else {
+        toast.error("Download did not finish. Open Models if you need to retry.");
+        onBrowse?.();
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not install this pair");
+      onBrowse?.();
+    } finally {
+      setPct(null);
+    }
+  }
+
   return (
     <div className="rounded-lg border border-border px-3 py-2">
       <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
@@ -205,7 +246,12 @@ function PairLane({
         Tester {pair.tester}
       </p>
       <div className="mt-2">
-        {status.ready && status.writer && status.tester ? (
+        {installing ? (
+          <div className="space-y-2">
+            <PullBar label={pair.writer} pct={pct.w} />
+            <PullBar label={pair.tester} pct={pct.t} />
+          </div>
+        ) : status.ready && status.writer && status.tester ? (
           <Button
             size="sm"
             className="h-8"
@@ -216,18 +262,9 @@ function PairLane({
           >
             Use this pair
           </Button>
-        ) : canInstall && onInstallPair ? (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8"
-            onClick={() => onInstallPair(pair.writer, pair.tester)}
-          >
-            Install both
-          </Button>
         ) : (
-          <Button size="sm" variant="outline" className="h-8" onClick={() => onBrowse?.()}>
-            Install in Models
+          <Button size="sm" className="h-8" onClick={() => void installBoth()}>
+            Install both
           </Button>
         )}
       </div>
@@ -238,9 +275,11 @@ function PairLane({
 export function PairBar({
   models,
   onBrowse,
+  onRefreshLocal,
 }: {
   models: ModelRef[];
   onBrowse?: () => void;
+  onRefreshLocal?: () => Promise<ModelRef[] | void>;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const close = () => setOpenId(null);
@@ -268,7 +307,7 @@ export function PairBar({
         <PairTaskBody
           task={open}
           models={models}
-          canInstall={false}
+          onRefreshLocal={onRefreshLocal}
           onBrowse={onBrowse}
           onUsed={close}
         />

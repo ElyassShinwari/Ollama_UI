@@ -215,7 +215,7 @@ export const REVIEW_SELF_SYSTEM =
   "You wrote the previous answer. Now review that answer as a second pass — do not rubber-stamp it. Check it against the original request. If it is correct, complete, and safe, start your reply with SATISFIED on its own first line, then one short note. If it is not good enough, do not write SATISFIED. Quote the errors and list concrete fixes. Your entire reply is passed back as the next writing prompt.";
 
 export const FINAL_REVIEW_SYSTEM =
-  "The revision cycles are over and the work is still not accepted. You are the tester. Write a final report for the user that includes: (1) the current project or answer as it stands, complete enough to use, (2) remaining errors that were not fixed, (3) what still must change. Put the project first, then your feedback. Do not write SATISFIED.";
+  "The revision cycles are over and the work is still not accepted. You are the tester. Do not write another review-only report. Finish the user's request yourself: produce the complete corrected answer, applying every fix you already found. Put the finished work first. After that, a short note on what you changed and any remaining caveat. Do not write SATISFIED.";
 
 export function handoffToTester(authorName: string, answer: string, cycle: number, max: number) {
   return `Cycle ${cycle}/${max}. Here is ${authorName}'s latest answer. Test it against the original request. If it is good, start with SATISFIED. If not, send concrete fixes — your full reply will be passed back to ${authorName}.\n\n${answer}`;
@@ -226,5 +226,5 @@ export function handoffToWriter(testerName: string, review: string) {
 }
 
 export function finalHandoff(authorName: string, project: string) {
-  return `The cycles are finished and the errors were not fully fixed. Here is the latest version of the project from ${authorName}:\n\n${project}\n\nWrite your final test report: include this project (or a cleaned-up restatement of it) together with the remaining errors that still need to be fixed.`;
+  return `The cycles are finished and ${authorName}'s work is still not good enough. You must now complete it yourself — write the full corrected answer the user originally asked for, not a list of remaining bugs.\n\nLatest version:\n\n${project}`;
 }

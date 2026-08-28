@@ -224,6 +224,7 @@ export function Sidebar({
         )}
       </nav>
       <div className="flex flex-col gap-1 border-t border-border p-3">
+        <LanguagePicker />
         <Button
           variant="ghost"
           className="h-10 w-full justify-start gap-2"
@@ -236,7 +237,6 @@ export function Sidebar({
           {resolvedTheme(theme) === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
           {resolvedTheme(theme) === "dark" ? t(locale, "lightMode") : t(locale, "darkMode")}
         </Button>
-        <LanguagePicker />
         <Button
           variant="ghost"
           className={cn("h-10 w-full justify-start gap-2", newsActive && "bg-accent")}

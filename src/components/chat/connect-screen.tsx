@@ -3,7 +3,7 @@ import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FlameMark } from "@/components/chat/sidebar";
-import { LanguagePicker } from "@/components/chat/language-picker";
+import { LanguageList, LanguagePicker } from "@/components/chat/language-picker";
 import { ModelHub } from "@/components/chat/model-hub";
 import { CLOUD_LABEL } from "@/lib/llm/cloud";
 import { t } from "@/lib/i18n";
@@ -66,7 +66,7 @@ export function ConnectScreen({
             ) : null}
             <FlameMark className="size-10" />
             <div className="ms-auto">
-              <LanguagePicker variant="icon" />
+              <LanguagePicker variant="header" />
             </div>
           </div>
           <h1 className="font-serif text-4xl tracking-tight text-balance md:text-5xl">
@@ -75,6 +75,10 @@ export function ConnectScreen({
           <p className="mt-3 max-w-lg text-base text-muted-foreground text-pretty">
             {hasCloud ? t(locale, "connectCloud") : t(locale, "connectLocal")}
           </p>
+          <div className="mt-5">
+            <p className="mb-2 text-sm font-medium">{t(locale, "language")}</p>
+            <LanguageList />
+          </div>
         </div>
 
         {hasCloud ? (
