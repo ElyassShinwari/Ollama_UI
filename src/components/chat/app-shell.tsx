@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Menu } from "lucide-react";
 import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -11,6 +12,7 @@ import {
 import { ChatView } from "@/components/chat/chat-view";
 import { ConnectScreen } from "@/components/chat/connect-screen";
 import { ModelHub } from "@/components/chat/model-hub";
+import { OllamaLaunch, ollamaIsUp } from "@/components/chat/ollama-launch";
 import { StudioPanel } from "@/components/studio/studio-panel";
 import { NewsPanel } from "@/components/news/news-panel";
 import { SettingsDialog } from "@/components/chat/settings-dialog";
@@ -244,6 +246,24 @@ export function ChatApp() {
               onClose={() => closeOverlay()}
               onOpenSidebar={() => setMobileOpen(true)}
             />
+          ) : selectedModel && selectedModel.provider === "ollama" && !catalog.status.loading && !ollamaIsUp(catalog.status) ? (
+            <div className="flex h-full min-h-0 flex-col">
+              <header className="flex h-14 shrink-0 items-center px-2 md:hidden">
+                <button
+                  type="button"
+                  className="inline-flex size-9 items-center justify-center rounded-md hover:bg-accent"
+                  onClick={() => setMobileOpen(true)}
+                  aria-label={t(settings.locale, "openSidebar")}
+                >
+                  <Menu className="size-5" />
+                </button>
+              </header>
+              <OllamaLaunch
+                host={settings.ollamaHost}
+                variant="page"
+                onReady={() => refresh()}
+              />
+            </div>
           ) : selectedModel ? (
             <ChatView
               models={catalog.models}

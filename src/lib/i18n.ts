@@ -115,6 +115,14 @@ const EN = {
   micFailed: "Could not start the microphone.",
   writer: "Writer",
   tester: "Tester",
+  startOllama: "Start Ollama",
+  installOllama: "Install Ollama",
+  startingOllama: "Starting…",
+  installingOllama: "Installing…",
+  checkingOllama: "Checking Ollama…",
+  ollamaNotRunning: "Ollama is not running",
+  ollamaNotInstalled: "Ollama is not installed",
+  ollamaStartHint: "Start it here. You can pick a local model after it is running.",
 } as const;
 
 export type MsgKey = keyof typeof EN;

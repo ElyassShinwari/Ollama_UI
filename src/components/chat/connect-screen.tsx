@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { FlameMark } from "@/components/chat/sidebar";
 import { LanguageList, LanguagePicker } from "@/components/chat/language-picker";
 import { ModelHub } from "@/components/chat/model-hub";
+import { OllamaLaunch } from "@/components/chat/ollama-launch";
 import { CLOUD_LABEL } from "@/lib/llm/cloud";
 import { t } from "@/lib/i18n";
 import { useChatStore } from "@/lib/chat/store";
@@ -75,10 +76,18 @@ export function ConnectScreen({
           <p className="mt-3 max-w-lg text-base text-muted-foreground text-pretty">
             {hasCloud ? t(locale, "connectCloud") : t(locale, "connectLocal")}
           </p>
-          <div className="mt-5">
-            <p className="mb-2 text-sm font-medium">{t(locale, "language")}</p>
-            <LanguageList />
-          </div>
+        </div>
+
+        <OllamaLaunch
+          host={host}
+          onReady={async () => {
+            await onRefresh();
+          }}
+        />
+
+        <div className="mb-8">
+          <p className="mb-2 text-sm font-medium">{t(locale, "language")}</p>
+          <LanguageList />
         </div>
 
         {hasCloud ? (
@@ -116,6 +125,7 @@ export function ConnectScreen({
         <ModelHub
           host={host}
           localModels={ollama}
+          hideStart
           onChoose={onChoose}
           onRefreshLocal={async () => {
             const result = await onRefresh();

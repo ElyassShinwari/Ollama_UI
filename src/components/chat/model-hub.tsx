@@ -32,12 +32,14 @@ export function ModelHub({
   onChoose,
   onRefreshLocal,
   initialQuery = "",
+  hideStart = false,
 }: {
   host: string;
   localModels: ModelRef[];
   onChoose: (model: ModelRef) => void;
   onRefreshLocal: () => Promise<ModelRef[] | void>;
   initialQuery?: string;
+  hideStart?: boolean;
 }) {
   const [status, setStatus] = useState<SetupStatus | null>(null);
   const [query, setQuery] = useState(initialQuery);
@@ -237,6 +239,7 @@ export function ModelHub({
 
   return (
     <div className="flex flex-col gap-6">
+      {status?.running || !hideStart ? (
       <div className="rounded-2xl border border-border bg-card px-4 py-4">
         <p className="font-medium">
           {status?.running
@@ -271,6 +274,7 @@ export function ModelHub({
           </pre>
         ) : null}
       </div>
+      ) : null}
 
       <div className="relative">
         <Search className="pointer-events-none absolute top-1/2 left-3 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
