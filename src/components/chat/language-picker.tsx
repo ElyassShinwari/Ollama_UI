@@ -110,8 +110,8 @@ export function LanguagePicker({
           className={cn(
             "z-[80] rounded-xl border border-border bg-card p-2 shadow-[var(--composer-shadow)]",
             variant === "header"
-              ? "absolute end-0 top-full mt-1 w-[min(20rem,calc(100vw-1.5rem))]"
-              : "absolute start-0 bottom-full mb-1 w-full",
+              ? "absolute end-0 top-full mt-1 max-h-[min(24rem,70vh)] w-[min(20rem,calc(100vw-1.5rem))] overflow-y-auto"
+              : "absolute start-0 bottom-full mb-1 max-h-[min(24rem,70vh)] w-full overflow-y-auto",
           )}
         >
           <p className="mb-2 px-1 text-xs font-medium text-muted-foreground">{t(locale, "language")}</p>

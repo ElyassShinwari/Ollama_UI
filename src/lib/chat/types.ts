@@ -1,7 +1,9 @@
+import type { LocaleId } from "@/lib/i18n";
+
 export type Provider = "ollama" | "openai" | "anthropic" | "xai" | "kimi" | "deepseek";
 export type Transport = "browser" | "server";
 export type ThemeMode = "light" | "dark" | "system";
-export type AppLocale = "en" | "nl" | "de" | "es" | "it" | "ru" | "zh" | "ar" | "fa" | "prs" | "ps";
+export type AppLocale = LocaleId;
 
 export type ModelRef = {
   id: string;

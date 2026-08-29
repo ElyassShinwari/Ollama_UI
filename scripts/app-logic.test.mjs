@@ -558,8 +558,14 @@ test("locales cover the requested languages including Dari and Pashto", () => {
   assert.equal(i18n.matchLocale("fa-AF"), "prs");
   assert.equal(i18n.matchLocale("ps-AF"), "ps");
   assert.equal(i18n.matchLocale("zh-CN"), "zh");
+  assert.equal(i18n.matchLocale("ja-JP"), "ja");
+  assert.equal(i18n.matchLocale("hi-IN"), "hi");
+  assert.equal(i18n.matchLocale("pt-BR"), "pt");
   assert.equal(i18n.matchLocale("ar-SA"), "ar");
   assert.equal(i18n.t("de", "newChat"), "Neuer Chat");
+  assert.equal(i18n.t("ja", "newChat"), "新しいチャット");
+  assert.equal(i18n.t("hi", "language"), "भाषा");
+  assert.equal(i18n.t("pt", "settings"), "Configurações");
   assert.equal(i18n.t("ps", "settings"), "تنظیمات");
   assert.equal(i18n.t("prs", "newChat"), "گفتگوی جدید");
   assert.equal(i18n.localeInfo("ar").dir, "rtl");
@@ -570,6 +576,9 @@ test("locales cover the requested languages including Dari and Pashto", () => {
   assert.equal(i18n.localeInfo("prs").flag, "🇦🇫");
   assert.equal(i18n.localeInfo("ps").flag, "🇦🇫");
   assert.equal(i18n.localeInfo("zh").flag, "🇨🇳");
+  assert.equal(i18n.localeInfo("ja").flag, "🇯🇵");
+  assert.equal(i18n.localeInfo("hi").flag, "🇮🇳");
+  assert.equal(i18n.localeInfo("pt").flag, "🇧🇷");
   assert.equal(i18n.localeInfo("ar").flag, "🇸🇦");
   assert.equal(i18n.localeInfo("ru").flag, "🇷🇺");
   assert.ok(i18n.LOCALES.every((item) => item.flag));
