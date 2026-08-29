@@ -13,7 +13,7 @@ import { ChatView } from "@/components/chat/chat-view";
 import { ConnectScreen } from "@/components/chat/connect-screen";
 import { ModelHub } from "@/components/chat/model-hub";
 import { OllamaLaunch, ollamaIsUp } from "@/components/chat/ollama-launch";
-import { StudioPanel } from "@/components/studio/studio-panel";
+import { StudioPanel, type StudioTab } from "@/components/studio/studio-panel";
 import { NewsPanel } from "@/components/news/news-panel";
 import { SettingsDialog } from "@/components/chat/settings-dialog";
 import { FlameMark, Sidebar } from "@/components/chat/sidebar";
@@ -58,6 +58,7 @@ export function ChatApp() {
   const [hubOpen, setHubOpen] = useState(false);
   const [hubQuery, setHubQuery] = useState("");
   const [studioOpen, setStudioOpen] = useState(false);
+  const [studioTab, setStudioTab] = useState<StudioTab>("n8n");
   const [newsOpen, setNewsOpen] = useState(false);
   const [hydrated, setHydrated] = useState(() => useChatStore.persist.hasHydrated());
   const overlayPushed = useRef(false);
@@ -143,7 +144,8 @@ export function ChatApp() {
     }
   }
 
-  function openStudio() {
+  function openStudio(tab: StudioTab = "n8n") {
+    setStudioTab(tab);
     setStudioOpen(true);
     setNewsOpen(false);
     setMobileOpen(false);
@@ -196,10 +198,12 @@ export function ChatApp() {
         setSettingsOpen(true);
         setMobileOpen(false);
       }}
-      onOpenStudio={openStudio}
+      onOpenStudio={() => openStudio("GitHub")}
+      onOpenN8n={() => openStudio("n8n")}
       onOpenNews={openNews}
       newsActive={newsOpen}
       studioActive={studioOpen}
+      n8nActive={studioOpen && studioTab === "n8n"}
       onNavigate={() => {
         setMobileOpen(false);
         closeOverlay();
@@ -240,6 +244,7 @@ export function ChatApp() {
               models={catalog.models}
               onClose={() => closeOverlay()}
               onOpenSidebar={() => setMobileOpen(true)}
+              initialTab={studioTab}
             />
           ) : newsOpen ? (
             <NewsPanel
@@ -319,6 +324,10 @@ export function ChatApp() {
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
         onHostChange={() => void refresh()}
+        onOpenN8n={() => {
+          setSettingsOpen(false);
+          openStudio("n8n");
+        }}
       />
       <Toaster theme={resolvedTheme(settings.theme)} position="top-center" />
     </TooltipProvider>

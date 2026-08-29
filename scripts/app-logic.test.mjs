@@ -613,6 +613,7 @@ const n8n = await import("../src/lib/studio/n8n.ts");
 
 test("n8n addresses: local default, cloud short name, pasted UI URLs", () => {
   assert.equal(n8n.defaultN8nBase("local"), "http://127.0.0.1:5678");
+  assert.equal(n8n.defaultN8nBase("server"), "https://n8n.example.com");
   assert.equal(n8n.normalizeN8nBase("acme", "cloud"), "https://acme.app.n8n.cloud");
   assert.equal(
     n8n.sanitizeN8nBase("https://acme.app.n8n.cloud/home/workflows"),
@@ -623,19 +624,30 @@ test("n8n addresses: local default, cloud short name, pasted UI URLs", () => {
     "https://n8n.company.com",
   );
   assert.equal(n8n.looksLikePlaceholder("https://your-instance.app.n8n.cloud"), true);
+  assert.equal(n8n.looksLikePlaceholder("https://n8n.example.com"), true);
   assert.equal(n8n.looksLikePlaceholder("https://acme.app.n8n.cloud"), false);
+  assert.equal(n8n.n8nKindFromBase("http://127.0.0.1:5678"), "local");
+  assert.equal(n8n.n8nKindFromBase("https://acme.app.n8n.cloud"), "cloud");
+  assert.equal(n8n.n8nKindFromBase("https://n8n.company.com"), "server");
+  assert.equal(n8n.cloudInstanceName("https://acme.app.n8n.cloud"), "acme");
+  assert.equal(n8n.normalizeN8nBase("n8n.company.com", "server"), "https://n8n.company.com");
+  assert.ok(n8n.LOCAL_N8N_CANDIDATES.includes("http://127.0.0.1:5678"));
+  assert.throws(() => n8n.normalizeN8nBase("acme", "server"));
 });
 
 test("n8n starter workflows talk to this app and expose a receive webhook", () => {
   const ask = n8n.askModelWorkflow({
     origin: "http://127.0.0.1:8080",
     secret: "secret-key",
+    apiKey: "fast-api-key",
     model: "smollm2:135m",
   });
   assert.equal(ask.name, n8n.ASK_WORKFLOW_NAME);
   const http = ask.nodes.find((node) => node.type === "n8n-nodes-base.httpRequest");
   assert.ok(http);
   assert.equal(http.parameters.url, "http://127.0.0.1:8080/api/n8n");
+  assert.equal(http.retryOnFail, true);
+  assert.ok((http.maxTries ?? 0) >= 5);
   const headerBlock = http.parameters.headerParameters;
   const headerList =
     headerBlock && typeof headerBlock === "object" && "parameters" in headerBlock
@@ -645,6 +657,10 @@ test("n8n starter workflows talk to this app and expose a receive webhook", () =
   assert.equal(
     headerList.find((h) => h && h.name === "x-n8n-secret")?.value,
     "secret-key",
+  );
+  assert.equal(
+    headerList.find((h) => h && h.name === "Authorization")?.value,
+    "Bearer fast-api-key",
   );
   const receive = n8n.receiveChatWorkflow();
   assert.equal(receive.name, n8n.RECEIVE_WORKFLOW_NAME);
@@ -669,4 +685,61 @@ test("n8n inbound extracts chat text and clips outbound payloads", () => {
   assert.equal(typeof body.assistant, "string");
   assert.ok(String(body.assistant).length < 25_000);
   assert.match(String(body.assistant), /…$/);
+});
+
+const lane = await import("../src/lib/studio/lane.server.ts");
+
+test("n8n lane yields to chat and only runs one n8n job", () => {
+  lane.resetLaneForTests();
+  assert.equal(lane.chatIsBusy(), false);
+  const first = lane.enterN8n();
+  assert.equal(first.ok, true);
+  const second = lane.enterN8n();
+  assert.equal(second.ok, false);
+  lane.leaveN8n();
+  lane.setChatBusy(true);
+  assert.equal(lane.chatIsBusy(), true);
+  const blocked = lane.enterN8n();
+  assert.equal(blocked.ok, false);
+  if (!blocked.ok) assert.ok(blocked.retryMs >= 1000);
+  lane.setChatBusy(false);
+  const after = lane.enterN8n();
+  assert.equal(after.ok, true);
+  if (after.ok) after.signal.addEventListener("abort", () => {});
+  lane.setChatBusy(true);
+  assert.equal(after.ok && after.signal.aborted, true);
+  lane.resetLaneForTests();
+});
+
+test("n8n HTTP example uses a Bearer API key", () => {
+  const sample = n8n.n8nHttpExample("http://app", "sec", "llama3.2", "fast-key");
+  assert.match(sample, /Authorization: Bearer fast-key/);
+});
+
+test("n8n connection output matches Self-hosted and Ollama credential fields", () => {
+  const self = n8n.n8nSelfHostedConnection({
+    origin: "http://127.0.0.1:8080",
+    apiKey: "fast-key",
+    model: "smollm2:135m",
+  });
+  assert.equal(self.provider, "Self-hosted");
+  assert.equal(self.baseUrl, "http://127.0.0.1:8080/api/v1");
+  assert.equal(self.apiKey, "fast-key");
+  assert.equal(self.model, "smollm2:135m");
+  const card = n8n.n8nConnectionText(self);
+  assert.match(card, /Provider: Self-hosted/);
+  assert.match(card, /Base URL: http:\/\/127.0.0.1:8080\/api\/v1/);
+  assert.match(card, /API key: fast-key/);
+  assert.match(card, /Model: smollm2:135m/);
+  const ollama = n8n.n8nOllamaConnection({
+    ollamaHost: "http://127.0.0.1:11434",
+    model: "llama3.2",
+  });
+  assert.equal(ollama.provider, "Ollama");
+  assert.equal(ollama.apiKey, "");
+  assert.match(n8n.n8nConnectionText(ollama), /API key: \(leave blank\)/);
+  assert.equal(
+    n8n.n8nReachableFromDocker("http://127.0.0.1:8080/api/v1"),
+    "http://host.docker.internal:8080/api/v1",
+  );
 });

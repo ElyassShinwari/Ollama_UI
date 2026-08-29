@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { studioKeyOk } from "@/lib/studio/api-auth.server";
 import { loadStudio } from "@/lib/studio/config.server";
+import { chatIsBusy } from "@/lib/studio/lane.server";
 import { sanitizeOllamaHost } from "@/lib/utils";
 
 export const Route = createFileRoute("/api/v1/chat/completions")({
@@ -10,10 +12,18 @@ export const Route = createFileRoute("/api/v1/chat/completions")({
         if (!studio.apiEnabled) {
           return Response.json({ error: "API is disabled in Studio" }, { status: 403 });
         }
-        const auth = request.headers.get("authorization") ?? "";
-        const token = auth.replace(/^Bearer\s+/i, "");
-        if (!studio.apiKey || token !== studio.apiKey) {
+        if (!studioKeyOk(request, studio)) {
           return Response.json({ error: "Invalid API key" }, { status: 401 });
+        }
+        if (chatIsBusy()) {
+          return Response.json(
+            {
+              error: "A chat is using the model. Retry in a moment.",
+              retry: true,
+              retryAfter: 2,
+            },
+            { status: 429, headers: { "Retry-After": "2" } },
+          );
         }
         let body: {
           model?: string;

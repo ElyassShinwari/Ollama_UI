@@ -48,7 +48,7 @@ export type StudioConfig = {
   instructions: InstructionPreset[];
   knowledge: KnowledgeDoc[];
   knowledgeEnabled: boolean;
-  n8nKind: "local" | "cloud";
+  n8nKind: "local" | "cloud" | "server";
   n8nBaseUrl: string;
   n8nApiKey: string;
   n8nWebhookUrl: string;

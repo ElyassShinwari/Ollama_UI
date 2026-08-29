@@ -53,6 +53,7 @@ export const Route = createFileRoute("/api/n8n/workflows")({
           apiKey: studio.n8nApiKey,
           origin,
           secret: studio.n8nSecret,
+          appApiKey: studio.apiKey,
           model: studio.defaultModel,
           n8nKind: studio.n8nKind,
         });

@@ -31,8 +31,10 @@ import { Route as ApiSetupStartRouteImport } from './routes/api/setup-start'
 import { Route as ApiStudioRouteImport } from './routes/api/studio'
 import { Route as ApiTokenizeRouteImport } from './routes/api/tokenize'
 import { Route as ApiN8nDispatchRouteImport } from './routes/api/n8n.dispatch'
+import { Route as ApiN8nLaneRouteImport } from './routes/api/n8n.lane'
 import { Route as ApiN8nTestRouteImport } from './routes/api/n8n.test'
 import { Route as ApiN8nWorkflowsRouteImport } from './routes/api/n8n.workflows'
+import { Route as ApiV1ModelsRouteImport } from './routes/api/v1.models'
 import { Route as ApiV1ChatCompletionsRouteImport } from './routes/api/v1.chat.completions'
 
 const IndexRoute = IndexRouteImport.update({
@@ -145,6 +147,11 @@ const ApiN8nDispatchRoute = ApiN8nDispatchRouteImport.update({
   path: '/dispatch',
   getParentRoute: () => ApiN8nRoute,
 } as any)
+const ApiN8nLaneRoute = ApiN8nLaneRouteImport.update({
+  id: '/lane',
+  path: '/lane',
+  getParentRoute: () => ApiN8nRoute,
+} as any)
 const ApiN8nTestRoute = ApiN8nTestRouteImport.update({
   id: '/test',
   path: '/test',
@@ -154,6 +161,11 @@ const ApiN8nWorkflowsRoute = ApiN8nWorkflowsRouteImport.update({
   id: '/workflows',
   path: '/workflows',
   getParentRoute: () => ApiN8nRoute,
+} as any)
+const ApiV1ModelsRoute = ApiV1ModelsRouteImport.update({
+  id: '/api/v1/models',
+  path: '/api/v1/models',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1ChatCompletionsRoute = ApiV1ChatCompletionsRouteImport.update({
   id: '/api/v1/chat/completions',
@@ -184,8 +196,10 @@ export interface FileRoutesByFullPath {
   '/api/studio': typeof ApiStudioRoute
   '/api/tokenize': typeof ApiTokenizeRoute
   '/api/n8n/dispatch': typeof ApiN8nDispatchRoute
+  '/api/n8n/lane': typeof ApiN8nLaneRoute
   '/api/n8n/test': typeof ApiN8nTestRoute
   '/api/n8n/workflows': typeof ApiN8nWorkflowsRoute
+  '/api/v1/models': typeof ApiV1ModelsRoute
   '/api/v1/chat/completions': typeof ApiV1ChatCompletionsRoute
 }
 export interface FileRoutesByTo {
@@ -211,8 +225,10 @@ export interface FileRoutesByTo {
   '/api/studio': typeof ApiStudioRoute
   '/api/tokenize': typeof ApiTokenizeRoute
   '/api/n8n/dispatch': typeof ApiN8nDispatchRoute
+  '/api/n8n/lane': typeof ApiN8nLaneRoute
   '/api/n8n/test': typeof ApiN8nTestRoute
   '/api/n8n/workflows': typeof ApiN8nWorkflowsRoute
+  '/api/v1/models': typeof ApiV1ModelsRoute
   '/api/v1/chat/completions': typeof ApiV1ChatCompletionsRoute
 }
 export interface FileRoutesById {
@@ -239,8 +255,10 @@ export interface FileRoutesById {
   '/api/studio': typeof ApiStudioRoute
   '/api/tokenize': typeof ApiTokenizeRoute
   '/api/n8n/dispatch': typeof ApiN8nDispatchRoute
+  '/api/n8n/lane': typeof ApiN8nLaneRoute
   '/api/n8n/test': typeof ApiN8nTestRoute
   '/api/n8n/workflows': typeof ApiN8nWorkflowsRoute
+  '/api/v1/models': typeof ApiV1ModelsRoute
   '/api/v1/chat/completions': typeof ApiV1ChatCompletionsRoute
 }
 export interface FileRouteTypes {
@@ -268,8 +286,10 @@ export interface FileRouteTypes {
     | '/api/studio'
     | '/api/tokenize'
     | '/api/n8n/dispatch'
+    | '/api/n8n/lane'
     | '/api/n8n/test'
     | '/api/n8n/workflows'
+    | '/api/v1/models'
     | '/api/v1/chat/completions'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -295,8 +315,10 @@ export interface FileRouteTypes {
     | '/api/studio'
     | '/api/tokenize'
     | '/api/n8n/dispatch'
+    | '/api/n8n/lane'
     | '/api/n8n/test'
     | '/api/n8n/workflows'
+    | '/api/v1/models'
     | '/api/v1/chat/completions'
   id:
     | '__root__'
@@ -322,8 +344,10 @@ export interface FileRouteTypes {
     | '/api/studio'
     | '/api/tokenize'
     | '/api/n8n/dispatch'
+    | '/api/n8n/lane'
     | '/api/n8n/test'
     | '/api/n8n/workflows'
+    | '/api/v1/models'
     | '/api/v1/chat/completions'
   fileRoutesById: FileRoutesById
 }
@@ -349,6 +373,7 @@ export interface RootRouteChildren {
   ApiSetupStartRoute: typeof ApiSetupStartRoute
   ApiStudioRoute: typeof ApiStudioRoute
   ApiTokenizeRoute: typeof ApiTokenizeRoute
+  ApiV1ModelsRoute: typeof ApiV1ModelsRoute
   ApiV1ChatCompletionsRoute: typeof ApiV1ChatCompletionsRoute
 }
 
@@ -508,6 +533,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiN8nDispatchRouteImport
       parentRoute: typeof ApiN8nRoute
     }
+    '/api/n8n/lane': {
+      id: '/api/n8n/lane'
+      path: '/lane'
+      fullPath: '/api/n8n/lane'
+      preLoaderRoute: typeof ApiN8nLaneRouteImport
+      parentRoute: typeof ApiN8nRoute
+    }
     '/api/n8n/test': {
       id: '/api/n8n/test'
       path: '/test'
@@ -522,6 +554,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiN8nWorkflowsRouteImport
       parentRoute: typeof ApiN8nRoute
     }
+    '/api/v1/models': {
+      id: '/api/v1/models'
+      path: '/api/v1/models'
+      fullPath: '/api/v1/models'
+      preLoaderRoute: typeof ApiV1ModelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/chat/completions': {
       id: '/api/v1/chat/completions'
       path: '/api/v1/chat/completions'
@@ -534,12 +573,14 @@ declare module '@tanstack/react-router' {
 
 interface ApiN8nRouteChildren {
   ApiN8nDispatchRoute: typeof ApiN8nDispatchRoute
+  ApiN8nLaneRoute: typeof ApiN8nLaneRoute
   ApiN8nTestRoute: typeof ApiN8nTestRoute
   ApiN8nWorkflowsRoute: typeof ApiN8nWorkflowsRoute
 }
 
 const ApiN8nRouteChildren: ApiN8nRouteChildren = {
   ApiN8nDispatchRoute: ApiN8nDispatchRoute,
+  ApiN8nLaneRoute: ApiN8nLaneRoute,
   ApiN8nTestRoute: ApiN8nTestRoute,
   ApiN8nWorkflowsRoute: ApiN8nWorkflowsRoute,
 }
@@ -569,6 +610,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSetupStartRoute: ApiSetupStartRoute,
   ApiStudioRoute: ApiStudioRoute,
   ApiTokenizeRoute: ApiTokenizeRoute,
+  ApiV1ModelsRoute: ApiV1ModelsRoute,
   ApiV1ChatCompletionsRoute: ApiV1ChatCompletionsRoute,
 }
 export const routeTree = rootRouteImport

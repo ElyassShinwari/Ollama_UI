@@ -13,6 +13,7 @@ import {
   Settings,
   Sun,
   Trash2,
+  Workflow,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -75,18 +76,22 @@ export function Sidebar({
   onNewChat,
   onOpenSettings,
   onOpenStudio,
+  onOpenN8n,
   onOpenNews,
   newsActive,
   studioActive,
+  n8nActive,
   onNavigate,
 }: {
   className?: string;
   onNewChat: () => void;
   onOpenSettings: () => void;
   onOpenStudio?: () => void;
+  onOpenN8n?: () => void;
   onOpenNews?: () => void;
   newsActive?: boolean;
   studioActive?: boolean;
+  n8nActive?: boolean;
   onNavigate?: () => void;
 }) {
   const conversations = useChatStore((s) => s.conversations);
@@ -264,7 +269,15 @@ export function Sidebar({
         </Button>
         <Button
           variant="ghost"
-          className={cn("h-10 w-full justify-start gap-2", studioActive && "bg-accent")}
+          className={cn("h-10 w-full justify-start gap-2", n8nActive && "bg-accent")}
+          onClick={onOpenN8n}
+        >
+          <Workflow className="size-4" />
+          n8n
+        </Button>
+        <Button
+          variant="ghost"
+          className={cn("h-10 w-full justify-start gap-2", studioActive && !n8nActive && "bg-accent")}
           onClick={onOpenStudio}
         >
           <Blocks className="size-4" />

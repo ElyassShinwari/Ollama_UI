@@ -1,29 +1,55 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Copy, Download, ExternalLink, LoaderCircle } from "lucide-react";
+import { Check, Copy, Download, ExternalLink, LoaderCircle, Monitor, Server, Workflow } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  DOCKER_N8N_CMD,
+  NPX_N8N_CMD,
   askModelWorkflow,
+  cloudInstanceName,
   defaultN8nBase,
   looksLikePlaceholder,
+  n8nAddressPlaceholder,
+  n8nConnectionText,
   n8nHttpExample,
+  n8nKindFromBase,
+  n8nOllamaConnection,
+  n8nReachableFromDocker,
+  n8nSelfHostedConnection,
   normalizeN8nBase,
   receiveChatWorkflow,
+  type N8nConnection,
   type N8nKind,
 } from "@/lib/studio/n8n";
 import { randomKey, syncStudio, useStudio } from "@/lib/studio/store";
 import type { ModelRef } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
-function CopyField({ label, value }: { label: string; value: string }) {
+function CopyField({
+  label,
+  value,
+  hint,
+  emptyLabel,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  emptyLabel?: string;
+}) {
   const [copied, setCopied] = useState(false);
+  const shown = value || emptyLabel || "";
   return (
     <div className="flex flex-col gap-2">
       <Label>{label}</Label>
       <div className="flex gap-2">
-        <Input readOnly value={value} className="font-mono text-xs" />
+        <Input
+          readOnly
+          value={shown}
+          className="font-mono text-xs"
+          placeholder={emptyLabel}
+        />
         <Button
           type="button"
           variant="outline"
@@ -38,6 +64,79 @@ function CopyField({ label, value }: { label: string; value: string }) {
           {copied ? "Copied" : "Copy"}
         </Button>
       </div>
+      {hint ? <p className="text-xs text-muted-foreground text-pretty">{hint}</p> : null}
+    </div>
+  );
+}
+
+function ConnectionOutput({
+  conn,
+  dockerUrl,
+}: {
+  conn: N8nConnection;
+  dockerUrl?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  const block = n8nConnectionText(conn);
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-border bg-secondary/40 p-3">
+      <CopyField label="Provider" value={conn.provider} />
+      <CopyField label="Base URL" value={conn.baseUrl} />
+      <CopyField
+        label="API key"
+        value={conn.apiKey}
+        emptyLabel="leave blank"
+        hint={conn.apiKey ? undefined : "Leave this empty in n8n for local Ollama."}
+      />
+      <CopyField
+        label="Model"
+        value={conn.model}
+        emptyLabel="choose a model above"
+      />
+      {dockerUrl && dockerUrl !== conn.baseUrl ? (
+        <CopyField
+          label="Base URL if n8n is in Docker"
+          value={dockerUrl}
+          hint="Docker cannot reach 127.0.0.1 on this computer. Use this instead."
+        />
+      ) : null}
+      <Button
+        type="button"
+        variant="outline"
+        className="self-start"
+        onClick={async () => {
+          await navigator.clipboard.writeText(block);
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 1400);
+        }}
+      >
+        {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+        {copied ? "Copied all four fields" : "Copy all"}
+      </Button>
+    </div>
+  );
+}
+
+function CopyCommand({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="flex gap-2">
+      <code className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-secondary px-3 py-2 font-mono text-xs leading-5">
+        {value}
+      </code>
+      <Button
+        type="button"
+        variant="outline"
+        className="h-10 shrink-0"
+        onClick={async () => {
+          await navigator.clipboard.writeText(value);
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 1400);
+        }}
+      >
+        {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+        <span className="sr-only">{copied ? "Copied" : "Copy"}</span>
+      </Button>
     </div>
   );
 }
@@ -82,12 +181,34 @@ function downloadJson(filename: string, data: unknown) {
   URL.revokeObjectURL(url);
 }
 
+const PLACES: { id: N8nKind; title: string; body: string; icon: typeof Monitor }[] = [
+  {
+    id: "local",
+    title: "This computer",
+    body: "n8n running next to this app. We look for it on port 5678.",
+    icon: Monitor,
+  },
+  {
+    id: "cloud",
+    title: "n8n Cloud",
+    body: "Your workspace at name.app.n8n.cloud.",
+    icon: Workflow,
+  },
+  {
+    id: "server",
+    title: "A server",
+    body: "Docker, a VPS, or n8n on your own domain.",
+    icon: Server,
+  },
+];
+
 type ProbeState = {
   ok: boolean;
   reached: boolean;
   authorized: boolean | null;
   detail?: string;
   error?: string;
+  base?: string;
 };
 
 export function N8nTab({ models }: { models: ModelRef[] }) {
@@ -96,23 +217,30 @@ export function N8nTab({ models }: { models: ModelRef[] }) {
   const apiKey = useStudio((s) => s.n8nApiKey);
   const webhookUrl = useStudio((s) => s.n8nWebhookUrl);
   const secret = useStudio((s) => s.n8nSecret);
+  const appApiKey = useStudio((s) => s.apiKey);
+  const apiEnabled = useStudio((s) => s.apiEnabled);
+  const ollamaHost = useStudio((s) => s.ollamaHost);
   const enabled = useStudio((s) => s.n8nEnabled);
   const sendOnChat = useStudio((s) => s.n8nSendOnChat);
   const defaultModel = useStudio((s) => s.defaultModel);
   const origin = typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:8080";
   const inbound = `${origin}/api/n8n`;
   const example = useMemo(
-    () => n8nHttpExample(origin, secret, defaultModel),
-    [origin, secret, defaultModel],
+    () => n8nHttpExample(origin, secret, defaultModel, appApiKey),
+    [origin, secret, defaultModel, appApiKey],
   );
 
   const [address, setAddress] = useState(baseUrl);
   const [keyDraft, setKeyDraft] = useState(apiKey);
   const [hookDraft, setHookDraft] = useState(webhookUrl);
   const [probe, setProbe] = useState<ProbeState | null>(null);
-  const [busy, setBusy] = useState<"api" | "webhook" | "list" | "ask" | "receive" | null>(null);
+  const [busy, setBusy] = useState<"api" | "scan" | "webhook" | "list" | "ask" | "receive" | null>(
+    null,
+  );
   const [workflows, setWorkflows] = useState<{ id: string; name: string; active: boolean }[]>([]);
-  const [keyHelp, setKeyHelp] = useState(false);
+  const [keyHelp, setKeyHelp] = useState(kind !== "local");
+  const [startHelp, setStartHelp] = useState(true);
+  const [connKind, setConnKind] = useState<"app" | "ollama">("app");
 
   useEffect(() => setAddress(baseUrl), [baseUrl]);
   useEffect(() => setKeyDraft(apiKey), [apiKey]);
@@ -124,13 +252,29 @@ export function N8nTab({ models }: { models: ModelRef[] }) {
       useStudio.getState().setStudio({ n8nSecret: next });
       void syncStudio({ n8nSecret: next });
     }
-  }, [secret]);
+    if (!appApiKey) {
+      const next = randomKey();
+      useStudio.getState().setStudio({ apiKey: next });
+      void syncStudio({ apiKey: next });
+    }
+  }, [secret, appApiKey]);
+
+  useEffect(() => {
+    if (kind === "local" && n8nKindFromBase(baseUrl) !== "local" && !looksLikePlaceholder(baseUrl)) {
+      const inferred = n8nKindFromBase(baseUrl);
+      if (inferred !== kind) useStudio.getState().setStudio({ n8nKind: inferred });
+    }
+  }, [baseUrl, kind]);
 
   useEffect(() => {
     const id = window.setTimeout(() => {
+      if (kind === "local") {
+        void findLocal(false);
+        return;
+      }
       if (looksLikePlaceholder(baseUrl)) return;
       void testApi(false);
-    }, 400);
+    }, 350);
     return () => window.clearTimeout(id);
     // Probe when the saved address/key change, not while typing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -142,16 +286,19 @@ export function N8nTab({ models }: { models: ModelRef[] }) {
   }
 
   function commitKind(next: N8nKind) {
-    const url =
-      next === kind
-        ? address
-        : next === "local"
-          ? defaultN8nBase("local")
-          : /127\.0\.0\.1|localhost/i.test(address)
-            ? defaultN8nBase("cloud")
-            : address;
+    let url = address;
+    try {
+      const normalized = normalizeN8nBase(address, next);
+      const inferred = n8nKindFromBase(normalized);
+      const keep = inferred === next && address.trim() && !looksLikePlaceholder(normalized);
+      url = keep ? normalized : defaultN8nBase(next);
+    } catch {
+      url = defaultN8nBase(next);
+    }
     setAddress(url);
     setProbe(null);
+    setKeyHelp(next !== "local");
+    setStartHelp(next === "local");
     patch({ n8nKind: next, n8nBaseUrl: url });
   }
 
@@ -161,6 +308,15 @@ export function N8nTab({ models }: { models: ModelRef[] }) {
     } catch {
       return address.trim();
     }
+  }
+
+  function displayAddress(): string {
+    if (looksLikePlaceholder(address)) return "";
+    if (kind === "cloud") {
+      const name = cloudInstanceName(address);
+      return name || address;
+    }
+    return address;
   }
 
   async function testApi(showToast = true) {
@@ -191,6 +347,7 @@ export function N8nTab({ models }: { models: ModelRef[] }) {
       const json = (await res.json()) as ProbeState;
       setProbe(json);
       if (json.ok) {
+        if (json.base) setAddress(json.base);
         if (showToast) toast.success(json.detail || "Connected to n8n");
         if (keyDraft.trim()) void loadWorkflows(false);
       } else if (showToast) {
@@ -199,6 +356,40 @@ export function N8nTab({ models }: { models: ModelRef[] }) {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Could not reach n8n";
       setProbe({ ok: false, reached: false, authorized: null, error: msg });
+      if (showToast) toast.error(msg);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function findLocal(showToast = true) {
+    setBusy("scan");
+    try {
+      const res = await fetch("/api/n8n/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "scan",
+          baseUrl: address,
+          n8nKind: "local",
+        }),
+      });
+      const json = (await res.json()) as ProbeState;
+      setProbe(json);
+      if (json.ok && json.base) {
+        setAddress(json.base);
+        patch({ n8nBaseUrl: json.base, n8nKind: "local" });
+        setStartHelp(false);
+        if (showToast) toast.success(json.detail || "Found n8n on this computer");
+        if (keyDraft.trim()) void loadWorkflows(false);
+      } else {
+        setStartHelp(true);
+        if (showToast) toast.error(json.error || "n8n is not running here yet");
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not look for n8n";
+      setProbe({ ok: false, reached: false, authorized: null, error: msg });
+      setStartHelp(true);
       if (showToast) toast.error(msg);
     } finally {
       setBusy(null);
@@ -309,13 +500,20 @@ export function N8nTab({ models }: { models: ModelRef[] }) {
       : connected
         ? "n8n is running"
         : "Could not reach n8n";
-  const statusBody = probe?.detail || probe?.error || "Test the connection after n8n is open.";
+  const statusBody =
+    probe?.detail ||
+    probe?.error ||
+    (kind === "local"
+      ? "Press Find n8n after it is open on this computer."
+      : "Enter the address, paste an API key, then press Connect.");
+  const needsKey = kind !== "local";
 
   return (
     <div className="flex flex-col gap-6">
       <p className="text-sm text-muted-foreground text-pretty">
-        Connect n8n on this computer or on a server. n8n can ask your model, and this app can send
-        finished chats into n8n. Nothing leaves until you choose a workflow or paste a webhook.
+        Connect n8n on this computer, on n8n Cloud, or on your own server. After that, n8n can ask
+        your local model, and finished chats can continue into n8n — Slack, email, a sheet, anything
+        n8n already does.
       </p>
 
       <div className="flex items-start gap-3 rounded-2xl border border-border bg-card p-4">
@@ -332,89 +530,120 @@ export function N8nTab({ models }: { models: ModelRef[] }) {
         </div>
       </div>
 
-      <label className="flex min-h-11 items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          className="size-4"
-          checked={enabled}
-          onChange={(e) => patch({ n8nEnabled: e.target.checked })}
-        />
-        Allow n8n to talk to this app
-      </label>
-
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          size="sm"
-          variant={kind === "local" ? "secondary" : "outline"}
-          onClick={() => commitKind("local")}
-        >
-          On this computer
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant={kind === "cloud" ? "secondary" : "outline"}
-          onClick={() => commitKind("cloud")}
-        >
-          n8n Cloud or a server
-        </Button>
-      </div>
+      <section className="flex flex-col gap-3">
+        <h2 className="font-medium">1. Where is n8n?</h2>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {PLACES.map((place) => {
+            const Icon = place.icon;
+            const active = kind === place.id;
+            return (
+              <button
+                key={place.id}
+                type="button"
+                aria-label={place.title}
+                aria-pressed={active}
+                onClick={() => commitKind(place.id)}
+                className={cn(
+                  "flex min-h-11 flex-col items-start gap-2 rounded-2xl border px-4 py-3 text-start transition-colors",
+                  active
+                    ? "border-ring bg-card ring-1 ring-ring/40"
+                    : "border-border bg-transparent hover:bg-accent",
+                )}
+              >
+                <Icon className="size-4 text-muted-foreground" />
+                <span className="font-medium">{place.title}</span>
+                <span className="text-xs text-muted-foreground text-pretty">{place.body}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
       <section className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-medium">1. Connect n8n</h2>
-        <ol className="mt-2 list-decimal space-y-1.5 ps-5 text-sm text-muted-foreground text-pretty">
-          {kind === "local" ? (
-            <>
-              <li>
-                Open n8n on this computer. If you do not have it yet, get it from{" "}
-                <a
-                  className="text-foreground underline underline-offset-2"
-                  href="https://n8n.io"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  n8n.io
-                </a>{" "}
-                — it opens in its own browser tab.
-              </li>
-              <li>Leave the address as it is unless n8n shows a different one.</li>
-              <li>Press Test connection. You should see “n8n is running”.</li>
-              <li>
-                Optional, for one-click workflows: in n8n open Settings → n8n API, create a key, paste
-                it below.
-              </li>
-            </>
-          ) : (
-            <>
-              <li>Open your n8n Cloud or hosted instance in the browser.</li>
-              <li>
-                Paste that address. A short name like acme becomes https://acme.app.n8n.cloud. If you
-                copied a long page URL, that is fine — extra path is stripped.
-              </li>
-              <li>
-                In n8n open Settings → n8n API, create a key, and paste it. Cloud and hosted n8n need
-                this key.
-              </li>
-              <li>Press Test connection.</li>
-            </>
-          )}
-        </ol>
+        <h2 className="font-medium">2. Connect</h2>
+        {kind === "local" ? (
+          <ol className="mt-2 list-decimal space-y-1.5 ps-5 text-sm text-muted-foreground text-pretty">
+            <li>
+              If n8n is not installed yet, get it from{" "}
+              <a
+                className="text-foreground underline underline-offset-2"
+                href="https://n8n.io"
+                target="_blank"
+                rel="noreferrer"
+              >
+                n8n.io
+              </a>
+              , or start it with one of the commands below.
+            </li>
+            <li>When it is ready it opens in a browser tab, usually at http://127.0.0.1:5678.</li>
+            <li>Come back here and press Find n8n. That is enough to talk to it.</li>
+            <li>
+              Optional: in n8n open Settings → n8n API, create a key, and paste it so this app can
+              add starter workflows for you.
+            </li>
+          </ol>
+        ) : kind === "cloud" ? (
+          <ol className="mt-2 list-decimal space-y-1.5 ps-5 text-sm text-muted-foreground text-pretty">
+            <li>
+              Open{" "}
+              <a
+                className="text-foreground underline underline-offset-2"
+                href="https://app.n8n.cloud"
+                target="_blank"
+                rel="noreferrer"
+              >
+                n8n Cloud
+              </a>{" "}
+              and sign in.
+            </li>
+            <li>
+              Type the instance name from the address bar — acme if you see
+              https://acme.app.n8n.cloud — or paste the whole address.
+            </li>
+            <li>
+              In n8n: the menu at the bottom left → Settings → n8n API → Create an API key. Paste it
+              below.
+            </li>
+            <li>Press Connect.</li>
+          </ol>
+        ) : (
+          <ol className="mt-2 list-decimal space-y-1.5 ps-5 text-sm text-muted-foreground text-pretty">
+            <li>Open your hosted n8n in the browser (Docker, a VPS, or your own domain).</li>
+            <li>Paste that same address. Extra path after /home or /workflow is stripped.</li>
+            <li>In n8n: Settings → n8n API → Create an API key. Paste it below.</li>
+            <li>Press Connect.</li>
+          </ol>
+        )}
+
+        {kind === "local" && startHelp ? (
+          <div className="mt-4 flex flex-col gap-3 rounded-xl border border-border bg-secondary/50 p-3">
+            <p className="text-sm font-medium">Start n8n on this computer</p>
+            <p className="text-xs text-muted-foreground">In a terminal, run one of these, then press Find n8n.</p>
+            <CopyCommand value={NPX_N8N_CMD} />
+            <CopyCommand value={DOCKER_N8N_CMD} />
+          </div>
+        ) : null}
+
         <div className="mt-4 flex flex-col gap-3">
           <div className="flex flex-col gap-2">
-            <Label>n8n address</Label>
+            <Label>{kind === "cloud" ? "Instance name or address" : "n8n address"}</Label>
             <Input
-              value={address}
-              placeholder={defaultN8nBase(kind)}
+              value={displayAddress()}
+              placeholder={n8nAddressPlaceholder(kind)}
               inputMode="url"
               autoCapitalize="none"
               autoCorrect="off"
               onChange={(e) => setAddress(e.target.value)}
               onBlur={() => {
+                if (!address.trim()) return;
                 try {
                   const next = normalizeN8nBase(address, kind);
+                  const inferred = n8nKindFromBase(next);
                   setAddress(next);
-                  patch({ n8nBaseUrl: next });
+                  patch({
+                    n8nBaseUrl: next,
+                    n8nKind: inferred === kind ? kind : inferred,
+                  });
                 } catch {
                   patch({ n8nBaseUrl: address.trim() });
                 }
@@ -427,7 +656,7 @@ export function N8nTab({ models }: { models: ModelRef[] }) {
               className="text-start text-sm font-medium"
               onClick={() => setKeyHelp((v) => !v)}
             >
-              API key {kind === "local" ? "(optional)" : "(needed for Cloud and servers)"}
+              API key {needsKey ? "(needed)" : "(optional — lets this app add workflows)"}
             </button>
             <Input
               type="password"
@@ -439,9 +668,9 @@ export function N8nTab({ models }: { models: ModelRef[] }) {
             />
             {keyHelp ? (
               <p className="text-xs text-muted-foreground text-pretty">
-                In n8n: the menu at the bottom left → Settings → n8n API → Create an API key. Paste it
-                here. With a key, this app can add the starter workflows for you. Without a key you can
-                still download a workflow file and import it in n8n.
+                In n8n: the menu at the bottom left → Settings → n8n API → Create an API key. Give it
+                a label, copy it once, and paste it here. Without a key you can still download a
+                workflow file and import it in n8n.
               </p>
             ) : (
               <button
@@ -453,17 +682,38 @@ export function N8nTab({ models }: { models: ModelRef[] }) {
               </button>
             )}
           </div>
+          <label className="flex min-h-11 items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="size-4"
+              checked={enabled}
+              onChange={(e) => patch({ n8nEnabled: e.target.checked })}
+            />
+            Allow n8n to talk to this app
+          </label>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={() => void testApi(true)} disabled={Boolean(busy)}>
+            {kind === "local" ? (
+              <Button type="button" onClick={() => void findLocal(true)} disabled={Boolean(busy)}>
+                {busy === "scan" ? <LoaderCircle className="size-4 animate-spin" /> : null}
+                Find n8n
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant={kind === "local" ? "outline" : "default"}
+              onClick={() => void testApi(true)}
+              disabled={Boolean(busy)}
+            >
               {busy === "api" ? <LoaderCircle className="size-4 animate-spin" /> : null}
-              Test connection
+              {connected ? "Test again" : "Connect"}
             </Button>
             <Button
               type="button"
               variant="outline"
               onClick={() => {
                 const url = savedBase();
-                if (url) window.open(url, "_blank", "noopener,noreferrer");
+                if (url && !looksLikePlaceholder(url)) window.open(url, "_blank", "noopener,noreferrer");
+                else window.open("https://n8n.io", "_blank", "noopener,noreferrer");
               }}
             >
               <ExternalLink className="size-4" />
@@ -495,23 +745,92 @@ export function N8nTab({ models }: { models: ModelRef[] }) {
       </section>
 
       <section className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-medium">2. Let n8n ask your model</h2>
+        <h2 className="font-medium">3. Let n8n ask your model</h2>
         <p className="mt-2 text-sm text-muted-foreground text-pretty">
-          n8n sends a question here and gets the reply back. The easiest path: add a starter workflow,
-          open it in n8n, press Test workflow.
+          n8n calls your local model with a fast API key. Those calls skip the chat window, so a busy
+          workflow does not freeze this app. If you are chatting, n8n waits and retries until you are
+          free.
         </p>
         {kind === "cloud" ? (
           <p className="mt-2 text-sm text-muted-foreground text-pretty">
-            n8n Cloud is on the public internet. It can only ask a model on this computer if this app
-            has a public address. Sending chats into n8n Cloud (step 3) works without that.
+            n8n Cloud is on the public internet. It can only ask a model on this computer if this
+            app has a public address. Sending chats into n8n Cloud (step 4) works without that.
+          </p>
+        ) : kind === "server" ? (
+          <p className="mt-2 text-sm text-muted-foreground text-pretty">
+            The server must be able to reach this app’s address. If they are on different machines,
+            use a public URL or a tunnel for step 3. Sending chats into n8n (step 4) only needs the
+            webhook.
           </p>
         ) : (
           <p className="mt-2 text-sm text-muted-foreground text-pretty">
-            On this computer n8n should call the URL below as shown.
+            On this computer n8n should call the URL below with the API key.
           </p>
         )}
         <div className="mt-4 flex flex-col gap-3">
           <DefaultModelSelect models={models} />
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-medium">Connection for n8n</p>
+            <p className="text-sm text-muted-foreground text-pretty">
+              Paste these into n8n when it asks for a provider, base URL, API key, and model. Chat
+              Model nodes, AI Agent, and OpenAI-compatible credentials all use this.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant={connKind === "app" ? "default" : "outline"}
+                onClick={() => setConnKind("app")}
+              >
+                Through this app
+              </Button>
+              <Button
+                type="button"
+                variant={connKind === "ollama" ? "default" : "outline"}
+                onClick={() => setConnKind("ollama")}
+              >
+                Direct Ollama
+              </Button>
+            </div>
+            {connKind === "app" ? (
+              <>
+                <p className="text-xs text-muted-foreground text-pretty">
+                  Provider: Self-hosted. n8n talks to this app’s OpenAI-style API, so a busy
+                  workflow waits if you are chatting.
+                </p>
+                {!apiEnabled ? (
+                  <label className="flex min-h-11 items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="size-4"
+                      checked={apiEnabled}
+                      onChange={(e) => patch({ apiEnabled: e.target.checked })}
+                    />
+                    Turn on the local API (needed for this connection)
+                  </label>
+                ) : null}
+                <ConnectionOutput
+                  conn={n8nSelfHostedConnection({
+                    origin,
+                    apiKey: appApiKey || secret,
+                    model: defaultModel,
+                  })}
+                  dockerUrl={n8nReachableFromDocker(`${origin}/api/v1`)}
+                />
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground text-pretty">
+                  Provider: Ollama. Leave the API key blank. n8n talks to Ollama on this computer.
+                </p>
+                <ConnectionOutput
+                  conn={n8nOllamaConnection({ ollamaHost, model: defaultModel })}
+                  dockerUrl={n8nReachableFromDocker(ollamaHost || "http://127.0.0.1:11434")}
+                />
+              </>
+            )}
+          </div>
+          <CopyField label="Fast API key for n8n HTTP Request" value={appApiKey || secret} />
+          <CopyField label="URL n8n should POST to" value={inbound} />
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
@@ -527,9 +846,11 @@ export function N8nTab({ models }: { models: ModelRef[] }) {
               onClick={() => {
                 downloadJson(
                   "ollama-ui-ask-n8n.json",
-                  askModelWorkflow({ origin, secret, model: defaultModel }),
+                  askModelWorkflow({ origin, secret, model: defaultModel, apiKey: appApiKey }),
                 );
-                toast.message("Import in n8n: three dots on Workflows → Import from File. Then press Test workflow.");
+                toast.message(
+                  "Import in n8n: three dots on Workflows → Import from File. Then press Test workflow.",
+                );
               }}
             >
               <Download className="size-4" />
@@ -542,7 +863,10 @@ export function N8nTab({ models }: { models: ModelRef[] }) {
             </summary>
             <ol className="mt-3 list-decimal space-y-1.5 ps-5 text-sm text-muted-foreground text-pretty">
               <li>In n8n add an HTTP Request node.</li>
-              <li>Method POST, URL below, header x-n8n-secret with the secret.</li>
+              <li>
+                Method POST, URL below, header Authorization: Bearer with the fast API key. Turn on
+                retry so n8n waits if you are chatting.
+              </li>
               <li>
                 JSON body: {`{ "message": "your text" }`}. The reply is in the JSON field{" "}
                 <span className="font-mono text-foreground">reply</span>.
@@ -550,8 +874,9 @@ export function N8nTab({ models }: { models: ModelRef[] }) {
             </ol>
             <div className="mt-3 flex flex-col gap-3">
               <CopyField label="URL for the HTTP Request node" value={inbound} />
+              <CopyField label="Authorization Bearer token" value={appApiKey || secret} />
               <div className="flex flex-col gap-2">
-                <Label>Shared secret</Label>
+                <Label>Shared secret (also accepted)</Label>
                 <div className="flex gap-2">
                   <Input readOnly value={secret} className="font-mono text-xs" />
                   <Button
@@ -573,13 +898,16 @@ export function N8nTab({ models }: { models: ModelRef[] }) {
       </section>
 
       <section className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-medium">3. Send chats into n8n</h2>
+        <h2 className="font-medium">4. Send chats into n8n</h2>
         <p className="mt-2 text-sm text-muted-foreground text-pretty">
           When a reply finishes here, n8n can email it, save it, or continue a workflow. Chat stays
           fast — the ping is sent in the background.
         </p>
         <ol className="mt-2 list-decimal space-y-1.5 ps-5 text-sm text-muted-foreground text-pretty">
-          <li>Add the receive workflow below, or in n8n add a Webhook node (method POST) and copy its production URL.</li>
+          <li>
+            Add the receive workflow below, or in n8n add a Webhook node (method POST) and copy its
+            production URL.
+          </li>
           <li>Turn the workflow on in n8n (toggle at the top right).</li>
           <li>Turn on “Send each finished reply”, then send a test ping.</li>
         </ol>
@@ -598,7 +926,9 @@ export function N8nTab({ models }: { models: ModelRef[] }) {
               variant="outline"
               onClick={() => {
                 downloadJson("ollama-ui-receive-n8n.json", receiveChatWorkflow());
-                toast.message("Import in n8n, turn the workflow on, then copy the Webhook node’s production URL.");
+                toast.message(
+                  "Import in n8n, turn the workflow on, then copy the Webhook node’s production URL.",
+                );
               }}
             >
               <Download className="size-4" />

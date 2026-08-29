@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { probeN8n } from "@/lib/studio/n8n-server";
+import { probeN8n, scanLocalN8n } from "@/lib/studio/n8n-server";
 import { n8nOutboundBody, sanitizeWebhookUrl, type N8nKind } from "@/lib/studio/n8n";
 
 export const Route = createFileRoute("/api/n8n/test")({
@@ -17,6 +17,10 @@ export const Route = createFileRoute("/api/n8n/test")({
           body = (await request.json()) as typeof body;
         } catch {
           return Response.json({ error: "Invalid JSON" }, { status: 400 });
+        }
+        if (body.kind === "scan") {
+          const probe = await scanLocalN8n(body.baseUrl);
+          return Response.json(probe);
         }
         if (body.kind === "webhook") {
           let webhook: string;

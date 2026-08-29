@@ -22,6 +22,7 @@ import {
   streamOllamaDirect,
 } from "@/lib/llm/ollama-client";
 import { useChatStore } from "@/lib/chat/store";
+import { setChatLane } from "@/lib/studio/lane";
 import type { ModelCatalog, ModelRef, TokenUsage, Transport } from "@/lib/chat/types";
 
 type ServerCatalog = {
@@ -232,6 +233,7 @@ export async function streamChat(
 
   if (body.provider === "ollama") {
     ollamaGate.chat = true;
+    setChatLane(true);
     try {
       await streamOllamaBrowser(
         {
@@ -252,8 +254,10 @@ export async function streamChat(
       if (!isOllamaUnreachable(err)) throw err;
     } finally {
       ollamaGate.chat = false;
+      setChatLane(false);
     }
     ollamaGate.chat = true;
+    setChatLane(true);
   }
 
   try {
@@ -280,7 +284,10 @@ export async function streamChat(
     }
     await readSseStream(res, onDelta, onUsage);
   } finally {
-    if (body.provider === "ollama") ollamaGate.chat = false;
+    if (body.provider === "ollama") {
+      ollamaGate.chat = false;
+      setChatLane(false);
+    }
   }
 }
 

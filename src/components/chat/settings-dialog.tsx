@@ -16,7 +16,8 @@ import { applyTheme } from "@/lib/theme";
 import { applyLocale, LOCALES, t, type LocaleId } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/lib/chat/store";
-import { syncStudio } from "@/lib/studio/store";
+import { syncStudio, useStudio } from "@/lib/studio/store";
+import { looksLikePlaceholder, n8nKindFromBase } from "@/lib/studio/n8n";
 import type { ThemeMode } from "@/lib/chat/types";
 import { conversationsBackup, downloadText } from "@/lib/chat/export";
 
@@ -24,10 +25,12 @@ export function SettingsDialog({
   open,
   onOpenChange,
   onHostChange,
+  onOpenN8n,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onHostChange?: () => void;
+  onOpenN8n?: () => void;
 }) {
   const settings = useChatStore((s) => s.settings);
   const setSettings = useChatStore((s) => s.setSettings);
@@ -136,6 +139,10 @@ export function SettingsDialog({
             <p className="text-xs text-muted-foreground">{t(lang, "ollamaHostHint")}</p>
           </div>
           <div className="flex flex-col gap-2">
+            <Label>n8n</Label>
+            <N8nSettingsRow onOpenN8n={onOpenN8n} />
+          </div>
+          <div className="flex flex-col gap-2">
             <Label htmlFor="temperature">
               {t(lang, "temperature")} · {temperature}
             </Label>
@@ -214,5 +221,30 @@ export function SettingsDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function N8nSettingsRow({ onOpenN8n }: { onOpenN8n?: () => void }) {
+  const kind = useStudio((s) => s.n8nKind);
+  const baseUrl = useStudio((s) => s.n8nBaseUrl);
+  const apiKey = useStudio((s) => s.n8nApiKey);
+  const webhookUrl = useStudio((s) => s.n8nWebhookUrl);
+  const place =
+    kind === "cloud" ? "n8n Cloud" : kind === "server" ? "a server" : "this computer";
+  const inferred = looksLikePlaceholder(baseUrl) ? kind : n8nKindFromBase(baseUrl);
+  const linked = Boolean(apiKey.trim() || webhookUrl.trim());
+  const where =
+    inferred === "cloud" ? "n8n Cloud" : inferred === "server" ? "your server" : place;
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border border-border bg-card px-4 py-3">
+      <p className="text-sm text-pretty">
+        {linked
+          ? `n8n is set up for ${where}. Open Studio to change it or add workflows.`
+          : "Connect n8n on this computer, n8n Cloud, or a server. Workflows can ask your models or receive finished chats."}
+      </p>
+      <Button type="button" variant="secondary" className="h-10 self-start" onClick={onOpenN8n}>
+        {linked ? "Open n8n setup" : "Connect n8n"}
+      </Button>
+    </div>
   );
 }

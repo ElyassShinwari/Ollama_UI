@@ -43,6 +43,29 @@ if (!/Hugging Face/i.test(qwenList)) await fail("Hugging Face results missing");
 pass("library search");
 
 
+const n8nNav = page.getByRole("button", { name: "n8n", exact: true }).first();
+if (!(await n8nNav.count())) await fail("n8n sidebar missing");
+await n8nNav.click();
+await page.waitForTimeout(500);
+const n8nHome = await page.locator("body").innerText();
+if (!/Where is n8n|Find n8n|n8n Cloud|This computer|A server/i.test(n8nHome)) {
+  await fail("n8n connect screen missing");
+}
+if (!(await page.getByRole("button", { name: "Find n8n" }).count())) await fail("Find n8n missing");
+pass("n8n connect");
+await page.getByRole("button", { name: "n8n Cloud", exact: true }).click();
+await page.waitForTimeout(200);
+if (!/Instance name or address|Create an API key/i.test(await page.locator("body").innerText())) {
+  await fail("n8n Cloud instructions missing");
+}
+await page.getByRole("button", { name: "A server", exact: true }).click();
+await page.waitForTimeout(200);
+if (!/hosted n8n|your own domain/i.test(await page.locator("body").innerText())) {
+  await fail("n8n server instructions missing");
+}
+await page.getByRole("button", { name: "This computer", exact: true }).click();
+pass("n8n places");
+
 const studio = page.getByRole("button", { name: "Studio" }).first();
 if (!(await studio.count())) await fail("Studio missing");
 await studio.click();
@@ -52,13 +75,14 @@ if (/Back to new chat/i.test(await page.locator("body").innerText())) await fail
 if (!(await page.getByRole("button", { name: "Back to chat" }).count())) await fail("Back to chat missing");
 pass("studio chrome");
 
-const tabs = ["GitHub", "Cloud base", "MCP", "API", "Channels", "Instructions", "Train", "Advisor"];
+const tabs = ["n8n", "GitHub", "Cloud base", "MCP", "API", "Channels", "Instructions", "Train", "Advisor"];
 for (const tab of tabs) {
   const btn = page.getByRole("button", { name: tab, exact: true }).first();
   if (!(await btn.count())) await fail(`Studio tab missing: ${tab}`);
   await btn.click();
   await page.waitForTimeout(200);
   const text = await page.locator("body").innerText();
+  if (tab === "n8n" && !/Where is n8n|Find n8n|n8n Cloud/i.test(text)) await fail("n8n tab empty");
   if (tab === "GitHub" && !/Authenticate GitHub|Pull repository/i.test(text)) await fail("GitHub tab empty");
   if (tab === "Cloud base") {
     for (const name of ["ChatGPT", "Grok", "Kimi", "Claude", "DeepSeek"]) {

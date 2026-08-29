@@ -1,13 +1,16 @@
 import {
   RECEIVE_WEBHOOK_PATH,
+  LOCAL_N8N_CANDIDATES,
   askModelWorkflow,
   looksLikeN8nPage,
   looksLikePlaceholder,
   n8nApiUrl,
   n8nWebhookUrl,
   normalizeN8nBase,
+  placeholderError,
   receiveChatWorkflow,
   sanitizeN8nBase,
+  unreachableError,
   webhookPathFromNodes,
   type N8nKind,
   type N8nWorkflowFile,
@@ -39,10 +42,14 @@ export async function probeN8n(opts: {
   baseUrl: string;
   apiKey?: string;
   kind?: N8nKind;
+  timeoutMs?: number;
+  skipApi?: boolean;
 }): Promise<N8nProbe> {
+  const kind = opts.kind ?? "local";
+  const ms = opts.timeoutMs ?? TIMEOUT_MS;
   let base: string;
   try {
-    base = normalizeN8nBase(opts.baseUrl || "", opts.kind ?? "local");
+    base = normalizeN8nBase(opts.baseUrl || "", kind);
   } catch (err) {
     return {
       ok: false,
@@ -60,16 +67,17 @@ export async function probeN8n(opts: {
       authorized: null,
       base,
       detail: "",
-      error: "Paste your n8n Cloud address, or just the instance name (acme → acme.app.n8n.cloud).",
+      error: placeholderError(kind),
     };
   }
 
-  const health = await readOk(n8nApiUrl(base, "/healthz"));
-  const ready = health.ok ? health : await readOk(n8nApiUrl(base, "/healthz/readiness"));
+  const healthMs = Math.min(ms, 4000);
+  const health = await readOk(n8nApiUrl(base, "/healthz"), healthMs);
+  const ready = health.ok ? health : await readOk(n8nApiUrl(base, "/healthz/readiness"), healthMs);
   const reachedHealth = ready.ok && (ready.jsonStatus || looksLikeN8nPage(ready.text));
 
-  if (opts.apiKey?.trim()) {
-    const listed = await listWorkflows(base, opts.apiKey);
+  if (opts.apiKey?.trim() && !opts.skipApi) {
+    const listed = await listWorkflows(base, opts.apiKey, ms);
     if (listed.ok) {
       const count = listed.workflows.length;
       return {
@@ -106,7 +114,7 @@ export async function probeN8n(opts: {
       authorized: null,
       base,
       detail: "",
-      error: listed.error || `Could not reach n8n at ${base}.`,
+      error: listed.error || unreachableError(kind, base),
     };
   }
 
@@ -116,11 +124,14 @@ export async function probeN8n(opts: {
       reached: true,
       authorized: null,
       base,
-      detail: `n8n is running at ${base}. Add an API key if you want this app to add workflows for you.`,
+      detail:
+        kind === "local"
+          ? `n8n is running at ${base}. Add an API key if you want this app to add workflows for you.`
+          : `n8n is running at ${base}. Paste an API key so this app can add workflows for you.`,
     };
   }
 
-  const page = await readOk(base);
+  const page = await readOk(base, healthMs);
   if (page.ok && looksLikeN8nPage(page.text)) {
     return {
       ok: true,
@@ -137,13 +148,46 @@ export async function probeN8n(opts: {
     authorized: null,
     base,
     detail: "",
-    error: `Could not reach n8n at ${base}. Open n8n first, then test again.`,
+    error: unreachableError(kind, base),
   };
 }
 
-async function readOk(url: string): Promise<{ ok: boolean; text: string; jsonStatus: boolean }> {
+export async function scanLocalN8n(preferred?: string): Promise<N8nProbe> {
+  const bases: string[] = [];
+  const add = (raw: string) => {
+    try {
+      const next = normalizeN8nBase(raw, "local");
+      if (!bases.includes(next)) bases.push(next);
+    } catch {
+      /* skip */
+    }
+  };
+  if (preferred?.trim() && !looksLikePlaceholder(preferred)) add(preferred);
+  for (const candidate of LOCAL_N8N_CANDIDATES) add(candidate);
+
+  const results = await Promise.all(
+    bases.map((base) =>
+      probeN8n({ baseUrl: base, kind: "local", timeoutMs: 1800, skipApi: true }),
+    ),
+  );
+  const hit = results.find((item) => item.reached);
+  if (hit) return hit;
+  return {
+    ok: false,
+    reached: false,
+    authorized: null,
+    base: bases[0] ?? "http://127.0.0.1:5678",
+    detail: "",
+    error: "No n8n answered on this computer. Start it, then press Find n8n.",
+  };
+}
+
+async function readOk(
+  url: string,
+  ms = 4000,
+): Promise<{ ok: boolean; text: string; jsonStatus: boolean }> {
   try {
-    const res = await fetchN8n(url, { headers: { Accept: "application/json, text/html" } }, 4000);
+    const res = await fetchN8n(url, { headers: { Accept: "application/json, text/html" } }, ms);
     const text = await res.text().catch(() => "");
     let jsonStatus = false;
     try {
@@ -163,11 +207,14 @@ export type N8nListed = { id: string; name: string; active: boolean };
 export async function listWorkflows(
   base: string,
   apiKey: string,
+  ms = TIMEOUT_MS,
 ): Promise<{ ok: boolean; workflows: N8nListed[]; status?: number; error?: string }> {
   try {
-    const res = await fetchN8n(n8nApiUrl(base, "/api/v1/workflows?limit=50"), {
-      headers: headers(apiKey),
-    });
+    const res = await fetchN8n(
+      n8nApiUrl(base, "/api/v1/workflows?limit=50"),
+      { headers: headers(apiKey) },
+      ms,
+    );
     const text = await res.text().catch(() => "");
     if (!res.ok) {
       return {
@@ -202,6 +249,7 @@ export async function createStarterWorkflow(opts: {
   origin: string;
   secret: string;
   model: string;
+  appApiKey?: string;
   n8nKind?: N8nKind;
 }): Promise<{
   ok: boolean;
@@ -226,7 +274,12 @@ export async function createStarterWorkflow(opts: {
 
   const file: N8nWorkflowFile =
     opts.kind === "ask"
-      ? askModelWorkflow({ origin: opts.origin, secret: opts.secret, model: opts.model })
+      ? askModelWorkflow({
+          origin: opts.origin,
+          secret: opts.secret,
+          model: opts.model,
+          apiKey: opts.appApiKey,
+        })
       : receiveChatWorkflow();
 
   const existing = await listWorkflows(base, opts.apiKey);
