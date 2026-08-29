@@ -23,6 +23,9 @@ import { fetchSetup, isAbortError, listHfQuants, readSetupStream, searchLibrary,
 import { PairSuggestions } from "@/components/chat/pair-suggestions";
 import type { ModelRef } from "@/lib/chat/types";
 import { cn, formatBytes, formatContextWindow } from "@/lib/utils";
+import { t } from "@/lib/i18n";
+import { useChatStore } from "@/lib/chat/store";
+import { useHistoryBack } from "@/lib/history-back";
 
 const EMPTY_CHIPS = QUERY_SUGGESTIONS.slice(0, 10);
 
@@ -53,11 +56,13 @@ export function ModelHub({
   const pullingRef = useRef(new Set<string>());
   const abortRef = useRef(new Map<string, AbortController>());
   const [pendingDelete, setPendingDelete] = useState<ModelRef | null>(null);
+  useHistoryBack(Boolean(pendingDelete), () => setPendingDelete(null), "delete-model");
   const [deleting, setDeleting] = useState(false);
   const [openSuggest, setOpenSuggest] = useState(false);
   const [activeSuggest, setActiveSuggest] = useState(0);
   const [arrowed, setArrowed] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const locale = useChatStore((s) => s.settings.locale);
 
   async function refreshStatus() {
     const next = await fetchSetup(host);
@@ -281,7 +286,7 @@ export function ModelHub({
       {!hideLocal && localFiltered.length > 0 ? (
         <section>
           <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-            On this computer
+            {t(locale, "onThisComputer")}
           </h2>
           <div className="flex flex-col gap-2">
             {localFiltered.map((model) => (
@@ -305,17 +310,17 @@ export function ModelHub({
                   type="button"
                   size="sm"
                   variant="secondary"
-                  className="h-8 shrink-0"
+                  className="min-h-11 shrink-0"
                   onClick={() => onChoose(model)}
                 >
-                  Use
+                  {t(locale, "useModel")}
                 </Button>
                 <Button
                   type="button"
                   size="icon-sm"
                   variant="ghost"
                   className="shrink-0 text-muted-foreground hover:text-destructive"
-                  aria-label={`Delete ${model.name}`}
+                  aria-label={t(locale, "deleteNamed", { title: model.name })}
                   disabled={deleting}
                   onClick={() => setPendingDelete(model)}
                 >
@@ -328,7 +333,7 @@ export function ModelHub({
       ) : null}
 
       <div className="relative">
-        <Search className="pointer-events-none absolute top-1/2 left-3 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Search className="pointer-events-none absolute top-1/2 start-3 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           ref={inputRef}
           value={query}
@@ -336,8 +341,8 @@ export function ModelHub({
           aria-autocomplete="list"
           aria-expanded={openSuggest && shownSuggest.length > 0}
           aria-controls="model-search-suggestions"
-          placeholder="Search qwen, llama, or paste a Hugging Face link"
-          className="h-11 pl-9"
+          placeholder={t(locale, "searchLibraryPh")}
+          className="h-11 ps-9"
           autoComplete="off"
           onFocus={() => setOpenSuggest(true)}
           onBlur={() => window.setTimeout(() => setOpenSuggest(false), 120)}

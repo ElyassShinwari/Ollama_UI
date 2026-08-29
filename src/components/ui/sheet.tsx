@@ -48,7 +48,7 @@ const SheetContent = React.forwardRef<
     >
       {children}
       {hideClose ? null : (
-        <DialogPrimitive.Close className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 inline-flex size-10 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
+        <DialogPrimitive.Close className="absolute top-[max(0.75rem,env(safe-area-inset-top))] end-3 inline-flex size-10 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
           <X className="size-4" />
           <span className="sr-only">Close</span>
         </DialogPrimitive.Close>
@@ -68,7 +68,7 @@ const SheetTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn("text-base font-medium", className)}
+    className={cn("pe-10 text-base font-medium", className)}
     {...props}
   />
 ));

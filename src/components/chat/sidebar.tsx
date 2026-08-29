@@ -34,6 +34,7 @@ import { applyTheme, resolvedTheme } from "@/lib/theme";
 import { t, type MsgKey } from "@/lib/i18n";
 import { conversationMarkdown, conversationsBackup, downloadText } from "@/lib/chat/export";
 import { useChatStore } from "@/lib/chat/store";
+import { useHistoryBack } from "@/lib/history-back";
 import type { Conversation } from "@/lib/chat/types";
 
 function startOfDay(ts: number) {
@@ -103,6 +104,8 @@ export function Sidebar({
   const [renaming, setRenaming] = useState<Conversation | null>(null);
   const [title, setTitle] = useState("");
   const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
+  useHistoryBack(Boolean(renaming), () => setRenaming(null), "rename-chat");
+  useHistoryBack(Boolean(pendingDelete), () => setPendingDelete(null), "delete-chat");
 
   useEffect(() => {
     const id = window.setTimeout(() => setSearch(searchDraft), 150);

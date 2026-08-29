@@ -23,6 +23,7 @@ import { selectActiveConversation, chatPersist, useChatStore } from "@/lib/chat/
 import { siblingsOf, visibleMessages, isNoteMessage, chatTurnsOf } from "@/lib/chat/tree";
 import { adoptModel, streamChat } from "@/lib/llm/catalog";
 import { endpointForModel, remoteIdFromCustom } from "@/lib/llm/custom";
+import { useHistoryBack } from "@/lib/history-back";
 import { friendlyOllamaError } from "@/lib/llm/context";
 import {
   buildMessageFromFiles,
@@ -109,6 +110,7 @@ export function ChatView({
   const [cycles, setCycles] = useState(3);
   const [cycleNote, setCycleNote] = useState("");
   const [reviewOpen, setReviewOpen] = useState(false);
+  useHistoryBack(reviewOpen, () => setReviewOpen(false), "review");
   const [farFromBottom, setFarFromBottom] = useState(false);
   const [liveAnnounce, setLiveAnnounce] = useState("");
   const [streamingId, setStreamingId] = useState<string | null>(null);
@@ -831,7 +833,7 @@ export function ChatView({
         <Button
           size="icon"
           variant="ghost"
-          className="md:hidden"
+          className="shrink-0 md:hidden"
           onClick={onOpenSidebar}
           aria-label={t(locale, "openSidebar")}
         >
@@ -840,7 +842,7 @@ export function ChatView({
         <Button
           size="icon"
           variant="ghost"
-          className="hidden md:inline-flex"
+          className="hidden shrink-0 md:inline-flex"
           onClick={onToggleSidebar}
           aria-label={t(locale, "toggleSidebar")}
         >
@@ -852,19 +854,17 @@ export function ChatView({
           onChange={requestSwitch}
           onBrowse={onBrowseModels}
         />
-        <div className="ms-auto flex items-center gap-1">
+        <div className="ms-auto flex shrink-0 items-center gap-0.5">
           <Button
             size="sm"
             variant="ghost"
-            className="md:hidden"
+            className="min-h-11 shrink-0 px-2.5 md:hidden"
             onClick={() => setReviewOpen(true)}
             disabled={!selectedModel}
           >
             {t(locale, "review")}
           </Button>
-          <div className="hidden md:block">
-            <LanguagePicker variant="header" />
-          </div>
+          <LanguagePicker variant="header" />
           <ContextMeter used={contextUsed} limit={contextLimit} />
         </div>
       </header>
@@ -1000,6 +1000,7 @@ export function ChatView({
             </div>
             <Button
               disabled={!selectedModel || Boolean(streamingId)}
+              className="min-h-11"
               onClick={() => {
                 setReviewOpen(false);
                 void startReview();
@@ -1007,6 +1008,12 @@ export function ChatView({
             >
               {t(locale, "startReview")}
             </Button>
+            <PairBar
+              models={models}
+              onBrowse={() => onBrowseModels?.()}
+              onRefreshLocal={onRefreshModels}
+              className="block border-0 px-0 py-1 md:hidden"
+            />
           </div>
         </SheetContent>
       </Sheet>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 import { useChatStore } from "@/lib/chat/store";
@@ -16,6 +16,25 @@ export function ContextMeter({
 }) {
   const locale = useChatStore((s) => s.settings.locale);
   const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (event: PointerEvent) => {
+      const node = event.target as Node | null;
+      if (ref.current && node && !ref.current.contains(node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   if (!limit || limit <= 0) {
     return (
       <div className="hidden px-2 text-right text-xs text-muted-foreground md:block">
@@ -29,14 +48,15 @@ export function ContextMeter({
   const warn = ratio >= 0.85;
   const title = `${exact(used)} of ${exact(limit)} tokens`;
   return (
-    <div className="relative shrink-0">
+    <div ref={ref} className="relative shrink-0">
       <button
         type="button"
         className={cn(
-          "font-mono text-[11px] tabular-nums md:hidden",
+          "inline-flex min-h-11 min-w-11 items-center justify-center font-mono text-xs tabular-nums md:hidden",
           full ? "text-destructive" : warn ? "text-foreground" : "text-muted-foreground",
         )}
         title={title}
+        aria-label={title}
         onClick={() => setOpen((v) => !v)}
       >
         {pct}%

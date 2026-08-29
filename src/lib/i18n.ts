@@ -252,6 +252,22 @@ const EN = {
   remoteNeedUrl: "Add a base URL",
   remoteNeedModel: "Add a model name, or check that the server lists models.",
   noRemoteYet: "No remote APIs yet.",
+  onThisComputer: "On this computer",
+  useModel: "Use",
+  remoteName: "Name",
+  remoteBaseUrl: "Base URL",
+  remoteApiKey: "API key",
+  remoteModel: "Model",
+  lookThere: "Look there",
+  remoteGroup: "Remote",
+  noCloudMatch: "No cloud model matches that search.",
+  searchModels: "Search or try qwen, llama…",
+  installOrRemove: "Install or remove models",
+  searchLibraryFor: "Search library for “{q}”",
+  noModelsYet: "No models found yet.",
+  noInstalledMatch: "No installed model matches “{q}”.",
+  searchLibraryPh: "Search qwen, llama, or paste a Hugging Face link",
+  thisComputer: "This computer",
 } as const;
 
 export type MsgKey = keyof typeof EN;

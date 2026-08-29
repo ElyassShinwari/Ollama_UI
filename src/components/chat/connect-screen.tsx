@@ -53,7 +53,7 @@ export function ConnectScreen({
     if (!q) return true;
     return `${m.name} ${m.id} remote`.toLowerCase().includes(q);
   });
-  if (remote.length) cloudGroups.push({ title: "Remote", items: remote });
+  if (remote.length) cloudGroups.push({ title: t(locale, "remoteGroup"), items: remote });
   const hasCloud = catalog.models.some((m) => m.provider !== "ollama");
 
   return (
@@ -95,7 +95,7 @@ export function ConnectScreen({
         {ollama.length > 0 ? (
           <section className="mb-8">
             <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-              On this computer
+              {t(locale, "onThisComputer")}
             </h2>
             <div className="flex flex-col gap-2">
               {ollama.map((model) => (
@@ -113,7 +113,7 @@ export function ConnectScreen({
                         .join(" · ")}
                     </span>
                   </span>
-                  <span className="shrink-0 text-sm text-muted-foreground">Use</span>
+                  <span className="shrink-0 text-sm text-muted-foreground">{t(locale, "useModel")}</span>
                 </button>
               ))}
             </div>
@@ -129,7 +129,7 @@ export function ConnectScreen({
               autoComplete="off"
             />
             {cloudGroups.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No cloud model matches that search.</p>
+              <p className="text-sm text-muted-foreground">{t(locale, "noCloudMatch")}</p>
             ) : (
               cloudGroups.map((group) => (
                 <div key={group.title}>
@@ -172,7 +172,7 @@ export function ConnectScreen({
           }}
         >
           <label htmlFor="connect-host" className="text-sm font-medium">
-            Ollama host
+            {t(locale, "ollamaHost")}
           </label>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
@@ -181,8 +181,8 @@ export function ConnectScreen({
               onChange={(e) => setHostDraft(e.target.value)}
               placeholder="http://127.0.0.1:11434"
             />
-            <Button type="submit" variant="secondary">
-              Look there
+            <Button type="submit" variant="secondary" className="min-h-11">
+              {t(locale, "lookThere")}
             </Button>
           </div>
         </form>

@@ -583,6 +583,12 @@ test("locales cover the requested languages including Dari and Pashto", () => {
   assert.equal(i18n.localeInfo("ru").flag, "🇷🇺");
   assert.ok(i18n.LOCALES.every((item) => item.flag));
   assert.equal(i18n.t("en", "deleteChatBody", { title: "Hello" }).includes("Hello"), true);
+  assert.equal(i18n.t("en", "lookThere"), "Look there");
+  assert.equal(i18n.t("en", "remoteGroup"), "Remote");
+  assert.equal(i18n.t("en", "onThisComputer"), "On this computer");
+  assert.equal(i18n.t("ja", "lookThere"), "Look there");
+  assert.equal(i18n.t("hi", "useModel"), "Use");
+  assert.equal(i18n.t("pt", "remoteGroup"), "Remote");
 });
 
 test("/api/chat and other host routes sanitize Ollama hosts", async () => {

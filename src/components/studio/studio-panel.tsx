@@ -96,13 +96,13 @@ export function StudioPanel({
           Open the n8n tab to connect and add starter workflows. Add instructions and knowledge.
           Ollama does not train models in place — Studio tells you what is possible.
         </p>
-        <div className="mb-6 flex gap-1 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="mb-6 flex gap-1 overflow-x-auto overscroll-x-contain pb-2 snap-x snap-mandatory [scrollbar-width:thin]">
           {TABS.map((item) => (
             <Button
               key={item}
               size="sm"
               variant={tab === item ? "secondary" : "ghost"}
-              className="shrink-0"
+              className="min-h-11 shrink-0 snap-start"
               onClick={() => setTab(item)}
             >
               {item}

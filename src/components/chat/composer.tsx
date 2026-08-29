@@ -204,7 +204,7 @@ export function Composer({
             />
             <Button
               type="button"
-              size="icon-sm"
+              size="icon"
               variant="ghost"
               className="rounded-full"
               aria-label={t(locale, "addFile")}
@@ -218,7 +218,7 @@ export function Composer({
             </Button>
             <Button
               type="button"
-              size="icon-sm"
+              size="icon"
               variant={listening ? "secondary" : "ghost"}
               className={cn("rounded-full", listening && "text-primary")}
               aria-label={listening ? t(locale, "stopVoice") : t(locale, "voiceInput")}
@@ -234,7 +234,7 @@ export function Composer({
           </div>
           {streaming ? (
             <Button
-              size="icon-sm"
+              size="icon"
               className="rounded-full"
               onClick={onStop}
               aria-label={t(locale, "stopGenerating")}
@@ -243,7 +243,7 @@ export function Composer({
             </Button>
           ) : (
             <Button
-              size="icon-sm"
+              size="icon"
               className="rounded-full"
               onClick={() => {
                 if (listening) stopListening();

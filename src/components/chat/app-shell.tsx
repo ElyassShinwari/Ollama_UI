@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Menu } from "lucide-react";
 import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -22,6 +22,7 @@ import { ollamaGate } from "@/lib/llm/ollama-client";
 import { cloudSecret } from "@/lib/llm/cloud";
 import { applyTheme, resolvedTheme } from "@/lib/theme";
 import { applyLocale, localeInfo, t } from "@/lib/i18n";
+import { useHistoryBack } from "@/lib/history-back";
 import { useAppViewport } from "@/lib/viewport";
 import { useChatStore } from "@/lib/chat/store";
 import { syncStudio } from "@/lib/studio/store";
@@ -61,7 +62,6 @@ export function ChatApp() {
   const [studioTab, setStudioTab] = useState<StudioTab>("GitHub");
   const [newsOpen, setNewsOpen] = useState(false);
   const [hydrated, setHydrated] = useState(() => useChatStore.persist.hasHydrated());
-  const overlayPushed = useRef(false);
 
   const refresh = useCallback(async () => {
     if (ollamaGate.chat) return;
@@ -130,18 +130,10 @@ export function ChatApp() {
     return () => window.clearInterval(id);
   }, [refresh, settings.ollamaHost, settings.openaiKey, settings.anthropicKey, settings.xaiKey, settings.kimiKey, settings.deepseekKey, settings.openaiOAuth, settings.xaiOAuth, settings.kimiOAuth, settings.customEndpoints, hydrated]);
 
-  function closeOverlay(opts?: { fromPop?: boolean }) {
+  function closeOverlay() {
     setStudioOpen(false);
     setNewsOpen(false);
     setHubOpen(false);
-    if (!opts?.fromPop && overlayPushed.current) {
-      overlayPushed.current = false;
-      if (window.history.state && (window.history.state as { ollamaUiOverlay?: string }).ollamaUiOverlay) {
-        window.history.back();
-      }
-    } else {
-      overlayPushed.current = false;
-    }
   }
 
   function openStudio(tab: StudioTab = "GitHub") {
@@ -171,24 +163,16 @@ export function ChatApp() {
     setHubOpen(false);
   }
 
-  // Browser / phone back closes News, Studio, or Models instead of leaving the app.
-  useEffect(() => {
-    const open = studioOpen || newsOpen || hubOpen;
-    if (!open) return;
-    const key = studioOpen ? "studio" : newsOpen ? "news" : "hub";
-    if (!overlayPushed.current || (window.history.state as { ollamaUiOverlay?: string } | null)?.ollamaUiOverlay !== key) {
-      window.history.pushState({ ollamaUiOverlay: key }, "");
-      overlayPushed.current = true;
-    }
-    const onPop = () => {
-      overlayPushed.current = false;
-      setStudioOpen(false);
-      setNewsOpen(false);
-      setHubOpen(false);
-    };
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, [studioOpen, newsOpen, hubOpen]);
+  // Phone / browser Back peels News, Studio, Models, Settings, or the menu
+  // instead of leaving the app.
+  useHistoryBack(studioOpen, () => setStudioOpen(false), "studio");
+  useHistoryBack(newsOpen, () => setNewsOpen(false), "news");
+  useHistoryBack(hubOpen, () => {
+    setHubOpen(false);
+    setHubQuery("");
+  }, "hub");
+  useHistoryBack(settingsOpen, () => setSettingsOpen(false), "settings");
+  useHistoryBack(mobileOpen, () => setMobileOpen(false), "menu");
 
   const sidebar = (
     <Sidebar

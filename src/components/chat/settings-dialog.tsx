@@ -193,6 +193,7 @@ export function SettingsDialog({
         <DialogFooter>
           <Button
             variant="ghost"
+            className="min-h-11"
             onClick={() => {
               applyTheme(settings.theme);
               applyLocale(settings.locale);
@@ -202,6 +203,7 @@ export function SettingsDialog({
             {t(lang, "cancel")}
           </Button>
           <Button
+            className="min-h-11"
             onClick={() => {
               const parsed = Number(temperature);
               const nextHost = host.trim() || "http://127.0.0.1:11434";
@@ -245,7 +247,7 @@ function N8nSettingsRow({ onOpenN8n }: { onOpenN8n?: () => void }) {
           ? `n8n is set up for ${where}. Open Studio to change it or add workflows.`
           : "Connect n8n on this computer, n8n Cloud, or a server. Workflows can ask your models or receive finished chats."}
       </p>
-      <Button type="button" variant="secondary" className="h-10 self-start" onClick={onOpenN8n}>
+      <Button type="button" variant="secondary" className="min-h-11 self-start" onClick={onOpenN8n}>
         {linked ? "Open n8n setup" : "Connect n8n"}
       </Button>
     </div>

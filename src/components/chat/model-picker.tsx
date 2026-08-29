@@ -17,15 +17,15 @@ import { t } from "@/lib/i18n";
 import { useChatStore } from "@/lib/chat/store";
 import type { ModelRef } from "@/lib/chat/types";
 
-function groupModels(models: ModelRef[]) {
+function groupModels(models: ModelRef[], locale: string) {
   return [
-    { title: "On this machine", items: models.filter((m) => m.provider === "ollama") },
+    { title: t(locale, "onThisComputer"), items: models.filter((m) => m.provider === "ollama") },
     { title: CLOUD_LABEL.openai, items: models.filter((m) => m.provider === "openai") },
     { title: CLOUD_LABEL.anthropic, items: models.filter((m) => m.provider === "anthropic") },
     { title: CLOUD_LABEL.xai, items: models.filter((m) => m.provider === "xai") },
     { title: CLOUD_LABEL.kimi, items: models.filter((m) => m.provider === "kimi") },
     { title: CLOUD_LABEL.deepseek, items: models.filter((m) => m.provider === "deepseek") },
-    { title: "Remote", items: models.filter((m) => m.provider === "custom") },
+    { title: t(locale, "remoteGroup"), items: models.filter((m) => m.provider === "custom") },
   ].filter((g) => g.items.length > 0);
 }
 
@@ -58,7 +58,7 @@ export function ModelPicker({
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
   const visible = useMemo(() => models.filter((m) => matchesQuery(m, q)), [models, q]);
-  const groups = groupModels(visible);
+  const groups = groupModels(visible, locale);
   const label = value?.name ?? emptyLabel ?? t(locale, "chooseModel");
   const index = models.findIndex((m) => m.id === value?.id && m.provider === value?.provider);
   const hints = q ? suggestQueries(q, models.map((m) => m.name)) : [];
@@ -71,7 +71,7 @@ export function ModelPicker({
   }
 
   return (
-    <div className="flex min-w-0 items-center gap-0.5">
+    <div className="flex min-w-0 w-full flex-1 items-center gap-0.5">
       {allowCycle ? (
         <Button
           type="button"
@@ -104,7 +104,7 @@ export function ModelPicker({
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search or try qwen, llama…"
+              placeholder={t(locale, "searchModels")}
               autoComplete="off"
               className="h-8"
               onKeyDown={(e) => e.stopPropagation()}
@@ -126,10 +126,10 @@ export function ModelPicker({
           </div>
           <div className="scrollbar-thin max-h-[min(24rem,60vh)] overflow-y-auto p-1">
             {models.length === 0 ? (
-              <div className="px-3 py-6 text-center text-sm text-muted-foreground">No models found yet.</div>
+              <div className="px-3 py-6 text-center text-sm text-muted-foreground">{t(locale, "noModelsYet")}</div>
             ) : visible.length === 0 ? (
               <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-                No installed model matches “{query.trim()}”.
+                {t(locale, "noInstalledMatch", { q: query.trim() })}
               </div>
             ) : (
               groups.map((group, i) => (
@@ -155,12 +155,12 @@ export function ModelPicker({
                 {q ? (
                   <DropdownMenuItem onSelect={() => onBrowse(query.trim())} className="py-2.5">
                     <Search className="size-4" />
-                    <span>Search library for “{query.trim()}”</span>
+                    <span>{t(locale, "searchLibraryFor", { q: query.trim() })}</span>
                   </DropdownMenuItem>
                 ) : null}
                 <DropdownMenuItem onSelect={() => onBrowse()} className="py-2.5">
                   <Plus className="size-4" />
-                  <span>Install or remove models</span>
+                  <span>{t(locale, "installOrRemove")}</span>
                 </DropdownMenuItem>
               </div>
             </>
@@ -193,6 +193,7 @@ function ModelItem({
   selected: boolean;
   onSelect: () => void;
 }) {
+  const locale = useChatStore((s) => s.settings.locale);
   const meta = [
     model.parameterSize,
     formatContextWindow(model.contextLength),
@@ -200,7 +201,7 @@ function ModelItem({
     model.family,
     model.provider === "ollama"
       ? model.transport === "browser"
-        ? "This computer"
+        ? t(locale, "thisComputer")
         : "Ollama"
       : providerLabel(model.provider),
   ]

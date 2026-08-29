@@ -336,7 +336,7 @@ function PairLane({
         ) : status.ready && status.writer && status.tester ? (
           <Button
             size="sm"
-            className="h-8"
+            className="min-h-11 md:h-8"
             onClick={() => {
               applyReadyPair(status.writer!, status.tester!, taskName);
               onUsed?.();
@@ -345,7 +345,7 @@ function PairLane({
             {t(locale, "useThisPair")}
           </Button>
         ) : (
-          <Button size="sm" className="h-8" onClick={() => void installBoth()}>
+          <Button size="sm" className="min-h-11 md:h-8" onClick={() => void installBoth()}>
             {t(locale, "installBoth")}
           </Button>
         )}
@@ -358,10 +358,12 @@ export function PairBar({
   models,
   onBrowse,
   onRefreshLocal,
+  className,
 }: {
   models: ModelRef[];
   onBrowse?: () => void;
   onRefreshLocal?: () => Promise<ModelRef[] | void>;
+  className?: string;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const close = () => setOpenId(null);
@@ -369,7 +371,7 @@ export function PairBar({
   const locale = useChatStore((s) => s.settings.locale);
   const open = PAIR_TASKS.find((t) => t.id === openId);
   return (
-    <div ref={rootRef} className="hidden border-b border-border px-3 py-2 md:block">
+    <div ref={rootRef} className={cn("hidden border-b border-border px-3 py-2 md:block", className)}>
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="text-xs text-muted-foreground">{t(locale, "reviewPairs")}</span>
         {PAIR_TASKS.map((task) => (
@@ -377,7 +379,7 @@ export function PairBar({
             key={task.id}
             size="sm"
             variant={openId === task.id ? "secondary" : "ghost"}
-            className={cn("h-7 px-2 text-xs", openId === task.id && "bg-secondary")}
+            className={cn("min-h-11 px-2.5 text-xs md:h-7 md:min-h-0 md:px-2", openId === task.id && "bg-secondary")}
             aria-expanded={openId === task.id}
             onClick={() => setOpenId((cur) => (cur === task.id ? null : task.id))}
           >

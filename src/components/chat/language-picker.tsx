@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { applyLocale, localeInfo, LOCALES, t } from "@/lib/i18n";
+import { useHistoryBack } from "@/lib/history-back";
 import { useChatStore } from "@/lib/chat/store";
 import { cn } from "@/lib/utils";
 
@@ -43,7 +44,7 @@ export function LanguageList({ onPicked }: { onPicked?: () => void }) {
           type="button"
           size="sm"
           variant={item.id === locale ? "secondary" : "outline"}
-          className={cn("h-10 justify-start gap-2", item.id === locale && "ring-1 ring-ring/40")}
+          className={cn("min-h-11 justify-start gap-2", item.id === locale && "ring-1 ring-ring/40")}
           onClick={() => {
             pickLocale(item.id);
             onPicked?.();
@@ -69,6 +70,7 @@ export function LanguagePicker({
 }) {
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
+  useHistoryBack(open, close, "language");
   const ref = useDismiss(open, close);
   const locale = useChatStore((s) => s.settings.locale);
   const current = localeInfo(locale);

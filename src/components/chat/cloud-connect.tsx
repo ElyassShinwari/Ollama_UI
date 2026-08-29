@@ -208,13 +208,14 @@ export function CloudConnect({ compact = false }: { compact?: boolean }) {
               <Label>{account.label}</Label>
               <div className="flex gap-1">
                 {oauth && session?.accessToken ? (
-                  <Button type="button" size="sm" variant="ghost" onClick={() => signOut(account.id)}>
+                  <Button type="button" size="sm" variant="ghost" className="min-h-11 md:h-8" onClick={() => signOut(account.id)}>
                     {t(locale, "signOut")}
                   </Button>
                 ) : (
                   <Button
                     type="button"
                     size="sm"
+                    className="min-h-11 md:h-8"
                     onClick={() => void startSignIn(account.id)}
                     disabled={busy === account.id || waiting}
                   >
@@ -397,18 +398,30 @@ function RemoteEndpoints({ compact = false }: { compact?: boolean }) {
         <p className="mt-1 text-xs text-muted-foreground text-pretty">{t(locale, "remoteApisBlurb")}</p>
       </div>
       <div className="grid gap-2">
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t(locale, "remoteNamePh")} autoComplete="off" />
-        <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder={t(locale, "remoteBaseUrlPh")} autoComplete="off" />
-        <Input
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder={t(locale, "remoteApiKeyPh")}
-          autoComplete="off"
-        />
-        <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder={t(locale, "remoteModelPh")} autoComplete="off" />
+        <div className="flex flex-col gap-1">
+          <Label>{t(locale, "remoteName")}</Label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t(locale, "remoteNamePh")} autoComplete="off" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label>{t(locale, "remoteBaseUrl")}</Label>
+          <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder={t(locale, "remoteBaseUrlPh")} autoComplete="off" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label>{t(locale, "remoteApiKey")}</Label>
+          <Input
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder={t(locale, "remoteApiKeyPh")}
+            autoComplete="off"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label>{t(locale, "remoteModel")}</Label>
+          <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder={t(locale, "remoteModelPh")} autoComplete="off" />
+        </div>
       </div>
-      <Button type="button" onClick={() => void add()} disabled={busy || !baseUrl.trim()}>
+      <Button type="button" className="min-h-11" onClick={() => void add()} disabled={busy || !baseUrl.trim()}>
         {busy ? t(locale, "waiting") : t(locale, "addRemote")}
       </Button>
       {endpoints.length === 0 ? (
@@ -417,20 +430,21 @@ function RemoteEndpoints({ compact = false }: { compact?: boolean }) {
         <div className="flex flex-col gap-2">
           {endpoints.map((item) => (
             <div key={item.id} className="rounded-xl border border-border px-3 py-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
+              <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-start">
+                <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{item.name}</p>
                   <p className="truncate text-xs text-muted-foreground">{item.baseUrl}</p>
-                  <p className="mt-1 truncate text-xs text-muted-foreground">{item.models.join(", ")}</p>
+                  <p className="mt-1 break-all text-xs text-muted-foreground">{item.models.join(", ")}</p>
                 </div>
-                <div className="flex shrink-0 flex-col gap-1">
-                  <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void loadMore(item)}>
+                <div className="flex shrink-0 gap-1">
+                  <Button type="button" size="sm" variant="outline" className="min-h-11" disabled={busy} onClick={() => void loadMore(item)}>
                     {t(locale, "loadRemoteModels")}
                   </Button>
                   <Button
                     type="button"
                     size="sm"
                     variant="ghost"
+                    className="min-h-11"
                     onClick={() => {
                       save(endpoints.filter((row) => row.id !== item.id));
                       toast.success(t(locale, "remoteRemoved", { name: item.name }));

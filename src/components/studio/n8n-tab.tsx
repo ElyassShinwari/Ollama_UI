@@ -47,13 +47,13 @@ function CopyField({
         <Input
           readOnly
           value={shown}
-          className="font-mono text-xs"
+          className="min-w-0 flex-1 font-mono text-xs"
           placeholder={emptyLabel}
         />
         <Button
           type="button"
           variant="outline"
-          className="h-10 shrink-0"
+          className="min-h-11 shrink-0 px-3"
           onClick={async () => {
             await navigator.clipboard.writeText(value);
             setCopied(true);
