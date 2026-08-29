@@ -88,13 +88,16 @@ export function SettingsDialog({
                   key={item.id}
                   type="button"
                   variant={lang === item.id ? "secondary" : "outline"}
-                  className={cn("h-12 justify-start", lang === item.id && "ring-1 ring-ring/40")}
+                  className={cn("h-12 justify-start gap-2", lang === item.id && "ring-1 ring-ring/40")}
                   onClick={() => {
                     setLang(item.id);
                     applyLocale(item.id);
                     setSettings({ locale: item.id });
                   }}
                 >
+                  <span className="text-lg leading-none" aria-hidden>
+                    {item.flag}
+                  </span>
                   <span className="flex min-w-0 flex-col items-start leading-tight">
                     <span className="truncate" dir={item.dir} lang={item.htmlLang}>
                       {item.native}

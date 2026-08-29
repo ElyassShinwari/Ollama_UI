@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Globe } from "lucide-react";
+import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { applyLocale, localeInfo, LOCALES, t } from "@/lib/i18n";
 import { useChatStore } from "@/lib/chat/store";
@@ -43,12 +43,15 @@ export function LanguageList({ onPicked }: { onPicked?: () => void }) {
           type="button"
           size="sm"
           variant={item.id === locale ? "secondary" : "outline"}
-          className={cn("h-9 justify-start", item.id === locale && "ring-1 ring-ring/40")}
+          className={cn("h-10 justify-start gap-2", item.id === locale && "ring-1 ring-ring/40")}
           onClick={() => {
             pickLocale(item.id);
             onPicked?.();
           }}
         >
+          <span className="text-base leading-none" aria-hidden>
+            {item.flag}
+          </span>
           <span className="min-w-0 flex-1 truncate text-left" dir={item.dir} lang={item.htmlLang}>
             {item.native}
           </span>
@@ -85,7 +88,9 @@ export function LanguagePicker({
         aria-label={t(locale, "language")}
         onClick={() => setOpen((v) => !v)}
       >
-        <Globe className="size-4 shrink-0" />
+        <span className="text-lg leading-none" aria-hidden>
+          {current.flag}
+        </span>
         <span className={cn("min-w-0 truncate", variant === "header" && "hidden md:inline")}>
           {t(locale, "language")}
         </span>

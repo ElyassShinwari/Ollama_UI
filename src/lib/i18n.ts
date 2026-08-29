@@ -21,20 +21,21 @@ export type LocaleInfo = {
   htmlLang: string;
   speech: string;
   dir: "ltr" | "rtl";
+  flag: string;
 };
 
 export const LOCALES: LocaleInfo[] = [
-  { id: "en", name: "English", native: "English", htmlLang: "en", speech: "en-US", dir: "ltr" },
-  { id: "nl", name: "Dutch", native: "Nederlands", htmlLang: "nl", speech: "nl-NL", dir: "ltr" },
-  { id: "de", name: "German", native: "Deutsch", htmlLang: "de", speech: "de-DE", dir: "ltr" },
-  { id: "es", name: "Spanish", native: "Español", htmlLang: "es", speech: "es-ES", dir: "ltr" },
-  { id: "it", name: "Italian", native: "Italiano", htmlLang: "it", speech: "it-IT", dir: "ltr" },
-  { id: "ru", name: "Russian", native: "Русский", htmlLang: "ru", speech: "ru-RU", dir: "ltr" },
-  { id: "zh", name: "Chinese", native: "中文", htmlLang: "zh-CN", speech: "zh-CN", dir: "ltr" },
-  { id: "ar", name: "Arabic", native: "العربية", htmlLang: "ar", speech: "ar-SA", dir: "rtl" },
-  { id: "fa", name: "Persian", native: "فارسی", htmlLang: "fa", speech: "fa-IR", dir: "rtl" },
-  { id: "prs", name: "Dari", native: "دری", htmlLang: "fa-AF", speech: "fa-AF", dir: "rtl" },
-  { id: "ps", name: "Pashto", native: "پښتو", htmlLang: "ps", speech: "ps-AF", dir: "rtl" },
+  { id: "en", name: "English", native: "English", htmlLang: "en", speech: "en-US", dir: "ltr", flag: "🇬🇧" },
+  { id: "nl", name: "Dutch", native: "Nederlands", htmlLang: "nl", speech: "nl-NL", dir: "ltr", flag: "🇳🇱" },
+  { id: "de", name: "German", native: "Deutsch", htmlLang: "de", speech: "de-DE", dir: "ltr", flag: "🇩🇪" },
+  { id: "es", name: "Spanish", native: "Español", htmlLang: "es", speech: "es-ES", dir: "ltr", flag: "🇪🇸" },
+  { id: "it", name: "Italian", native: "Italiano", htmlLang: "it", speech: "it-IT", dir: "ltr", flag: "🇮🇹" },
+  { id: "ru", name: "Russian", native: "Русский", htmlLang: "ru", speech: "ru-RU", dir: "ltr", flag: "🇷🇺" },
+  { id: "zh", name: "Chinese", native: "中文", htmlLang: "zh-CN", speech: "zh-CN", dir: "ltr", flag: "🇨🇳" },
+  { id: "ar", name: "Arabic", native: "العربية", htmlLang: "ar", speech: "ar-SA", dir: "rtl", flag: "🇸🇦" },
+  { id: "fa", name: "Persian", native: "فارسی", htmlLang: "fa", speech: "fa-IR", dir: "rtl", flag: "🇮🇷" },
+  { id: "prs", name: "Dari", native: "دری", htmlLang: "fa-AF", speech: "fa-AF", dir: "rtl", flag: "🇦🇫" },
+  { id: "ps", name: "Pashto", native: "پښتو", htmlLang: "ps", speech: "ps-AF", dir: "rtl", flag: "🇦🇫" },
 ];
 
 const EN = {

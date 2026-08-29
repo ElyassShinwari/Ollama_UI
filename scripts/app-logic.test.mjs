@@ -564,6 +564,15 @@ test("locales cover the requested languages including Dari and Pashto", () => {
   assert.equal(i18n.t("prs", "newChat"), "گفتگوی جدید");
   assert.equal(i18n.localeInfo("ar").dir, "rtl");
   assert.equal(i18n.localeInfo("nl").speech, "nl-NL");
+  assert.equal(i18n.localeInfo("nl").flag, "🇳🇱");
+  assert.equal(i18n.localeInfo("de").flag, "🇩🇪");
+  assert.equal(i18n.localeInfo("fa").flag, "🇮🇷");
+  assert.equal(i18n.localeInfo("prs").flag, "🇦🇫");
+  assert.equal(i18n.localeInfo("ps").flag, "🇦🇫");
+  assert.equal(i18n.localeInfo("zh").flag, "🇨🇳");
+  assert.equal(i18n.localeInfo("ar").flag, "🇸🇦");
+  assert.equal(i18n.localeInfo("ru").flag, "🇷🇺");
+  assert.ok(i18n.LOCALES.every((item) => item.flag));
   assert.equal(i18n.t("en", "deleteChatBody", { title: "Hello" }).includes("Hello"), true);
 });
 
