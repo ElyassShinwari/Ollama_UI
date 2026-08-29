@@ -117,11 +117,22 @@ ollama list
 3. Chat. Type, or tap the **mic** and speak — words land in the box so you can edit them, then send. Tokens appear as Ollama writes them — the same speed as `ollama run` in a terminal. The app does not reload the model or force a huge context window on every send. Switch models from the header — the previous local model is unloaded first so two models are not held in RAM at once. The full conversation is sent to the new model, and the context meter updates to that model's own window (read from the model; if a model never published one, the app estimates from its parameter size). Delete a chat from the trash in the sidebar history, or from **⋯ → Delete**. Confirm, and it is removed from this browser.
 4. If the new model’s window is smaller than this chat, you get a warning: answers may be unexpected or inaccurate while the window is full. You can still continue, or start a new chat.
 5. Attach files with **+** or drag and drop. The app takes the file and sends what it can (text, images, PDFs, and other types). Follow-up messages keep their attachments. Grok files go through xAI’s Responses API (assistant turns use `output_text`). ChatGPT, Claude, and Kimi accept many kinds too. If a model cannot read a file, that model’s reply says so — the app does not block unknown types up front.
-6. Open **News** in the sidebar. Choose **Local AI**, **Overall AI**, **Pictures**, or **Videos**. Stories open in a new tab; videos play in the page. **Back to chat** closes News. Clicking a chat also closes it. On a phone, the hardware **Back** key closes News, Studio, Settings, the chat menu, Review, or the language list — one layer at a time — instead of leaving the app.
-7. Open **Studio** in the sidebar for GitHub, **n8n**, **Cloud base**, MCP, the local API, website/WhatsApp webhooks, instructions, knowledge, and model advice. **Back to chat** closes Studio and returns to the conversation you were in. Clicking a chat in the sidebar also closes Studio and opens that chat. On a phone, use the menu in Studio to open the chat list. Studio tabs swipe sideways.
-8. On a phone, **Review** is in the chat header (next to the language flag). It opens a sheet for the tester model, cycle count, **Start review**, and the same review-pair jobs as on a computer. **Start review** runs a writer/tester cycle on the current chat. The **writer** is the model in the header. A **tester** is picked automatically when another model is available (you can change it). Set 1–100 cycles. Each cycle passes the latest answer between the two models. If the tester is not satisfied when the cycles end, it posts a final report with the project and remaining errors.
+6. Open **News** in the sidebar. Choose **Local AI**, **Overall AI**, **Pictures**, or **Videos**. Stories open in a new tab; videos play in the page. **Back to chat** closes News. Clicking a chat also closes it.
+7. Open **Studio** in the sidebar for GitHub, **n8n**, **Cloud base**, MCP, the local API, website/WhatsApp webhooks, instructions, knowledge, and model advice. **Back to chat** closes Studio and returns to the conversation you were in. Clicking a chat in the sidebar also closes Studio and opens that chat.
+8. Click **Start review** to run a writer/tester cycle on the current chat — including chats you already started. The **writer** is the model in the header. A **tester** is picked automatically when another model is available (you can change it). Set 1–100 cycles. Each cycle passes the latest answer between the two models. If the tester is still not satisfied when the cycles end, it posts a final report with the project and remaining errors.
 
 Default theme is light (switch in the left menu or Settings). Change the language from the **Language** button in the top bar (it shows that language’s flag and name), from the grid on the first screen, or in Settings. English 🇬🇧, Dutch 🇳🇱, German 🇩🇪, Spanish 🇪🇸, Italian 🇮🇹, Portuguese 🇧🇷, Russian 🇷🇺, Chinese 🇨🇳, Japanese 🇯🇵, Hindi 🇮🇳, Arabic 🇸🇦, Persian 🇮🇷, Dari 🇦🇫, and Pashto 🇦🇫. Menus, buttons, and voice input follow that language (Arabic-script languages are right-to-left). API keys stay in this browser and are sent only to this computer’s server, then to the matching provider.
+
+## On a phone
+
+The same app is built for a phone, not only a computer.
+
+- Open the **menu** (top corner) for New chat, News, Studio, and Settings.
+- **Language** is the flag in the chat header. Tap it to see every language with its flag. The first screen, Settings, and model list follow that language (including Hindi, Japanese, and Portuguese).
+- **Review** is in the chat header. It opens a sheet: tester model, cycle count, **Start review**, and the review-pair jobs (Coding, Writing, Math, and the rest).
+- Studio tabs **swipe** sideways (n8n, GitHub, Cloud base, and the later tabs).
+- The hardware **Back** key closes one layer at a time — language list, menu, Settings, News, Studio, Review, or a delete/rename confirm — instead of leaving the app. Tapping outside a list also closes it.
+- Buttons are large enough to tap. Arabic, Persian, Dari, and Pashto put close buttons on the reading-direction side.
 
 ## News
 
@@ -287,6 +298,9 @@ Tokens go straight from the model to the page. The app does not wait for the who
 
 **The computer freezes when switching models**  
 Ollama was keeping the old model in RAM while loading the new one. Switching now unloads every other local model first, then the next message loads only the one you picked. Wait a moment after switching before sending if the previous model was large.
+
+**Back on the phone leaves the app**  
+News, Studio, Settings, Review, the chat menu, and the language list each take one **Back** press. After those are closed, Back can leave the page.
 
 **Grok says the CLI is outdated**  
 That was a Grok sign-in bug, not something to run in a terminal. Ollama_UI now sends Grok the client version it expects. Sign out and Sign in again under Studio → Cloud base if an old session still shows it.
