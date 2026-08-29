@@ -13,7 +13,6 @@ import {
   Settings,
   Sun,
   Trash2,
-  Workflow,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,7 +33,6 @@ import { cn } from "@/lib/utils";
 import { applyTheme, resolvedTheme } from "@/lib/theme";
 import { t, type MsgKey } from "@/lib/i18n";
 import { conversationMarkdown, conversationsBackup, downloadText } from "@/lib/chat/export";
-import { LanguagePicker } from "@/components/chat/language-picker";
 import { useChatStore } from "@/lib/chat/store";
 import type { Conversation } from "@/lib/chat/types";
 
@@ -76,22 +74,18 @@ export function Sidebar({
   onNewChat,
   onOpenSettings,
   onOpenStudio,
-  onOpenN8n,
   onOpenNews,
   newsActive,
   studioActive,
-  n8nActive,
   onNavigate,
 }: {
   className?: string;
   onNewChat: () => void;
   onOpenSettings: () => void;
   onOpenStudio?: () => void;
-  onOpenN8n?: () => void;
   onOpenNews?: () => void;
   newsActive?: boolean;
   studioActive?: boolean;
-  n8nActive?: boolean;
   onNavigate?: () => void;
 }) {
   const conversations = useChatStore((s) => s.conversations);
@@ -246,7 +240,6 @@ export function Sidebar({
         )}
       </nav>
       <div className="relative flex flex-col gap-1 overflow-visible border-t border-border p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        <LanguagePicker />
         <Button
           variant="ghost"
           className="h-10 w-full justify-start gap-2"
@@ -269,15 +262,7 @@ export function Sidebar({
         </Button>
         <Button
           variant="ghost"
-          className={cn("h-10 w-full justify-start gap-2", n8nActive && "bg-accent")}
-          onClick={onOpenN8n}
-        >
-          <Workflow className="size-4" />
-          n8n
-        </Button>
-        <Button
-          variant="ghost"
-          className={cn("h-10 w-full justify-start gap-2", studioActive && !n8nActive && "bg-accent")}
+          className={cn("h-10 w-full justify-start gap-2", studioActive && "bg-accent")}
           onClick={onOpenStudio}
         >
           <Blocks className="size-4" />

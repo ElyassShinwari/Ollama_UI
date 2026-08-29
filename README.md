@@ -118,10 +118,10 @@ ollama list
 4. If the new model’s window is smaller than this chat, you get a warning: answers may be unexpected or inaccurate while the window is full. You can still continue, or start a new chat.
 5. Attach files with **+** or drag and drop. The app takes the file and sends what it can (text, images, PDFs, and other types). Follow-up messages keep their attachments. Grok files go through xAI’s Responses API (assistant turns use `output_text`). ChatGPT, Claude, and Kimi accept many kinds too. If a model cannot read a file, that model’s reply says so — the app does not block unknown types up front.
 6. Open **News** in the sidebar. Choose **Local AI**, **Overall AI**, **Pictures**, or **Videos**. Stories open in a new tab; videos play in the page. **Back to chat** closes News. Clicking a chat also closes it.
-7. Open **Studio** in the sidebar for GitHub, **n8n**, **Cloud base**, MCP, the local API, website/WhatsApp webhooks, instructions, knowledge, and model advice. There is also an **n8n** button in the sidebar. **Back to chat** closes Studio and returns to the conversation you were in. Clicking a chat in the sidebar also closes Studio and opens that chat. On a phone, use the menu in Studio to open the chat list.
+7. Open **Studio** in the sidebar for GitHub, **n8n**, **Cloud base**, MCP, the local API, website/WhatsApp webhooks, instructions, knowledge, and model advice. **Back to chat** closes Studio and returns to the conversation you were in. Clicking a chat in the sidebar also closes Studio and opens that chat. On a phone, use the menu in Studio to open the chat list.
 8. Click **Start review** to run a writer/tester cycle on the current chat — including chats you already started. The **writer** is the model in the header. A **tester** is picked automatically when another model is available (you can change it). Set 1–100 cycles. Each cycle passes the latest answer between the two models. If the tester is not satisfied when the cycles end, it posts a final report with the project and remaining errors.
 
-Default theme is light (switch in the left menu or Settings). Change the language from the **Language** button in the top bar (it shows the current name, e.g. English), from **Language** at the top of the left menu, from the grid on the first screen, or in Settings. English, Dutch, German, Spanish, Italian, Russian, Chinese, Arabic, Persian, Dari, and Pashto. Menus, buttons, and voice input follow that language (Arabic-script languages are right-to-left). API keys stay in this browser and are sent only to this computer’s server, then to the matching provider.
+Default theme is light (switch in the left menu or Settings). Change the language from the **Language** button in the top bar (it shows the current name, e.g. English), from the grid on the first screen, or in Settings. English, Dutch, German, Spanish, Italian, Russian, Chinese, Arabic, Persian, Dari, and Pashto. Menus, buttons, and voice input follow that language (Arabic-script languages are right-to-left). API keys stay in this browser and are sent only to this computer’s server, then to the matching provider.
 
 ## News
 
@@ -183,7 +183,7 @@ This app does not do GitHub OAuth in the browser. The token stays in this browse
 
 Connect n8n on this computer, n8n Cloud, or a server, then paste a **connection** into n8n so workflows can use your local model.
 
-1. Open **n8n** in the sidebar (or **Studio → n8n**).
+1. Open **Studio → n8n**.
 2. Pick where n8n lives: **This computer**, **n8n Cloud**, or **A server**. For this computer, start n8n (`npx n8n` or Docker — commands are in the app) then press **Find n8n**.
 3. Optional: paste n8n’s own API key (n8n Settings → n8n API) so this app can add starter workflows for you.
 4. Choose the local model n8n should use.

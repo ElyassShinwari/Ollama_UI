@@ -42,10 +42,18 @@ if (!/qwen2\.5/i.test(qwenList)) await fail("qwen search did not list library mo
 if (!/Hugging Face/i.test(qwenList)) await fail("Hugging Face results missing");
 pass("library search");
 
+const studio = page.getByRole("button", { name: "Studio" }).first();
+if (!(await studio.count())) await fail("Studio missing");
+await studio.click();
+await page.waitForTimeout(400);
+if (!/Cloud base/.test(await page.locator("body").innerText())) await fail("Cloud base tab missing");
+if (/Back to new chat/i.test(await page.locator("body").innerText())) await fail("wrong back label");
+if (!(await page.getByRole("button", { name: "Back to chat" }).count())) await fail("Back to chat missing");
+pass("studio chrome");
 
-const n8nNav = page.getByRole("button", { name: "n8n", exact: true }).first();
-if (!(await n8nNav.count())) await fail("n8n sidebar missing");
-await n8nNav.click();
+const n8nTab = page.getByRole("button", { name: "n8n", exact: true }).first();
+if (!(await n8nTab.count())) await fail("n8n Studio tab missing");
+await n8nTab.click();
 await page.waitForTimeout(500);
 const n8nHome = await page.locator("body").innerText();
 if (!/Where is n8n|Find n8n|n8n Cloud|This computer|A server/i.test(n8nHome)) {
@@ -65,15 +73,6 @@ if (!/hosted n8n|your own domain/i.test(await page.locator("body").innerText()))
 }
 await page.getByRole("button", { name: "This computer", exact: true }).click();
 pass("n8n places");
-
-const studio = page.getByRole("button", { name: "Studio" }).first();
-if (!(await studio.count())) await fail("Studio missing");
-await studio.click();
-await page.waitForTimeout(400);
-if (!/Cloud base/.test(await page.locator("body").innerText())) await fail("Cloud base tab missing");
-if (/Back to new chat/i.test(await page.locator("body").innerText())) await fail("wrong back label");
-if (!(await page.getByRole("button", { name: "Back to chat" }).count())) await fail("Back to chat missing");
-pass("studio chrome");
 
 const tabs = ["n8n", "GitHub", "Cloud base", "MCP", "API", "Channels", "Instructions", "Train", "Advisor"];
 for (const tab of tabs) {

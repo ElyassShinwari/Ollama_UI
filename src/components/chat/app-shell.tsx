@@ -58,7 +58,7 @@ export function ChatApp() {
   const [hubOpen, setHubOpen] = useState(false);
   const [hubQuery, setHubQuery] = useState("");
   const [studioOpen, setStudioOpen] = useState(false);
-  const [studioTab, setStudioTab] = useState<StudioTab>("n8n");
+  const [studioTab, setStudioTab] = useState<StudioTab>("GitHub");
   const [newsOpen, setNewsOpen] = useState(false);
   const [hydrated, setHydrated] = useState(() => useChatStore.persist.hasHydrated());
   const overlayPushed = useRef(false);
@@ -144,7 +144,7 @@ export function ChatApp() {
     }
   }
 
-  function openStudio(tab: StudioTab = "n8n") {
+  function openStudio(tab: StudioTab = "GitHub") {
     setStudioTab(tab);
     setStudioOpen(true);
     setNewsOpen(false);
@@ -199,11 +199,9 @@ export function ChatApp() {
         setMobileOpen(false);
       }}
       onOpenStudio={() => openStudio("GitHub")}
-      onOpenN8n={() => openStudio("n8n")}
       onOpenNews={openNews}
       newsActive={newsOpen}
       studioActive={studioOpen}
-      n8nActive={studioOpen && studioTab === "n8n"}
       onNavigate={() => {
         setMobileOpen(false);
         closeOverlay();
