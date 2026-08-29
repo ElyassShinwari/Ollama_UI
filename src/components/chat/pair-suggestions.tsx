@@ -368,7 +368,7 @@ export function PairBar({
   const locale = useChatStore((s) => s.settings.locale);
   const open = PAIR_TASKS.find((t) => t.id === openId);
   return (
-    <div ref={rootRef} className="border-b border-border px-3 py-2">
+    <div ref={rootRef} className="hidden border-b border-border px-3 py-2 md:block">
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="text-xs text-muted-foreground">{t(locale, "reviewPairs")}</span>
         {PAIR_TASKS.map((task) => (

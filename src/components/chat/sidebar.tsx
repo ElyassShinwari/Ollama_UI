@@ -130,9 +130,6 @@ export function Sidebar({
           <FlameMark />
           <span className="font-serif text-lg tracking-tight">Ollama UI</span>
         </div>
-        <Button size="icon-sm" variant="ghost" onClick={onNewChat} aria-label={t(locale, "newChat")}>
-          <Plus className="size-4" />
-        </Button>
       </div>
       <div className="px-3 pb-3">
         <Button className="h-10 w-full justify-start gap-2" variant="secondary" onClick={onNewChat}>
@@ -243,7 +240,7 @@ export function Sidebar({
           ))
         )}
       </nav>
-      <div className="flex flex-col gap-1 border-t border-border p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="relative flex flex-col gap-1 overflow-visible border-t border-border p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <LanguagePicker />
         <Button
           variant="ghost"

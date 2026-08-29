@@ -33,6 +33,7 @@ export function ModelHub({
   onRefreshLocal,
   initialQuery = "",
   hideStart = false,
+  hideLocal = false,
 }: {
   host: string;
   localModels: ModelRef[];
@@ -40,6 +41,7 @@ export function ModelHub({
   onRefreshLocal: () => Promise<ModelRef[] | void>;
   initialQuery?: string;
   hideStart?: boolean;
+  hideLocal?: boolean;
 }) {
   const [status, setStatus] = useState<SetupStatus | null>(null);
   const [query, setQuery] = useState(initialQuery);
@@ -239,7 +241,7 @@ export function ModelHub({
 
   return (
     <div className="flex flex-col gap-6">
-      {status?.running || !hideStart ? (
+      {hideStart && status?.running ? null : status?.running || !hideStart ? (
       <div className="rounded-2xl border border-border bg-card px-4 py-4">
         <p className="font-medium">
           {status?.running
@@ -274,6 +276,55 @@ export function ModelHub({
           </pre>
         ) : null}
       </div>
+      ) : null}
+
+      {!hideLocal && localFiltered.length > 0 ? (
+        <section>
+          <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            On this computer
+          </h2>
+          <div className="flex flex-col gap-2">
+            {localFiltered.map((model) => (
+              <div
+                key={`${model.provider}:${model.id}:${model.transport}`}
+                className="flex min-h-11 w-full items-center gap-2 rounded-xl border border-border bg-card px-3 py-2"
+              >
+                <button
+                  type="button"
+                  onClick={() => onChoose(model)}
+                  className="min-w-0 flex-1 rounded-lg px-1 py-1 text-left hover:bg-accent"
+                >
+                  <span className="block truncate font-medium text-ready">{model.name}</span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {[formatContextWindow(model.contextLength), model.parameterSize, formatBytes(model.size)]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                </button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="h-8 shrink-0"
+                  onClick={() => onChoose(model)}
+                >
+                  Use
+                </Button>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                  aria-label={`Delete ${model.name}`}
+                  disabled={deleting}
+                  onClick={() => setPendingDelete(model)}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        </section>
       ) : null}
 
       <div className="relative">
@@ -361,55 +412,6 @@ export function ModelHub({
         query={query}
         onRefreshLocal={onRefreshLocal}
       />
-
-      {localFiltered.length > 0 ? (
-        <section>
-          <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-            On this computer
-          </h2>
-          <div className="flex flex-col gap-2">
-            {localFiltered.map((model) => (
-              <div
-                key={`${model.provider}:${model.id}:${model.transport}`}
-                className="flex min-h-11 w-full items-center gap-2 rounded-xl border border-border bg-card px-3 py-2"
-              >
-                <button
-                  type="button"
-                  onClick={() => onChoose(model)}
-                  className="min-w-0 flex-1 rounded-lg px-1 py-1 text-left hover:bg-accent"
-                >
-                  <span className="block truncate font-medium text-ready">{model.name}</span>
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {[formatContextWindow(model.contextLength), model.parameterSize, formatBytes(model.size)]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </span>
-                </button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  className="h-8 shrink-0"
-                  onClick={() => onChoose(model)}
-                >
-                  Use
-                </Button>
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="ghost"
-                  className="shrink-0 text-muted-foreground hover:text-destructive"
-                  aria-label={`Delete ${model.name}`}
-                  disabled={deleting}
-                  onClick={() => setPendingDelete(model)}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
 
       <LibrarySection
         title="Ollama library"

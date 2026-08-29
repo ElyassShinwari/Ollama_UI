@@ -98,7 +98,7 @@ export function ModelPicker({
             <ChevronDown className="size-4 text-muted-foreground" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align={align} className="flex w-80 flex-col overflow-hidden p-0">
+        <DropdownMenuContent align={align} className="flex w-[min(20rem,calc(100vw-1.5rem))] flex-col overflow-hidden p-0">
           <div className="border-b border-border p-2">
             <Input
               value={query}

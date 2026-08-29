@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Menu } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,39 +59,37 @@ export function StudioPanel({
   }, [apiKey, channelSecret]);
 
   return (
-    <div className="scrollbar-thin h-full overflow-y-auto">
-      <div className="mx-auto flex w-full max-w-3xl flex-col px-4 py-8">
-        <div className="mb-6 flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-start gap-2">
-            {onOpenSidebar ? (
-              <Button
-                size="icon"
-                variant="ghost"
-                className="mt-1 md:hidden"
-                onClick={onOpenSidebar}
-                aria-label="Open sidebar"
-              >
-                <Menu className="size-5" />
-              </Button>
-            ) : null}
-            <div>
-              <h1 className="font-serif text-4xl tracking-tight">{t(locale, "studio")}</h1>
-              <p className="mt-2 max-w-xl text-sm text-muted-foreground text-pretty">
-                Connect GitHub, MCP servers, a public API, and chatbots. Add instructions and knowledge.
-                Ollama does not train models in place — Studio tells you what is possible.
-              </p>
-            </div>
-          </div>
-          <Button variant="outline" onClick={onClose}>
-            {t(locale, "backToChat")}
+    <div className="flex h-full min-h-0 flex-col">
+      <header className="flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-1 border-b border-border px-2 pt-[env(safe-area-inset-top)] md:px-3">
+        {onOpenSidebar ? (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="md:hidden"
+            onClick={onOpenSidebar}
+            aria-label={t(locale, "openSidebar")}
+          >
+            <Menu className="size-5" />
           </Button>
-        </div>
-        <div className="mb-6 flex flex-wrap gap-1">
+        ) : null}
+        <h1 className="min-w-0 flex-1 truncate font-serif text-xl tracking-tight">{t(locale, "studio")}</h1>
+        <Button size="icon" variant="ghost" onClick={onClose} aria-label={t(locale, "backToChat")}>
+          <X className="size-5" />
+        </Button>
+      </header>
+      <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-3xl flex-col px-4 py-5">
+        <p className="mb-4 max-w-xl text-sm text-muted-foreground text-pretty">
+          Connect GitHub, MCP servers, a public API, and chatbots. Add instructions and knowledge.
+          Ollama does not train models in place — Studio tells you what is possible.
+        </p>
+        <div className="mb-6 flex gap-1 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {TABS.map((item) => (
             <Button
               key={item}
               size="sm"
               variant={tab === item ? "secondary" : "ghost"}
+              className="shrink-0"
               onClick={() => setTab(item)}
             >
               {item}
@@ -106,6 +104,7 @@ export function StudioPanel({
         {tab === "Instructions" ? <InstructionsTab /> : null}
         {tab === "Train" ? <TrainTab selected={selected} /> : null}
         {tab === "Advisor" ? <AdvisorTab selected={selected} /> : null}
+      </div>
       </div>
     </div>
   );

@@ -75,18 +75,25 @@ export function LanguagePicker({
       <Button
         type="button"
         variant={variant === "header" ? "outline" : "ghost"}
-        size={variant === "header" ? "sm" : "default"}
+        size={variant === "header" ? "icon" : "default"}
         className={cn(
-          variant === "header" ? "h-8 shrink-0 gap-1.5 rounded-full px-2.5" : "h-10 w-full justify-start gap-2",
+          variant === "header"
+            ? "size-10 shrink-0 gap-0 rounded-full px-0 md:h-8 md:w-auto md:gap-1.5 md:px-2.5"
+            : "h-10 w-full justify-start gap-2",
         )}
         aria-expanded={open}
         aria-label={t(locale, "language")}
         onClick={() => setOpen((v) => !v)}
       >
         <Globe className="size-4 shrink-0" />
-        <span className="min-w-0 truncate">{t(locale, "language")}</span>
+        <span className={cn("min-w-0 truncate", variant === "header" && "hidden md:inline")}>
+          {t(locale, "language")}
+        </span>
         <span
-          className="max-w-[7rem] truncate text-xs text-muted-foreground"
+          className={cn(
+            "max-w-[7rem] truncate text-xs text-muted-foreground",
+            variant === "header" && "hidden md:inline",
+          )}
           dir={current.dir}
           lang={current.htmlLang}
         >
@@ -94,16 +101,17 @@ export function LanguagePicker({
         </span>
       </Button>
       {open ? (
-        variant === "sidebar" ? (
-          <div className="mt-2 px-1 pb-1">
-            <LanguageList onPicked={close} />
-          </div>
-        ) : (
-          <div className="absolute end-0 top-full z-[80] mt-1 w-[min(20rem,calc(100vw-1.5rem))] rounded-xl border border-border bg-card p-2 shadow-[var(--composer-shadow)]">
-            <p className="mb-2 px-1 text-xs font-medium text-muted-foreground">{t(locale, "language")}</p>
-            <LanguageList onPicked={close} />
-          </div>
-        )
+        <div
+          className={cn(
+            "z-[80] rounded-xl border border-border bg-card p-2 shadow-[var(--composer-shadow)]",
+            variant === "header"
+              ? "absolute end-0 top-full mt-1 w-[min(20rem,calc(100vw-1.5rem))]"
+              : "absolute start-0 bottom-full mb-1 w-full",
+          )}
+        >
+          <p className="mb-2 px-1 text-xs font-medium text-muted-foreground">{t(locale, "language")}</p>
+          <LanguageList onPicked={close} />
+        </div>
       ) : null}
     </div>
   );

@@ -836,7 +836,18 @@ export function ChatView({
           onBrowse={onBrowseModels}
         />
         <div className="ms-auto flex items-center gap-1">
-          <LanguagePicker variant="header" />
+          <Button
+            size="sm"
+            variant="ghost"
+            className="md:hidden"
+            onClick={() => setReviewOpen(true)}
+            disabled={!selectedModel}
+          >
+            {t(locale, "review")}
+          </Button>
+          <div className="hidden md:block">
+            <LanguagePicker variant="header" />
+          </div>
           <ContextMeter used={contextUsed} limit={contextLimit} />
         </div>
       </header>
@@ -903,17 +914,12 @@ export function ChatView({
         </label>
         {cycleNote ? <span className="text-xs text-muted-foreground">{cycleNote}</span> : null}
       </div>
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2 md:hidden">
+      <div className="mx-auto w-full max-w-3xl px-3 pt-2 md:hidden">
         {streamingId ? (
-          <Button size="sm" variant="secondary" onClick={stop}>
+          <Button size="sm" variant="secondary" className="w-full" onClick={stop}>
             {t(locale, "stop")}
           </Button>
-        ) : (
-          <Button size="sm" onClick={() => setReviewOpen(true)} disabled={!selectedModel}>
-            {t(locale, "review")}
-          </Button>
-        )}
-        {cycleNote ? <span className="truncate text-xs text-muted-foreground">{cycleNote}</span> : null}
+        ) : null}
       </div>
       <Sheet open={reviewOpen} onOpenChange={setReviewOpen}>
         <SheetContent side="bottom" className="gap-3 p-4">

@@ -228,7 +228,7 @@ export function ChatApp() {
         </div>
 
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <SheetContent side={localeInfo(settings.locale).dir === "rtl" ? "right" : "left"} className="p-0">
+          <SheetContent side={localeInfo(settings.locale).dir === "rtl" ? "right" : "left"} hideClose className="p-0">
             <SheetTitle className="sr-only">{t(settings.locale, "conversations")}</SheetTitle>
             {sidebar}
           </SheetContent>

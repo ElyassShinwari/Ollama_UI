@@ -82,14 +82,14 @@ export function OllamaLaunch({
     <div
       className={cn(
         "flex flex-col items-center justify-center text-center",
-        variant === "page" ? "h-full min-h-0 px-6" : "min-h-[42vh] py-8",
+        variant === "page" ? "h-full min-h-0 px-6" : "py-4 md:min-h-[42vh] md:py-8",
       )}
     >
-      <p className="max-w-md font-serif text-3xl tracking-tight text-balance md:text-4xl">{lead}</p>
+      <p className="max-w-md font-serif text-2xl tracking-tight text-balance md:text-4xl">{lead}</p>
       <p className="mt-3 max-w-sm text-sm text-muted-foreground text-pretty">{t(locale, "ollamaStartHint")}</p>
       <Button
         type="button"
-        className="mt-8 h-16 min-w-64 rounded-2xl px-8 text-xl"
+        className="mt-6 h-12 min-w-52 rounded-2xl px-6 text-base md:mt-8 md:h-16 md:min-w-64 md:text-xl"
         disabled={checking || Boolean(busy)}
         onClick={() => void run(installed ? "start" : "install")}
       >

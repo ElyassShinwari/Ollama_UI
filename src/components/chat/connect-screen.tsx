@@ -3,12 +3,13 @@ import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FlameMark } from "@/components/chat/sidebar";
-import { LanguageList, LanguagePicker } from "@/components/chat/language-picker";
+import { LanguagePicker } from "@/components/chat/language-picker";
 import { ModelHub } from "@/components/chat/model-hub";
 import { OllamaLaunch } from "@/components/chat/ollama-launch";
 import { CLOUD_LABEL } from "@/lib/llm/cloud";
 import { t } from "@/lib/i18n";
 import { useChatStore } from "@/lib/chat/store";
+import { formatBytes, formatContextWindow } from "@/lib/utils";
 import type { ModelCatalog, ModelRef, Provider } from "@/lib/chat/types";
 
 export function ConnectScreen({
@@ -51,8 +52,8 @@ export function ConnectScreen({
 
   return (
     <div className="scrollbar-thin h-full overflow-y-auto">
-      <div className="mx-auto flex w-full max-w-2xl flex-col px-4 py-10 md:py-14">
-        <div className="mb-8">
+      <div className="mx-auto flex w-full max-w-2xl flex-col px-4 py-5 md:py-14">
+        <div className="mb-5">
           <div className="mb-5 flex items-center gap-2">
             {onOpenSidebar ? (
               <Button
@@ -70,7 +71,7 @@ export function ConnectScreen({
               <LanguagePicker variant="header" />
             </div>
           </div>
-          <h1 className="font-serif text-4xl tracking-tight text-balance md:text-5xl">
+          <h1 className="font-serif text-3xl tracking-tight text-balance md:text-5xl">
             {hasCloud ? t(locale, "chooseModel") : t(locale, "chooseLocalModel")}
           </h1>
           <p className="mt-3 max-w-lg text-base text-muted-foreground text-pretty">
@@ -85,10 +86,33 @@ export function ConnectScreen({
           }}
         />
 
-        <div className="mb-8">
-          <p className="mb-2 text-sm font-medium">{t(locale, "language")}</p>
-          <LanguageList />
-        </div>
+        {ollama.length > 0 ? (
+          <section className="mb-8">
+            <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              On this computer
+            </h2>
+            <div className="flex flex-col gap-2">
+              {ollama.map((model) => (
+                <button
+                  key={`${model.provider}:${model.id}`}
+                  type="button"
+                  className="flex min-h-12 w-full items-center justify-between gap-2 rounded-xl border border-border bg-card px-4 py-3 text-left hover:bg-accent"
+                  onClick={() => onChoose(model)}
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium text-ready">{model.name}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {[formatContextWindow(model.contextLength), model.parameterSize, formatBytes(model.size)]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-sm text-muted-foreground">Use</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         {hasCloud ? (
           <div className="mb-8 flex flex-col gap-4">
@@ -126,6 +150,7 @@ export function ConnectScreen({
           host={host}
           localModels={ollama}
           hideStart
+          hideLocal
           onChoose={onChoose}
           onRefreshLocal={async () => {
             const result = await onRefresh();
