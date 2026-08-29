@@ -608,3 +608,65 @@ test("new i18n keys resolve in English and inherit in other locales", () => {
   assert.equal(i18n.t("ar", "jumpToLatest"), i18n.t("en", "jumpToLatest"));
   assert.equal(i18n.localeInfo("fa").dir, "rtl");
 });
+
+const n8n = await import("../src/lib/studio/n8n.ts");
+
+test("n8n addresses: local default, cloud short name, pasted UI URLs", () => {
+  assert.equal(n8n.defaultN8nBase("local"), "http://127.0.0.1:5678");
+  assert.equal(n8n.normalizeN8nBase("acme", "cloud"), "https://acme.app.n8n.cloud");
+  assert.equal(
+    n8n.sanitizeN8nBase("https://acme.app.n8n.cloud/home/workflows"),
+    "https://acme.app.n8n.cloud",
+  );
+  assert.equal(
+    n8n.sanitizeN8nBase("https://n8n.company.com/workflow/abc"),
+    "https://n8n.company.com",
+  );
+  assert.equal(n8n.looksLikePlaceholder("https://your-instance.app.n8n.cloud"), true);
+  assert.equal(n8n.looksLikePlaceholder("https://acme.app.n8n.cloud"), false);
+});
+
+test("n8n starter workflows talk to this app and expose a receive webhook", () => {
+  const ask = n8n.askModelWorkflow({
+    origin: "http://127.0.0.1:8080",
+    secret: "secret-key",
+    model: "smollm2:135m",
+  });
+  assert.equal(ask.name, n8n.ASK_WORKFLOW_NAME);
+  const http = ask.nodes.find((node) => node.type === "n8n-nodes-base.httpRequest");
+  assert.ok(http);
+  assert.equal(http.parameters.url, "http://127.0.0.1:8080/api/n8n");
+  const headerBlock = http.parameters.headerParameters;
+  const headerList =
+    headerBlock && typeof headerBlock === "object" && "parameters" in headerBlock
+      ? headerBlock.parameters
+      : [];
+  assert.ok(Array.isArray(headerList));
+  assert.equal(
+    headerList.find((h) => h && h.name === "x-n8n-secret")?.value,
+    "secret-key",
+  );
+  const receive = n8n.receiveChatWorkflow();
+  assert.equal(receive.name, n8n.RECEIVE_WORKFLOW_NAME);
+  assert.equal(n8n.webhookPathFromNodes(receive.nodes), n8n.RECEIVE_WEBHOOK_PATH);
+  assert.equal(
+    n8n.n8nWebhookUrl("http://127.0.0.1:5678", n8n.RECEIVE_WEBHOOK_PATH),
+    "http://127.0.0.1:5678/webhook/ollama-ui-chat",
+  );
+});
+
+test("n8n inbound extracts chat text and clips outbound payloads", () => {
+  assert.equal(n8n.extractN8nMessage({ message: "Hello" }), "Hello");
+  assert.equal(n8n.extractN8nMessage({ body: { chatInput: "From n8n chat" } }), "From n8n chat");
+  assert.equal(n8n.extractN8nModel({ model: "llama3.2" }, "fallback"), "llama3.2");
+  const body = n8n.n8nOutboundBody({
+    event: "assistant",
+    user: "q",
+    assistant: "a".repeat(25_000),
+    model: "x",
+    conversationId: "c1",
+  });
+  assert.equal(typeof body.assistant, "string");
+  assert.ok(String(body.assistant).length < 25_000);
+  assert.match(String(body.assistant), /…$/);
+});

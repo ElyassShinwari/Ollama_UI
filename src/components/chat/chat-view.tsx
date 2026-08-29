@@ -30,7 +30,7 @@ import {
 } from "@/lib/llm/files";
 import { repetitionCutoff } from "@/lib/llm/repeat";
 import { formatChatPrompt } from "@/lib/llm/tokens";
-import { combinedInstructions, knowledgeBlock } from "@/lib/studio/store";
+import { combinedInstructions, knowledgeBlock, notifyN8n } from "@/lib/studio/store";
 import {
   CLOUD_LABEL,
   FINAL_REVIEW_SYSTEM,
@@ -365,6 +365,14 @@ export function ChatView({
     dropBinary(conversationId);
     if (!failed && !cancelledRef.current) {
       setLiveAnnounce(t(loc, "replyReady"));
+      const lastUser = [...history].reverse().find((m) => m.role === "user")?.content ?? "";
+      notifyN8n({
+        event: "assistant",
+        user: lastUser,
+        assistant: text,
+        model: model.id,
+        conversationId,
+      });
     }
     if (failed || cancelledRef.current) return failed ? "" : text;
     return text;

@@ -20,6 +20,7 @@ import { Route as ApiGithubPullRouteImport } from './routes/api/github-pull'
 import { Route as ApiLibraryRouteImport } from './routes/api/library'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as ApiModelsRouteImport } from './routes/api/models'
+import { Route as ApiN8nRouteImport } from './routes/api/n8n'
 import { Route as ApiNewsRouteImport } from './routes/api/news'
 import { Route as ApiOauthRouteImport } from './routes/api/oauth'
 import { Route as ApiPullRouteImport } from './routes/api/pull'
@@ -29,6 +30,9 @@ import { Route as ApiSetupInstallRouteImport } from './routes/api/setup-install'
 import { Route as ApiSetupStartRouteImport } from './routes/api/setup-start'
 import { Route as ApiStudioRouteImport } from './routes/api/studio'
 import { Route as ApiTokenizeRouteImport } from './routes/api/tokenize'
+import { Route as ApiN8nDispatchRouteImport } from './routes/api/n8n.dispatch'
+import { Route as ApiN8nTestRouteImport } from './routes/api/n8n.test'
+import { Route as ApiN8nWorkflowsRouteImport } from './routes/api/n8n.workflows'
 import { Route as ApiV1ChatCompletionsRouteImport } from './routes/api/v1.chat.completions'
 
 const IndexRoute = IndexRouteImport.update({
@@ -86,6 +90,11 @@ const ApiModelsRoute = ApiModelsRouteImport.update({
   path: '/api/models',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiN8nRoute = ApiN8nRouteImport.update({
+  id: '/api/n8n',
+  path: '/api/n8n',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiNewsRoute = ApiNewsRouteImport.update({
   id: '/api/news',
   path: '/api/news',
@@ -131,6 +140,21 @@ const ApiTokenizeRoute = ApiTokenizeRouteImport.update({
   path: '/api/tokenize',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiN8nDispatchRoute = ApiN8nDispatchRouteImport.update({
+  id: '/dispatch',
+  path: '/dispatch',
+  getParentRoute: () => ApiN8nRoute,
+} as any)
+const ApiN8nTestRoute = ApiN8nTestRouteImport.update({
+  id: '/test',
+  path: '/test',
+  getParentRoute: () => ApiN8nRoute,
+} as any)
+const ApiN8nWorkflowsRoute = ApiN8nWorkflowsRouteImport.update({
+  id: '/workflows',
+  path: '/workflows',
+  getParentRoute: () => ApiN8nRoute,
+} as any)
 const ApiV1ChatCompletionsRoute = ApiV1ChatCompletionsRouteImport.update({
   id: '/api/v1/chat/completions',
   path: '/api/v1/chat/completions',
@@ -149,6 +173,7 @@ export interface FileRoutesByFullPath {
   '/api/library': typeof ApiLibraryRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/models': typeof ApiModelsRoute
+  '/api/n8n': typeof ApiN8nRouteWithChildren
   '/api/news': typeof ApiNewsRoute
   '/api/oauth': typeof ApiOauthRoute
   '/api/pull': typeof ApiPullRoute
@@ -158,6 +183,9 @@ export interface FileRoutesByFullPath {
   '/api/setup-start': typeof ApiSetupStartRoute
   '/api/studio': typeof ApiStudioRoute
   '/api/tokenize': typeof ApiTokenizeRoute
+  '/api/n8n/dispatch': typeof ApiN8nDispatchRoute
+  '/api/n8n/test': typeof ApiN8nTestRoute
+  '/api/n8n/workflows': typeof ApiN8nWorkflowsRoute
   '/api/v1/chat/completions': typeof ApiV1ChatCompletionsRoute
 }
 export interface FileRoutesByTo {
@@ -172,6 +200,7 @@ export interface FileRoutesByTo {
   '/api/library': typeof ApiLibraryRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/models': typeof ApiModelsRoute
+  '/api/n8n': typeof ApiN8nRouteWithChildren
   '/api/news': typeof ApiNewsRoute
   '/api/oauth': typeof ApiOauthRoute
   '/api/pull': typeof ApiPullRoute
@@ -181,6 +210,9 @@ export interface FileRoutesByTo {
   '/api/setup-start': typeof ApiSetupStartRoute
   '/api/studio': typeof ApiStudioRoute
   '/api/tokenize': typeof ApiTokenizeRoute
+  '/api/n8n/dispatch': typeof ApiN8nDispatchRoute
+  '/api/n8n/test': typeof ApiN8nTestRoute
+  '/api/n8n/workflows': typeof ApiN8nWorkflowsRoute
   '/api/v1/chat/completions': typeof ApiV1ChatCompletionsRoute
 }
 export interface FileRoutesById {
@@ -196,6 +228,7 @@ export interface FileRoutesById {
   '/api/library': typeof ApiLibraryRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/models': typeof ApiModelsRoute
+  '/api/n8n': typeof ApiN8nRouteWithChildren
   '/api/news': typeof ApiNewsRoute
   '/api/oauth': typeof ApiOauthRoute
   '/api/pull': typeof ApiPullRoute
@@ -205,6 +238,9 @@ export interface FileRoutesById {
   '/api/setup-start': typeof ApiSetupStartRoute
   '/api/studio': typeof ApiStudioRoute
   '/api/tokenize': typeof ApiTokenizeRoute
+  '/api/n8n/dispatch': typeof ApiN8nDispatchRoute
+  '/api/n8n/test': typeof ApiN8nTestRoute
+  '/api/n8n/workflows': typeof ApiN8nWorkflowsRoute
   '/api/v1/chat/completions': typeof ApiV1ChatCompletionsRoute
 }
 export interface FileRouteTypes {
@@ -221,6 +257,7 @@ export interface FileRouteTypes {
     | '/api/library'
     | '/api/mcp'
     | '/api/models'
+    | '/api/n8n'
     | '/api/news'
     | '/api/oauth'
     | '/api/pull'
@@ -230,6 +267,9 @@ export interface FileRouteTypes {
     | '/api/setup-start'
     | '/api/studio'
     | '/api/tokenize'
+    | '/api/n8n/dispatch'
+    | '/api/n8n/test'
+    | '/api/n8n/workflows'
     | '/api/v1/chat/completions'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -244,6 +284,7 @@ export interface FileRouteTypes {
     | '/api/library'
     | '/api/mcp'
     | '/api/models'
+    | '/api/n8n'
     | '/api/news'
     | '/api/oauth'
     | '/api/pull'
@@ -253,6 +294,9 @@ export interface FileRouteTypes {
     | '/api/setup-start'
     | '/api/studio'
     | '/api/tokenize'
+    | '/api/n8n/dispatch'
+    | '/api/n8n/test'
+    | '/api/n8n/workflows'
     | '/api/v1/chat/completions'
   id:
     | '__root__'
@@ -267,6 +311,7 @@ export interface FileRouteTypes {
     | '/api/library'
     | '/api/mcp'
     | '/api/models'
+    | '/api/n8n'
     | '/api/news'
     | '/api/oauth'
     | '/api/pull'
@@ -276,6 +321,9 @@ export interface FileRouteTypes {
     | '/api/setup-start'
     | '/api/studio'
     | '/api/tokenize'
+    | '/api/n8n/dispatch'
+    | '/api/n8n/test'
+    | '/api/n8n/workflows'
     | '/api/v1/chat/completions'
   fileRoutesById: FileRoutesById
 }
@@ -291,6 +339,7 @@ export interface RootRouteChildren {
   ApiLibraryRoute: typeof ApiLibraryRoute
   ApiMcpRoute: typeof ApiMcpRoute
   ApiModelsRoute: typeof ApiModelsRoute
+  ApiN8nRoute: typeof ApiN8nRouteWithChildren
   ApiNewsRoute: typeof ApiNewsRoute
   ApiOauthRoute: typeof ApiOauthRoute
   ApiPullRoute: typeof ApiPullRoute
@@ -382,6 +431,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiModelsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/n8n': {
+      id: '/api/n8n'
+      path: '/api/n8n'
+      fullPath: '/api/n8n'
+      preLoaderRoute: typeof ApiN8nRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/news': {
       id: '/api/news'
       path: '/api/news'
@@ -445,6 +501,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTokenizeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/n8n/dispatch': {
+      id: '/api/n8n/dispatch'
+      path: '/dispatch'
+      fullPath: '/api/n8n/dispatch'
+      preLoaderRoute: typeof ApiN8nDispatchRouteImport
+      parentRoute: typeof ApiN8nRoute
+    }
+    '/api/n8n/test': {
+      id: '/api/n8n/test'
+      path: '/test'
+      fullPath: '/api/n8n/test'
+      preLoaderRoute: typeof ApiN8nTestRouteImport
+      parentRoute: typeof ApiN8nRoute
+    }
+    '/api/n8n/workflows': {
+      id: '/api/n8n/workflows'
+      path: '/workflows'
+      fullPath: '/api/n8n/workflows'
+      preLoaderRoute: typeof ApiN8nWorkflowsRouteImport
+      parentRoute: typeof ApiN8nRoute
+    }
     '/api/v1/chat/completions': {
       id: '/api/v1/chat/completions'
       path: '/api/v1/chat/completions'
@@ -454,6 +531,21 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface ApiN8nRouteChildren {
+  ApiN8nDispatchRoute: typeof ApiN8nDispatchRoute
+  ApiN8nTestRoute: typeof ApiN8nTestRoute
+  ApiN8nWorkflowsRoute: typeof ApiN8nWorkflowsRoute
+}
+
+const ApiN8nRouteChildren: ApiN8nRouteChildren = {
+  ApiN8nDispatchRoute: ApiN8nDispatchRoute,
+  ApiN8nTestRoute: ApiN8nTestRoute,
+  ApiN8nWorkflowsRoute: ApiN8nWorkflowsRoute,
+}
+
+const ApiN8nRouteWithChildren =
+  ApiN8nRoute._addFileChildren(ApiN8nRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -467,6 +559,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiLibraryRoute: ApiLibraryRoute,
   ApiMcpRoute: ApiMcpRoute,
   ApiModelsRoute: ApiModelsRoute,
+  ApiN8nRoute: ApiN8nRouteWithChildren,
   ApiNewsRoute: ApiNewsRoute,
   ApiOauthRoute: ApiOauthRoute,
   ApiPullRoute: ApiPullRoute,

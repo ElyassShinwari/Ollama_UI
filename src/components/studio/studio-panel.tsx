@@ -11,6 +11,7 @@ import { randomKey, syncStudio, useStudio } from "@/lib/studio/store";
 import type { McpServerConfig } from "@/lib/studio/types";
 import { useChatStore } from "@/lib/chat/store";
 import type { ModelRef } from "@/lib/chat/types";
+import { N8nTab } from "@/components/studio/n8n-tab";
 import { CloudConnect } from "@/components/chat/cloud-connect";
 import { cn } from "@/lib/utils";
 import { parseRepoUrl } from "@/lib/studio/github";
@@ -21,6 +22,7 @@ const TABS = [
   "Cloud base",
   "MCP",
   "API",
+  "n8n",
   "Channels",
   "Instructions",
   "Train",
@@ -43,11 +45,13 @@ export function StudioPanel({
   const selected = useChatStore((s) => s.selectedModel);
   const apiKey = useStudio((s) => s.apiKey);
   const channelSecret = useStudio((s) => s.channelSecret);
+  const n8nSecret = useStudio((s) => s.n8nSecret);
 
   useEffect(() => {
-    const patch: { apiKey?: string; channelSecret?: string; ollamaHost?: string } = {};
+    const patch: { apiKey?: string; channelSecret?: string; n8nSecret?: string; ollamaHost?: string } = {};
     if (!apiKey) patch.apiKey = randomKey();
     if (!channelSecret) patch.channelSecret = randomKey().slice(0, 24);
+    if (!n8nSecret) patch.n8nSecret = randomKey().slice(0, 24);
     const host = useChatStore.getState().settings.ollamaHost;
     if (host) patch.ollamaHost = host;
     if (Object.keys(patch).length) {
@@ -56,7 +60,7 @@ export function StudioPanel({
     } else {
       void syncStudio();
     }
-  }, [apiKey, channelSecret]);
+  }, [apiKey, channelSecret, n8nSecret]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -80,7 +84,7 @@ export function StudioPanel({
       <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto flex w-full max-w-3xl flex-col px-4 py-5">
         <p className="mb-4 max-w-xl text-sm text-muted-foreground text-pretty">
-          Connect GitHub, MCP servers, a public API, and chatbots. Add instructions and knowledge.
+          Connect GitHub, n8n, MCP servers, a public API, and chatbots. Open the n8n tab to connect a local or hosted n8n and add starter workflows. Add instructions and knowledge.
           Ollama does not train models in place — Studio tells you what is possible.
         </p>
         <div className="mb-6 flex gap-1 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -100,6 +104,7 @@ export function StudioPanel({
         {tab === "Cloud base" ? <CloudTab /> : null}
         {tab === "MCP" ? <McpTab models={models} selected={selected} /> : null}
         {tab === "API" ? <ApiTab models={models} /> : null}
+        {tab === "n8n" ? <N8nTab models={models} /> : null}
         {tab === "Channels" ? <ChannelsTab models={models} selected={selected} /> : null}
         {tab === "Instructions" ? <InstructionsTab /> : null}
         {tab === "Train" ? <TrainTab selected={selected} /> : null}

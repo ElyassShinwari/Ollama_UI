@@ -48,6 +48,13 @@ export type StudioConfig = {
   instructions: InstructionPreset[];
   knowledge: KnowledgeDoc[];
   knowledgeEnabled: boolean;
+  n8nKind: "local" | "cloud";
+  n8nBaseUrl: string;
+  n8nApiKey: string;
+  n8nWebhookUrl: string;
+  n8nSecret: string;
+  n8nEnabled: boolean;
+  n8nSendOnChat: boolean;
 };
 
 export const defaultStudio = (): StudioConfig => ({
@@ -70,4 +77,11 @@ export const defaultStudio = (): StudioConfig => ({
   ],
   knowledge: [],
   knowledgeEnabled: true,
+  n8nKind: "local",
+  n8nBaseUrl: "http://127.0.0.1:5678",
+  n8nApiKey: "",
+  n8nWebhookUrl: "",
+  n8nSecret: "",
+  n8nEnabled: true,
+  n8nSendOnChat: false,
 });
