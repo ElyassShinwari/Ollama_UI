@@ -1,8 +1,8 @@
 # Ollama_UI
 
-A ChatGPT-style app for models on your computer and in the cloud.
+A UI for Ollama.
 
-Talk to Ollama models, ChatGPT, Claude, Grok, Kimi, and DeepSeek in one window. Install Ollama and models from the app, keep chats in the browser, and send one model’s answer to another for review.
+Talk to local models on this computer. Install Ollama and models from the app, keep chats in the browser, and send one model’s answer to another for review. Cloud models can be added in Studio.
 
 ## Requirements
 
