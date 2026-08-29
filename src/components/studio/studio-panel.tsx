@@ -304,7 +304,8 @@ function CloudTab() {
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground text-pretty">
         Sign in here for ChatGPT, Grok, and Kimi. Claude and DeepSeek need an API key after you
-        sign in on their site. Signed-in models work in the same menu as Ollama, including Start review.
+        sign in on their site. Add any other OpenAI-compatible server under Remote APIs. Those models
+        appear in the same menu as Ollama, including Start review.
       </p>
       <CloudConnect />
     </div>

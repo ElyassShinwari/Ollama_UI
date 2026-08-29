@@ -776,3 +776,30 @@ test("n8n connection output matches Self-hosted and Ollama credential fields", (
     "http://host.docker.internal:8080/api/v1",
   );
 });
+
+test("remote OpenAI-compatible bases get /v1 and list models", async () => {
+  const custom = await import("../src/lib/llm/custom.ts");
+  assert.equal(custom.sanitizeCompatBase("127.0.0.1:8000"), "http://127.0.0.1:8000/v1");
+  assert.equal(custom.sanitizeCompatBase("https://api.together.xyz/v1/"), "https://api.together.xyz/v1");
+  assert.equal(
+    custom.sanitizeCompatBase("https://openrouter.ai/api/v1/chat/completions"),
+    "https://openrouter.ai/api/v1",
+  );
+  assert.equal(custom.compatChatUrl("http://gpu:8000"), "http://gpu:8000/v1/chat/completions");
+  assert.deepEqual(custom.parseModelList("llama-3, mistral"), ["llama-3", "mistral"]);
+  assert.equal(custom.isCompatChatModel("text-embedding-3-small"), false);
+  assert.equal(custom.isCompatChatModel("llama-3.1-8b-instruct"), true);
+  const endpoint = {
+    id: "abc",
+    name: "Work GPU",
+    baseUrl: "http://127.0.0.1:8000/v1",
+    apiKey: "",
+    models: ["llama-3.1-8b-instruct"],
+  };
+  const refs = custom.modelsFromCustomEndpoints([endpoint]);
+  assert.equal(refs[0]?.provider, "custom");
+  assert.equal(refs[0]?.id, "abc:llama-3.1-8b-instruct");
+  assert.match(refs[0]?.name ?? "", /Work GPU/);
+  assert.equal(custom.remoteIdFromCustom(refs[0].id, "abc"), "llama-3.1-8b-instruct");
+  assert.deepEqual(custom.parseCompatModelIds({ data: [{ id: "a" }, { name: "b" }] }), ["a", "b"]);
+});

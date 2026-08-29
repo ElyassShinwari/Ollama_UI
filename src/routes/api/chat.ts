@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { cloudEndpoint, extraCloudHeaders, isChatGptOAuth } from "@/lib/llm/cloud";
 import { streamAnthropicChat, streamCodexChat, streamOllamaChat, streamOpenAiCompat, streamXaiChat } from "@/lib/llm/providers.server";
+import { compatChatUrl } from "@/lib/llm/custom";
 import type { Provider } from "@/lib/chat/types";
 import { sanitizeOllamaHost } from "@/lib/utils";
 
@@ -14,6 +15,7 @@ type ChatBody = {
   modelSize?: number;
   apiKey?: string;
   accountId?: string;
+  baseUrl?: string;
 };
 
 export const Route = createFileRoute("/api/chat")({
@@ -32,7 +34,8 @@ export const Route = createFileRoute("/api/chat")({
           body.provider === "anthropic" ||
           body.provider === "xai" ||
           body.provider === "kimi" ||
-          body.provider === "deepseek"
+          body.provider === "deepseek" ||
+          body.provider === "custom"
             ? body.provider
             : "ollama";
         const model = typeof body.model === "string" ? body.model : "";
@@ -99,6 +102,17 @@ export const Route = createFileRoute("/api/chat")({
                 if (!key) throw new Error("Add a Claude API key in Settings or Studio → Cloud base");
                 iterator = streamAnthropicChat({
                   apiKey: key,
+                  model,
+                  messages: turns,
+                  temperature,
+                  signal: request.signal,
+                });
+              } else if (provider === "custom") {
+                const base = typeof body.baseUrl === "string" ? body.baseUrl : "";
+                if (!base.trim()) throw new Error("Add a remote base URL under Studio → Cloud base");
+                iterator = streamOpenAiCompat({
+                  url: compatChatUrl(base),
+                  apiKey,
                   model,
                   messages: turns,
                   temperature,

@@ -237,6 +237,21 @@ const EN = {
   conversationActions: "Conversation actions",
   deleteNamed: "Delete {title}",
   close: "Close",
+  remoteApis: "Remote APIs",
+  remoteApisBlurb:
+    "Connect a model running on your server or in the cloud. Anything that speaks the OpenAI API works — vLLM, llama.cpp, LM Studio, OpenRouter, Together, Groq, Fireworks, or your own host. Paste the base URL, an API key if it needs one, and the model name.",
+  remoteNamePh: "Name (Work GPU, OpenRouter…)",
+  remoteBaseUrlPh: "http://127.0.0.1:8000/v1 or https://api.together.xyz/v1",
+  remoteApiKeyPh: "API key (leave blank for local servers)",
+  remoteModelPh: "Model id — llama-3.1-8b-instruct, or several separated by commas",
+  addRemote: "Add connection",
+  remoteSaved: "Remote API added. Pick it from the model menu.",
+  remoteRemoved: "Removed {name}",
+  loadRemoteModels: "Load models",
+  remoteLoadFailed: "Could not list models from that server.",
+  remoteNeedUrl: "Add a base URL",
+  remoteNeedModel: "Add a model name, or check that the server lists models.",
+  noRemoteYet: "No remote APIs yet.",
 } as const;
 
 export type MsgKey = keyof typeof EN;

@@ -1,6 +1,6 @@
 import type { LocaleId } from "@/lib/i18n";
 
-export type Provider = "ollama" | "openai" | "anthropic" | "xai" | "kimi" | "deepseek";
+export type Provider = "ollama" | "openai" | "anthropic" | "xai" | "kimi" | "deepseek" | "custom";
 export type Transport = "browser" | "server";
 export type ThemeMode = "light" | "dark" | "system";
 export type AppLocale = LocaleId;
@@ -67,6 +67,14 @@ export type OAuthSession = {
   accountId?: string;
 };
 
+export type CustomEndpoint = {
+  id: string;
+  name: string;
+  baseUrl: string;
+  apiKey: string;
+  models: string[];
+};
+
 export type Settings = {
   ollamaHost: string;
   temperature: number;
@@ -81,6 +89,7 @@ export type Settings = {
   openaiOAuth: OAuthSession | null;
   xaiOAuth: OAuthSession | null;
   kimiOAuth: OAuthSession | null;
+  customEndpoints: CustomEndpoint[];
 };
 
 export type CatalogStatus = {

@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CLOUD_ACCOUNTS, oauthNote } from "@/lib/llm/cloud";
+import { parseModelList, sanitizeCompatBase } from "@/lib/llm/custom";
 import { useChatStore } from "@/lib/chat/store";
 import { t } from "@/lib/i18n";
 import type { CloudId } from "@/lib/llm/cloud";
-import type { OAuthSession, Settings } from "@/lib/chat/types";
+import type { CustomEndpoint, OAuthSession, Settings } from "@/lib/chat/types";
 
 function keysFrom(settings: Settings) {
   return {
@@ -294,6 +295,155 @@ export function CloudConnect({ compact = false }: { compact?: boolean }) {
       >
         {t(locale, "saveApiKeys")}
       </Button>
+      <RemoteEndpoints compact={compact} />
+    </div>
+  );
+}
+
+function RemoteEndpoints({ compact = false }: { compact?: boolean }) {
+  const locale = useChatStore((s) => s.settings.locale);
+  const endpoints = useChatStore((s) => s.settings.customEndpoints) ?? [];
+  const setSettings = useChatStore((s) => s.setSettings);
+  const [name, setName] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [model, setModel] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  function save(next: CustomEndpoint[]) {
+    setSettings({ customEndpoints: next });
+  }
+
+  async function add() {
+    let base: string;
+    try {
+      base = sanitizeCompatBase(baseUrl);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t(locale, "remoteNeedUrl"));
+      return;
+    }
+    const typed = parseModelList(model);
+    setBusy(true);
+    let listed: string[] = [];
+    let loadError = "";
+    try {
+      const res = await fetch("/api/custom-models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ baseUrl: base, apiKey }),
+      });
+      const json = (await res.json()) as { models?: string[]; error?: string };
+      listed = (json.models ?? []).filter(Boolean);
+      if (json.error) loadError = json.error;
+    } catch (err) {
+      loadError = err instanceof Error ? err.message : t(locale, "remoteLoadFailed");
+    } finally {
+      setBusy(false);
+    }
+    const models = [...new Set([...typed, ...listed])];
+    if (models.length === 0) {
+      toast.error(loadError || t(locale, "remoteNeedModel"));
+      return;
+    }
+    const endpoint: CustomEndpoint = {
+      id: crypto.randomUUID(),
+      name: name.trim() || new URL(base).host,
+      baseUrl: base,
+      apiKey: apiKey.trim(),
+      models,
+    };
+    save([...endpoints, endpoint]);
+    setName("");
+    setBaseUrl("");
+    setApiKey("");
+    setModel("");
+    toast.success(t(locale, "remoteSaved"));
+    if (loadError && typed.length) toast.message(loadError);
+  }
+
+  async function loadMore(endpoint: CustomEndpoint) {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/custom-models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ baseUrl: endpoint.baseUrl, apiKey: endpoint.apiKey }),
+      });
+      const json = (await res.json()) as { models?: string[]; error?: string };
+      const listed = (json.models ?? []).filter(Boolean);
+      if (!listed.length) {
+        toast.error(json.error || t(locale, "remoteLoadFailed"));
+        return;
+      }
+      save(
+        endpoints.map((item) =>
+          item.id === endpoint.id
+            ? { ...item, models: [...new Set([...item.models, ...listed])] }
+            : item,
+        ),
+      );
+      toast.success(t(locale, "remoteSaved"));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t(locale, "remoteLoadFailed"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-2 flex flex-col gap-3 border-t border-border pt-4">
+      <div>
+        <p className="font-medium">{t(locale, "remoteApis")}</p>
+        <p className="mt-1 text-xs text-muted-foreground text-pretty">{t(locale, "remoteApisBlurb")}</p>
+      </div>
+      <div className="grid gap-2">
+        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t(locale, "remoteNamePh")} autoComplete="off" />
+        <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder={t(locale, "remoteBaseUrlPh")} autoComplete="off" />
+        <Input
+          type="password"
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          placeholder={t(locale, "remoteApiKeyPh")}
+          autoComplete="off"
+        />
+        <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder={t(locale, "remoteModelPh")} autoComplete="off" />
+      </div>
+      <Button type="button" onClick={() => void add()} disabled={busy || !baseUrl.trim()}>
+        {busy ? t(locale, "waiting") : t(locale, "addRemote")}
+      </Button>
+      {endpoints.length === 0 ? (
+        compact ? null : <p className="text-xs text-muted-foreground">{t(locale, "noRemoteYet")}</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {endpoints.map((item) => (
+            <div key={item.id} className="rounded-xl border border-border px-3 py-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{item.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{item.baseUrl}</p>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">{item.models.join(", ")}</p>
+                </div>
+                <div className="flex shrink-0 flex-col gap-1">
+                  <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void loadMore(item)}>
+                    {t(locale, "loadRemoteModels")}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      save(endpoints.filter((row) => row.id !== item.id));
+                      toast.success(t(locale, "remoteRemoved", { name: item.name }));
+                    }}
+                  >
+                    {t(locale, "delete")}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

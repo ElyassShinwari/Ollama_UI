@@ -13,6 +13,7 @@ import {
   estimateContextFromParameters,
   xaiContextLength,
 } from "@/lib/llm/context";
+import { modelsFromCustomEndpoints } from "@/lib/llm/custom";
 import { cloudSecret } from "@/lib/llm/cloud";
 import { ensureCloudAuth } from "@/lib/llm/oauth-client";
 import {
@@ -177,7 +178,7 @@ export async function fetchCatalog(
     );
 
   return {
-    models: mergeModels(browserModels, serverRes.models ?? []),
+    models: mergeModels(browserModels, [...(serverRes.models ?? []), ...modelsFromCustomEndpoints(s.customEndpoints)]),
     status: {
       loading: false,
       ollamaBrowser: browserModels.length > 0,
@@ -211,6 +212,7 @@ export type ChatRequestBody = {
   modelSize?: number;
   apiKey?: string;
   accountId?: string;
+  baseUrl?: string;
 };
 
 function withSystem(messages: ChatTurn[], systemPrompt?: string): ChatTurn[] {
@@ -224,7 +226,7 @@ export async function streamChat(
   signal: AbortSignal,
   onUsage?: (usage: TokenUsage) => void,
 ) {
-  if (body.provider !== "ollama") await ensureCloudAuth();
+  if (body.provider !== "ollama" && body.provider !== "custom") await ensureCloudAuth();
   const settings = useChatStore.getState().settings;
   const apiKey = cloudSecret(settings, body.provider) || body.apiKey;
   const accountId =
@@ -276,6 +278,7 @@ export async function streamChat(
         modelSize: body.modelSize,
         apiKey,
         accountId,
+        baseUrl: body.baseUrl,
       }),
       signal,
       cache: "no-store",

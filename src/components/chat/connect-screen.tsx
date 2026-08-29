@@ -6,11 +6,11 @@ import { FlameMark } from "@/components/chat/sidebar";
 import { LanguagePicker } from "@/components/chat/language-picker";
 import { ModelHub } from "@/components/chat/model-hub";
 import { OllamaLaunch } from "@/components/chat/ollama-launch";
-import { CLOUD_LABEL } from "@/lib/llm/cloud";
+import { CLOUD_LABEL, type CloudId } from "@/lib/llm/cloud";
 import { t } from "@/lib/i18n";
 import { useChatStore } from "@/lib/chat/store";
 import { formatBytes, formatContextWindow } from "@/lib/utils";
-import type { ModelCatalog, ModelRef, Provider } from "@/lib/chat/types";
+import type { ModelCatalog, ModelRef } from "@/lib/chat/types";
 
 export function ConnectScreen({
   catalog,
@@ -37,7 +37,7 @@ export function ConnectScreen({
   const q = query.trim().toLowerCase();
   const ollama = catalog.models.filter((m) => m.provider === "ollama");
   const cloudGroups: { title: string; items: ModelRef[] }[] = (
-    ["openai", "anthropic", "xai", "kimi", "deepseek"] as Exclude<Provider, "ollama">[]
+    ["openai", "anthropic", "xai", "kimi", "deepseek"] as CloudId[]
   )
     .map((provider) => ({
       title: CLOUD_LABEL[provider],
@@ -48,6 +48,12 @@ export function ConnectScreen({
       }),
     }))
     .filter((g) => g.items.length > 0);
+  const remote = catalog.models.filter((m) => {
+    if (m.provider !== "custom") return false;
+    if (!q) return true;
+    return `${m.name} ${m.id} remote`.toLowerCase().includes(q);
+  });
+  if (remote.length) cloudGroups.push({ title: "Remote", items: remote });
   const hasCloud = catalog.models.some((m) => m.provider !== "ollama");
 
   return (

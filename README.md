@@ -134,7 +134,7 @@ Open **News** in the sidebar, then pick a feed:
 
 Refresh reloads the feed. **Back to chat** (or clicking a chat) closes News.
 
-## Cloud base (ChatGPT, Claude, Grok, Kimi, DeepSeek)
+## Cloud base (ChatGPT, Claude, Grok, Kimi, DeepSeek, and any remote API)
 
 **Settings** or **Studio → Cloud base**:
 
@@ -142,6 +142,7 @@ Refresh reloads the feed. **Back to chat** (or clicking a chat) closes News.
 - **Grok** — click **Sign in**, approve in the window, enter the code if asked. If sign-in fails, the app shows the error instead of waiting forever.
 - **Kimi** — click **Sign in**, approve in the window, enter the code if asked.
 - **Claude** and **DeepSeek** — those companies do not allow other apps to use a web login. Sign in on their site, then paste an API key.
+- **Remote APIs** — any model you run on a server or in the cloud that speaks the OpenAI API (`/v1/chat/completions`). Add a name, the **Base URL** (for example `http://192.168.1.10:8000/v1` or `https://openrouter.ai/api/v1`), an **API key** if the host asks for one (leave it blank for local servers), and the **model** id. You can add more than one. **Load models** asks the server for its list. They show up under **Remote** in the model menu.
 
 | Provider | In-app sign-in | API key |
 | --- | --- | --- |
@@ -150,8 +151,9 @@ Refresh reloads the feed. **Back to chat** (or clicking a chat) closes News.
 | Kimi | Yes — Sign in in Cloud base | Optional, [platform.moonshot.ai](https://platform.moonshot.ai) |
 | Claude | No (Anthropic policy) | [console.anthropic.com](https://console.anthropic.com/settings/keys) |
 | DeepSeek | No | [platform.deepseek.com](https://platform.deepseek.com/api_keys) |
+| Remote / your server | No — paste the base URL | Optional. Leave blank if the server does not use a key. |
 
-Signed-in accounts and keys stay in this browser. Review cycles can use any connected model as writer or tester.
+Signed-in accounts, keys, and remote URLs stay in this browser. Review cycles can use any connected model as writer or tester.
 
 ## Review cycle
 
@@ -254,7 +256,7 @@ The app needs permission to install software. Use the manual steps above, then c
 Install one from the library search (`smollm2:135m`). If Ollama is on another machine, set the host in Settings (`http://127.0.0.1:11434` by default).
 
 **ChatGPT / Claude / Grok / Kimi / DeepSeek missing**  
-Open **Studio → Cloud base** (or Settings). ChatGPT, Grok, and Kimi: click **Sign in**. If ChatGPT talks about enabling device-code in Security Settings, close that tab and use **Sign in** again — this app uses the normal ChatGPT login, not device-code. Claude and DeepSeek need an API key from their console.
+Open **Studio → Cloud base** (or Settings). ChatGPT, Grok, and Kimi: click **Sign in**. If ChatGPT talks about enabling device-code in Security Settings, close that tab and use **Sign in** again — this app uses the normal ChatGPT login, not device-code. Claude and DeepSeek need an API key from their console. For a model on your own server or another cloud, fill **Remote APIs** (base URL, optional key, model name). The server must speak the OpenAI chat API.
 
 **ChatGPT says insufficient quota**  
 That is the paid OpenAI API, not your ChatGPT plan. Sign in with ChatGPT in Cloud base (do not paste a platform API key), then pick a ChatGPT GPT-5.4 or Codex model.

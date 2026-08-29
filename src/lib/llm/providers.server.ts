@@ -797,13 +797,14 @@ export async function* streamOpenAiCompat(opts: {
     });
     return;
   }
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...opts.extraHeaders,
+  };
+  if (opts.apiKey.trim()) headers.Authorization = `Bearer ${opts.apiKey}`;
   const res = await fetch(opts.url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${opts.apiKey}`,
-      ...opts.extraHeaders,
-    },
+    headers,
     body: JSON.stringify({
       model: opts.model,
       messages: opts.messages.map((m) => ({ role: m.role, content: toOpenAiContent(m) })),

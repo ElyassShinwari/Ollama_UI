@@ -11,11 +11,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { cn, formatBytes, formatContextWindow } from "@/lib/utils";
-import { CLOUD_LABEL } from "@/lib/llm/cloud";
+import { CLOUD_LABEL, providerLabel } from "@/lib/llm/cloud";
 import { suggestQueries } from "@/lib/llm/library";
 import { t } from "@/lib/i18n";
 import { useChatStore } from "@/lib/chat/store";
-import type { ModelRef, Provider } from "@/lib/chat/types";
+import type { ModelRef } from "@/lib/chat/types";
 
 function groupModels(models: ModelRef[]) {
   return [
@@ -25,12 +25,13 @@ function groupModels(models: ModelRef[]) {
     { title: CLOUD_LABEL.xai, items: models.filter((m) => m.provider === "xai") },
     { title: CLOUD_LABEL.kimi, items: models.filter((m) => m.provider === "kimi") },
     { title: CLOUD_LABEL.deepseek, items: models.filter((m) => m.provider === "deepseek") },
+    { title: "Remote", items: models.filter((m) => m.provider === "custom") },
   ].filter((g) => g.items.length > 0);
 }
 
 function matchesQuery(model: ModelRef, query: string) {
   if (!query) return true;
-  const hay = `${model.name} ${model.id} ${model.family ?? ""} ${model.provider} ${CLOUD_LABEL[model.provider as Exclude<Provider, "ollama">] ?? "ollama"}`.toLowerCase();
+  const hay = `${model.name} ${model.id} ${model.family ?? ""} ${model.provider} ${providerLabel(model.provider)}`.toLowerCase();
   return hay.includes(query);
 }
 
@@ -201,7 +202,7 @@ function ModelItem({
       ? model.transport === "browser"
         ? "This computer"
         : "Ollama"
-      : (CLOUD_LABEL[model.provider as Exclude<Provider, "ollama">] ?? "Cloud"),
+      : providerLabel(model.provider),
   ]
     .filter(Boolean)
     .join(" · ");

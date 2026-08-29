@@ -1,6 +1,6 @@
 import type { ModelRef, Provider, Settings } from "@/lib/chat/types";
 
-export type CloudId = Exclude<Provider, "ollama">;
+export type CloudId = Exclude<Provider, "ollama" | "custom">;
 
 export const CLOUD_LABEL: Record<CloudId, string> = {
   openai: "ChatGPT",
@@ -9,6 +9,12 @@ export const CLOUD_LABEL: Record<CloudId, string> = {
   kimi: "Kimi",
   deepseek: "DeepSeek",
 };
+
+export function providerLabel(provider: Provider): string {
+  if (provider === "ollama") return "Ollama";
+  if (provider === "custom") return "Remote";
+  return CLOUD_LABEL[provider];
+}
 
 export const CLOUD_ACCOUNTS: {
   id: CloudId;
@@ -173,7 +179,7 @@ export function cloudSecret(settings: Settings, provider: Provider) {
     if (settings.kimiOAuth?.accessToken) return settings.kimiOAuth.accessToken;
     return settings.kimiKey;
   }
-  if (provider === "ollama") return "";
+  if (provider === "ollama" || provider === "custom") return "";
   const account = CLOUD_ACCOUNTS.find((item) => item.id === provider);
   if (!account) return "";
   const value = settings[account.setting];

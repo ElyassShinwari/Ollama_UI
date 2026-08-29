@@ -22,6 +22,7 @@ import { greetingKey, t } from "@/lib/i18n";
 import { selectActiveConversation, chatPersist, useChatStore } from "@/lib/chat/store";
 import { siblingsOf, visibleMessages, isNoteMessage, chatTurnsOf } from "@/lib/chat/tree";
 import { adoptModel, streamChat } from "@/lib/llm/catalog";
+import { endpointForModel, remoteIdFromCustom } from "@/lib/llm/custom";
 import { friendlyOllamaError } from "@/lib/llm/context";
 import {
   buildMessageFromFiles,
@@ -32,13 +33,13 @@ import { repetitionCutoff } from "@/lib/llm/repeat";
 import { formatChatPrompt } from "@/lib/llm/tokens";
 import { combinedInstructions, knowledgeBlock, notifyN8n } from "@/lib/studio/store";
 import {
-  CLOUD_LABEL,
   FINAL_REVIEW_SYSTEM,
   REVIEW_SELF_SYSTEM,
   REVIEW_SYSTEM,
   cloudSecret,
   finalHandoff,
   handoffToWriter,
+  providerLabel,
   reviewSatisfied,
 } from "@/lib/llm/cloud";
 import type { Message, ModelRef } from "@/lib/chat/types";
@@ -242,9 +243,11 @@ export function ChatView({
       return "";
     }
     const settingsNow = useChatStore.getState().settings;
-    const apiKey = cloudSecret(settingsNow, model.provider) || undefined;
+    const custom = endpointForModel(settingsNow.customEndpoints, model);
+    const apiKey = custom ? custom.apiKey : cloudSecret(settingsNow, model.provider) || undefined;
     const accountId =
       model.provider === "openai" ? settingsNow.openaiOAuth?.accountId : undefined;
+    const modelId = custom ? remoteIdFromCustom(model.id, custom.id) : model.id;
     const systemPrompt = [settingsNow.systemPrompt, combinedInstructions(), knowledgeBlock(), extraSystem]
       .filter(Boolean)
       .join("\n\n");
@@ -273,7 +276,7 @@ export function ChatView({
           provider: model.provider,
           transport: model.transport,
           host: settingsNow.ollamaHost,
-          model: model.id,
+          model: modelId,
           messages: payload,
           temperature: settingsNow.temperature,
           systemPrompt,
@@ -281,6 +284,7 @@ export function ChatView({
           modelSize: model.size,
           apiKey,
           accountId,
+          baseUrl: custom?.baseUrl,
         },
         (chunk) => {
           if (controller.signal.aborted) return;
@@ -386,7 +390,7 @@ export function ChatView({
   }
 
   function writerLabel(model: ModelRef) {
-    const kind = model.provider === "ollama" ? "Ollama" : CLOUD_LABEL[model.provider];
+    const kind = model.provider === "ollama" ? "Ollama" : providerLabel(model.provider);
     return `${model.name} · ${kind}`;
   }
 

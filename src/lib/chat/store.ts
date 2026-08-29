@@ -18,6 +18,7 @@ const defaultSettings: Settings = {
   openaiOAuth: null,
   xaiOAuth: null,
   kimiOAuth: null,
+  customEndpoints: [],
 };
 
 function uid() {
@@ -500,6 +501,7 @@ export const useChatStore = create<ChatState>()(
             ...defaultSettings,
             ...p.settings,
             locale: isLocaleId(p.settings?.locale) ? p.settings.locale : defaultSettings.locale,
+            customEndpoints: Array.isArray(p.settings?.customEndpoints) ? p.settings.customEndpoints : [],
           },
           conversations: (p.conversations ?? current.conversations).map(normalizeConversation),
         };

@@ -128,7 +128,7 @@ export function ChatApp() {
       void refresh();
     }, 60000);
     return () => window.clearInterval(id);
-  }, [refresh, settings.ollamaHost, settings.openaiKey, settings.anthropicKey, settings.xaiKey, settings.kimiKey, settings.deepseekKey, settings.openaiOAuth, settings.xaiOAuth, settings.kimiOAuth, hydrated]);
+  }, [refresh, settings.ollamaHost, settings.openaiKey, settings.anthropicKey, settings.xaiKey, settings.kimiKey, settings.deepseekKey, settings.openaiOAuth, settings.xaiOAuth, settings.kimiOAuth, settings.customEndpoints, hydrated]);
 
   function closeOverlay(opts?: { fromPop?: boolean }) {
     setStudioOpen(false);
