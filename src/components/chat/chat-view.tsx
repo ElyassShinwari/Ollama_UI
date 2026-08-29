@@ -21,7 +21,7 @@ import { estimateTokens, isContextOverflowError } from "@/lib/utils";
 import { greetingKey, t } from "@/lib/i18n";
 import { selectActiveConversation, chatPersist, useChatStore } from "@/lib/chat/store";
 import { siblingsOf, visibleMessages, isNoteMessage, chatTurnsOf } from "@/lib/chat/tree";
-import { streamChat } from "@/lib/llm/catalog";
+import { adoptModel, streamChat } from "@/lib/llm/catalog";
 import { friendlyOllamaError } from "@/lib/llm/context";
 import {
   buildMessageFromFiles,
@@ -85,7 +85,6 @@ export function ChatView({
 }) {
   const conversation = useChatStore(selectActiveConversation);
   const selectedModel = useChatStore((s) => s.selectedModel);
-  const setSelectedModel = useChatStore((s) => s.setSelectedModel);
   const testerKey = useChatStore((s) => s.testerKey);
   const setTesterKey = useChatStore((s) => s.setTesterKey);
   const dropBinary = useChatStore((s) => s.dropBinary);
@@ -666,11 +665,16 @@ export function ChatView({
 
   const fileAccept = "";
 
+  function stopStream() {
+    cancelledRef.current = true;
+    abortRef.current?.abort();
+  }
+
   function applyModel(model: ModelRef) {
     const used = conversation?.contextTokens ?? 0;
     const limit = model.contextLength;
     const hasChat = (conversation?.messages.length ?? 0) > 0;
-    setSelectedModel(model);
+    adoptModel(model);
     if (hasChat && limit && used >= limit) {
       markContextExceeded(conversation!.id);
       setSwitchWarn({ name: model.name, used, limit });
@@ -691,6 +695,7 @@ export function ChatView({
 
   function requestSwitch(model: ModelRef) {
     if (model.id === selectedModel?.id && model.provider === selectedModel.provider) return;
+    if (streamingId) stopStream();
     const used = conversation?.contextTokens ?? 0;
     const limit = model.contextLength;
     const hasChat = (conversation?.messages.length ?? 0) > 0;

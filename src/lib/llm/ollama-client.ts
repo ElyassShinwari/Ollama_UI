@@ -235,3 +235,27 @@ export async function streamOllamaDirect(opts: {
 export const ollamaGate = {
   chat: false,
 };
+
+export function loadedOllamaNames(body: unknown): string[] {
+  if (!body || typeof body !== "object") return [];
+  const models = (body as { models?: unknown }).models;
+  if (!Array.isArray(models)) return [];
+  const names: string[] = [];
+  for (const row of models) {
+    if (!row || typeof row !== "object") continue;
+    const rec = row as { model?: unknown; name?: unknown };
+    const id = typeof rec.model === "string" ? rec.model : typeof rec.name === "string" ? rec.name : "";
+    if (id.trim()) names.push(id.trim());
+  }
+  return names;
+}
+
+export function modelsToUnload(loaded: string[], keep?: string): string[] {
+  if (!keep) return [...new Set(loaded)];
+  const keepKey = keep.endsWith(":latest") ? keep.slice(0, -7) : keep;
+  return [...new Set(loaded)].filter((name) => {
+    const key = name.endsWith(":latest") ? name.slice(0, -7) : name;
+    return key !== keepKey;
+  });
+}
+

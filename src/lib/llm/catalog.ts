@@ -17,6 +17,8 @@ import { cloudSecret } from "@/lib/llm/cloud";
 import { ensureCloudAuth } from "@/lib/llm/oauth-client";
 import {
   isOllamaUnreachable,
+  loadedOllamaNames,
+  modelsToUnload,
   ollamaChatPayload,
   ollamaGate,
   streamOllamaDirect,
@@ -291,6 +293,50 @@ export async function streamChat(
   }
 }
 
+let releaseTail: Promise<void> = Promise.resolve();
+
+export function pendingOllamaRelease() {
+  return releaseTail;
+}
+
+/** Drop every loaded Ollama runner except `keep`, so a switch cannot pin two models in RAM. */
+export function releaseLoadedOllama(host: string, keep?: string, extra: string[] = []) {
+  releaseTail = releaseTail.then(() => dropLoadedOllama(host, keep, extra)).catch(() => undefined);
+  return releaseTail;
+}
+
+async function dropLoadedOllama(host: string, keep?: string, extra: string[] = []) {
+  const base = host.replace(/\/+$/, "");
+  let loaded: string[] = [];
+  let fromPs = false;
+  try {
+    const res = await fetch(`${base}/api/ps`, { signal: AbortSignal.timeout(2500) });
+    if (res.ok) {
+      loaded = loadedOllamaNames(await res.json());
+      fromPs = true;
+    }
+  } catch {
+    loaded = [];
+  }
+  const names = modelsToUnload(fromPs ? loaded : extra, keep);
+  await Promise.all(names.map((name) => unloadOllamaBrowser(base, name)));
+}
+
+export function adoptModel(model: ModelRef) {
+  const prev = useChatStore.getState().selectedModel;
+  const host = useChatStore.getState().settings.ollamaHost;
+  const same = Boolean(prev && prev.id === model.id && prev.provider === model.provider);
+  useChatStore.getState().setSelectedModel(model);
+  if (same) return;
+  if (prev?.provider === "ollama" || model.provider === "ollama") {
+    void releaseLoadedOllama(
+      host,
+      model.provider === "ollama" ? model.id : undefined,
+      prev?.provider === "ollama" ? [prev.id] : [],
+    );
+  }
+}
+
 export async function resetModelContext(
   host: string,
   model: { id: string; provider: ModelRef["provider"]; transport: Transport },
@@ -326,6 +372,7 @@ async function unloadOllamaBrowser(host: string, model: string) {
       keep_alive: 0,
       stream: false,
     }),
+    signal: AbortSignal.timeout(12000),
   }).catch(() => undefined);
 }
 
@@ -343,6 +390,7 @@ async function streamOllamaBrowser(
   onUsage?: (usage: TokenUsage) => void,
 ) {
   const host = opts.host.replace(/\/+$/, "");
+  await pendingOllamaRelease();
   let numCtx = initialOllamaNumCtx();
   let lastMessage = "Ollama failed";
   let busyTries = 0;

@@ -211,6 +211,21 @@ test("sameOllamaId treats :latest as the untagged name", async () => {
   assert.equal(library.sameOllamaId("llama3.2:1b", "llama3"), false);
 });
 
+test("switching models unloads every loaded runner except the new one", async () => {
+  const ollama = await import("../src/lib/llm/ollama-client.ts");
+  assert.deepEqual(
+    ollama.loadedOllamaNames({
+      models: [{ name: "llama3.2:latest" }, { model: "smollm2:135m" }, {}],
+    }),
+    ["llama3.2:latest", "smollm2:135m"],
+  );
+  assert.deepEqual(ollama.modelsToUnload(["llama3.2:latest", "smollm2:135m"], "smollm2:135m"), [
+    "llama3.2:latest",
+  ]);
+  assert.deepEqual(ollama.modelsToUnload(["phi3:latest"], "phi3"), []);
+  assert.deepEqual(ollama.modelsToUnload(["llama3.2"], undefined), ["llama3.2"]);
+});
+
 test("library search suggests queries and lists all matching models", async () => {
   const library = await import("../src/lib/llm/library.ts");
   const suggested = library.suggestQueries("qw");

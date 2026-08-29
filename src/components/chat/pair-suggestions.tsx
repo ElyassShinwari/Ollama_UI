@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { PAIR_TASKS, findLocalModel, pairLanes, pairStatus, type PairTask, type ReviewPair } from "@/lib/llm/pairs";
 import { pullOllamaModel } from "@/lib/llm/pull-client";
 import { isAbortError } from "@/lib/llm/setup";
+import { adoptModel } from "@/lib/llm/catalog";
 import { useChatStore } from "@/lib/chat/store";
 import type { ModelRef } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
@@ -12,7 +13,7 @@ import { t } from "@/lib/i18n";
 
 function applyReadyPair(writer: ModelRef, tester: ModelRef, task: string) {
   const locale = useChatStore.getState().settings.locale;
-  useChatStore.getState().setSelectedModel(writer);
+  adoptModel(writer);
   useChatStore.getState().setTesterKey(`${tester.provider}:${tester.id}`);
   toast.success(
     t(locale, "pairReady", { task, writer: writer.name, tester: tester.name }),
@@ -292,7 +293,7 @@ function PairLane({
         onUsed?.();
       } else if (writer || tester) {
         toast.message(t(locale, "pairOneReady"));
-        if (writer) useChatStore.getState().setSelectedModel(writer);
+        if (writer) adoptModel(writer);
         if (tester) useChatStore.getState().setTesterKey(`${tester.provider}:${tester.id}`);
       } else {
         toast.message(t(locale, "pairCancelled"));

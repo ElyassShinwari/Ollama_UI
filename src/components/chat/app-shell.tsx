@@ -17,7 +17,7 @@ import { StudioPanel, type StudioTab } from "@/components/studio/studio-panel";
 import { NewsPanel } from "@/components/news/news-panel";
 import { SettingsDialog } from "@/components/chat/settings-dialog";
 import { FlameMark, Sidebar } from "@/components/chat/sidebar";
-import { fetchCatalog, fillOllamaContext, probeBrowserOllama } from "@/lib/llm/catalog";
+import { adoptModel, fetchCatalog, fillOllamaContext, probeBrowserOllama } from "@/lib/llm/catalog";
 import { ollamaGate } from "@/lib/llm/ollama-client";
 import { cloudSecret } from "@/lib/llm/cloud";
 import { applyTheme, resolvedTheme } from "@/lib/theme";
@@ -165,7 +165,7 @@ export function ChatApp() {
   }
 
   function chooseModel(model: ModelRef) {
-    setSelectedModel(model);
+    adoptModel(model);
     const state = useChatStore.getState();
     if (!state.activeId) state.newChat();
     setHubOpen(false);
