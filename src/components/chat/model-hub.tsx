@@ -19,8 +19,9 @@ import {
   suggestQueries,
   type LibraryModel,
 } from "@/lib/llm/library";
-import { fetchSetup, isAbortError, listHfQuants, readSetupStream, searchLibrary, type SetupStatus } from "@/lib/llm/setup";
-import { PairSuggestions } from "@/components/chat/pair-suggestions";
+import { fetchSetup, listHfQuants, readSetupStream, searchLibrary, type SetupStatus } from "@/lib/llm/setup";
+import { PairSuggestions, PullBar } from "@/components/chat/pair-suggestions";
+import { cancelPull, pullPercents, runningPulls, snapshotPull, startPull, usePullVersion } from "@/lib/llm/pull-jobs";
 import type { ModelRef } from "@/lib/chat/types";
 import { cn, formatBytes, formatContextWindow } from "@/lib/utils";
 import { t } from "@/lib/i18n";
@@ -28,6 +29,31 @@ import { useChatStore } from "@/lib/chat/store";
 import { useHistoryBack } from "@/lib/history-back";
 
 const EMPTY_CHIPS = QUERY_SUGGESTIONS.slice(0, 10);
+
+function pullPercentOf(pulls: Record<string, number>, id: string): number | undefined {
+  if (Object.hasOwn(pulls, id)) return pulls[id];
+  const hit = Object.entries(pulls).find(([key]) => sameOllamaId(key, id));
+  return hit?.[1];
+}
+
+function HubPulls() {
+  usePullVersion();
+  const locale = useChatStore((s) => s.settings.locale);
+  const jobs = runningPulls();
+  if (jobs.length === 0) return null;
+  return (
+    <section className="rounded-xl border border-border bg-card px-4 py-3">
+      <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        {t(locale, "installingModels")}
+      </h2>
+      <div className="space-y-2">
+        {jobs.map((job) => (
+          <PullBar key={job.id} label={job.id} pct={job.percent} onCancel={() => cancelPull(job.id)} />
+        ))}
+      </div>
+    </section>
+  );
+}
 
 export function ModelHub({
   host,
@@ -54,9 +80,6 @@ export function ModelHub({
   const [suggestions, setSuggestions] = useState<string[]>(EMPTY_CHIPS);
   const [busy, setBusy] = useState<string | null>(null);
   const [log, setLog] = useState<string[]>([]);
-  const [pulls, setPulls] = useState<Record<string, number>>({});
-  const pullingRef = useRef(new Set<string>());
-  const abortRef = useRef(new Map<string, AbortController>());
   const [pendingDelete, setPendingDelete] = useState<ModelRef | null>(null);
   useHistoryBack(Boolean(pendingDelete), () => setPendingDelete(null), "delete-model");
   const [deleting, setDeleting] = useState(false);
@@ -64,7 +87,10 @@ export function ModelHub({
   const [activeSuggest, setActiveSuggest] = useState(0);
   const [arrowed, setArrowed] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const mountedRef = useRef(true);
   const locale = useChatStore((s) => s.settings.locale);
+  usePullVersion();
+  const pulls = pullPercents();
 
   async function refreshStatus() {
     const next = await fetchSetup(host);
@@ -77,13 +103,16 @@ export function ModelHub({
   }, [initialQuery]);
 
   useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
     void refreshStatus();
     const id = window.setInterval(() => void refreshStatus(), 8000);
-    return () => {
-      window.clearInterval(id);
-      for (const ac of abortRef.current.values()) ac.abort();
-      abortRef.current.clear();
-    };
+    return () => window.clearInterval(id);
   }, [host]);
 
   const localSuggest = useMemo(() => suggestQueries(query), [query]);
@@ -153,71 +182,33 @@ export function ModelHub({
       pushLog("Install or start Ollama first.");
       return false;
     }
-    if (pullingRef.current.has(id)) return false;
-    pullingRef.current.add(id);
-    const ac = new AbortController();
-    abortRef.current.set(id, ac);
-    setPulls((cur) => ({ ...cur, [id]: 0 }));
-    pushLog(`Installing ${id}…`);
-    let succeeded = false;
-    try {
-      const ok = await readSetupStream(
-        "/api/pull",
-        (line) => pushLog(`${id}: ${line}`),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ host, model: id }),
-          signal: ac.signal,
-        },
-        (pct) => setPulls((cur) => ({ ...cur, [id]: pct })),
-      );
-      const models = (await onRefreshLocal()) ?? [];
-      const match = models.find(
-        (m) => sameOllamaId(m.id, id) || m.id.startsWith(`${id}:`) || id.startsWith(`${m.id}:`) || m.id.includes(id),
-      );
-      if (ok) {
-        succeeded = true;
-        setPulls((cur) => ({ ...cur, [id]: 100 }));
-        pushLog(`${id} is ready.`);
-        if (opts?.select !== false && match) onChoose(match);
-      }
-      return ok;
-    } catch (err) {
-      if (isAbortError(err) || ac.signal.aborted) {
-        pushLog(`${id}: cancelled`);
-        toast.message(`Stopped ${id}`);
-        return false;
-      }
-      pushLog(err instanceof Error ? `${id}: ${err.message}` : `${id}: Download failed`);
-      return false;
-    } finally {
-      pullingRef.current.delete(id);
-      abortRef.current.delete(id);
-      if (succeeded) {
-        window.setTimeout(() => {
-          setPulls((cur) => {
-            if (!(id in cur)) return cur;
-            const next = { ...cur };
-            delete next[id];
-            return next;
-          });
-        }, 800);
-      } else {
-        setPulls((cur) => {
-          if (!(id in cur)) return cur;
-          const next = { ...cur };
-          delete next[id];
-          return next;
-        });
-      }
+    if (mountedRef.current) pushLog(`Installing ${id}…`);
+    const job = startPull(host, id);
+    const ok = await job.promise;
+    const models = (await onRefreshLocal()) ?? [];
+    const match = models.find(
+      (m) => sameOllamaId(m.id, id) || m.id.startsWith(`${id}:`) || id.startsWith(`${m.id}:`) || m.id.includes(id),
+    );
+    if (ok) {
+      if (mountedRef.current) pushLog(`${id} is ready.`);
+      if (opts?.select !== false && match && mountedRef.current) onChoose(match);
+      else toast.success(t(locale, "modelReady", { id: match?.name ?? id }));
+      return true;
     }
+    const snap = snapshotPull(id);
+    if (snap?.status === "cancelled") {
+      if (mountedRef.current) pushLog(`${id}: cancelled`);
+      toast.message(t(locale, "pairStopped", { id }));
+      return false;
+    }
+    if (mountedRef.current) {
+      pushLog(snap?.error ? `${id}: ${snap.error}` : `${id}: Download failed`);
+    }
+    return false;
   }
 
   function cancelInstall(id: string) {
-    const ac = abortRef.current.get(id);
-    if (!ac) return;
-    ac.abort();
+    cancelPull(id);
   }
 
   async function deleteModel(model: ModelRef) {
@@ -420,6 +411,8 @@ export function ModelHub({
         </div>
       ) : null}
 
+      <HubPulls />
+
       <PairSuggestions
         models={localModels}
         query={query}
@@ -597,7 +590,7 @@ function LibraryCard({
       <div className="mt-3 flex flex-wrap gap-2 pt-2 pe-2">
         {ids.map((id) => {
           const have = [...localIds].some((local) => sameOllamaId(local, id) || local.includes(id));
-          const percent = pulls[id];
+          const percent = pullPercentOf(pulls, id);
           const rowActive = percent != null;
           const ready = have || (rowActive && percent >= 100);
           const shown = rowActive ? Math.max(4, Math.min(100, percent)) : 0;

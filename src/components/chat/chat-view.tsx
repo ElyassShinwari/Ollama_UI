@@ -14,7 +14,7 @@ import { Composer } from "@/components/chat/composer";
 import { ContextMeter } from "@/components/chat/context-meter";
 import { MessageBubble } from "@/components/chat/message-bubble";
 import { ModelPicker } from "@/components/chat/model-picker";
-import { PairBar } from "@/components/chat/pair-suggestions";
+import { PairBar, BackgroundPulls } from "@/components/chat/pair-suggestions";
 import { LanguagePicker } from "@/components/chat/language-picker";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { estimateTokens, isContextOverflowError } from "@/lib/utils";
@@ -1154,6 +1154,8 @@ export function ChatView({
           </div>
         </div>
       ) : null}
+
+      <BackgroundPulls />
 
       <Composer
         value={draft}

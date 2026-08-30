@@ -469,6 +469,11 @@ test("review pairs keep writer and tester different, with a coding pair", async 
     [{ id: "phi3:mini", name: "phi3:mini", provider: "ollama", transport: "server" }],
     "phi3:mini",
   ));
+  const pair = { writer: "qwen2.5-coder:0.5b", tester: "deepseek-coder:1.3b", ram: "tiny" };
+  assert.equal(pairs.missingPairInstall(pair, true, false), "deepseek-coder:1.3b");
+  assert.equal(pairs.missingPairInstall(pair, false, true), "qwen2.5-coder:0.5b");
+  assert.equal(pairs.missingPairInstall(pair, false, false), null);
+  assert.equal(pairs.missingPairInstall(pair, true, true), null);
 });
 
 test("ollama chat payload matches the terminal: stream, no extra options", async () => {
@@ -586,6 +591,8 @@ test("locales cover the requested languages including Dari and Pashto", () => {
   assert.equal(i18n.t("en", "lookThere"), "Look there");
   assert.equal(i18n.t("en", "remoteGroup"), "Remote");
   assert.equal(i18n.t("en", "onThisComputer"), "On this computer");
+  assert.equal(i18n.t("en", "installBoth"), "Install both");
+  assert.equal(i18n.t("en", "installNamed", { id: "deepseek-coder:1.3b" }), "Install deepseek-coder:1.3b");
   assert.equal(i18n.t("ja", "lookThere"), "Look there");
   assert.equal(i18n.t("hi", "useModel"), "Use");
   assert.equal(i18n.t("pt", "remoteGroup"), "Remote");
@@ -625,6 +632,32 @@ test("/api/chat and other host routes sanitize Ollama hosts", async () => {
   }
   const chat = fs.readFileSync(new URL("../src/routes/api/chat.ts", import.meta.url), "utf8");
   assert.match(chat, /status:\s*400/);
+});
+
+test("startPull reuses an in-flight job; only cancel stops it", async () => {
+  const fs = await import("node:fs");
+  const jobs = fs.readFileSync(new URL("../src/lib/llm/pull-jobs.ts", import.meta.url), "utf8");
+  assert.match(jobs, /if \(existing\?\.status === "running"\) return existing/);
+  assert.match(jobs, /Closing a sheet does not cancel it/);
+  assert.match(jobs, /if \(!have\.writer\) writerOk = await startPull/);
+  assert.match(jobs, /if \(!have\.tester && tester !== writer\) testerOk = await startPull/);
+  const hub = fs.readFileSync(new URL("../src/components/chat/model-hub.tsx", import.meta.url), "utf8");
+  assert.match(hub, /startPull\(/);
+  assert.match(hub, /pullPercents\(/);
+  assert.equal(hub.includes("abortRef"), false);
+  assert.match(hub, /cancelPull\(/);
+  const pairsUi = fs.readFileSync(new URL("../src/components/chat/pair-suggestions.tsx", import.meta.url), "utf8");
+  assert.match(pairsUi, /missingPairInstall/);
+  assert.match(pairsUi, /installNamed/);
+});
+
+test("installPairModels skips a model that is already installed", async () => {
+  const pairs = await import("../src/lib/llm/pairs.ts");
+  const pair = { writer: "already-here", tester: "need-this", ram: "tiny" };
+  assert.equal(pairs.missingPairInstall(pair, true, false), "need-this");
+  assert.equal(pairs.missingPairInstall(pair, false, true), "already-here");
+  assert.equal(pairs.missingPairInstall(pair, true, true), null);
+  assert.equal(pairs.missingPairInstall(pair, false, false), null);
 });
 
 test("chat export keeps user text and omits secrets", async () => {

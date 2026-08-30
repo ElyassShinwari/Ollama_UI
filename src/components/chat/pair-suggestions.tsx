@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { PAIR_TASKS, findLocalModel, pairLanes, pairStatus, type PairTask, type ReviewPair } from "@/lib/llm/pairs";
-import { pullOllamaModel } from "@/lib/llm/pull-client";
+import { PAIR_TASKS, findLocalModel, missingPairInstall, pairLanes, pairStatus, type PairTask, type ReviewPair } from "@/lib/llm/pairs";
 import { isAbortError } from "@/lib/llm/setup";
 import { adoptModel } from "@/lib/llm/catalog";
+import { cancelPull, installPairModels, runningPulls, snapshotPull, usePullVersion } from "@/lib/llm/pull-jobs";
 import { useChatStore } from "@/lib/chat/store";
 import type { ModelRef } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
@@ -80,7 +80,13 @@ export function PairSuggestions({
         {t(locale, "reviewPairsBlurb")}
       </p>
       <div className="flex flex-wrap gap-1.5">
-        {tasks.map((task) => (
+        {tasks.map((task) => {
+          const busy = pairLanes(task).some(
+            (lane) =>
+              snapshotPull(lane.pair.writer)?.status === "running" ||
+              snapshotPull(lane.pair.tester)?.status === "running",
+          );
+          return (
           <Button
             key={task.id}
             size="sm"
@@ -90,8 +96,10 @@ export function PairSuggestions({
             onClick={() => setOpenId((cur) => (cur === task.id ? null : task.id))}
           >
             {task.task}
+            {busy ? "…" : ""}
           </Button>
-        ))}
+          );
+        })}
       </div>
       {tasks.map((task) =>
         openId === task.id ? (
@@ -175,7 +183,7 @@ function SameModelLane({ taskName, onUsed }: { taskName: string; onUsed?: () => 
   );
 }
 
-function PullBar({
+export function PullBar({
   label,
   pct,
   onCancel,
@@ -230,81 +238,52 @@ function PairLane({
 }) {
   const status = pairStatus(models, pair);
   const locale = useChatStore((s) => s.settings.locale);
-  const [pct, setPct] = useState<{ w: number; t: number } | null>(null);
-  const abortRef = useRef<{ w?: AbortController; t?: AbortController }>({});
-  const installing = pct != null;
+  usePullVersion();
+  const wJob = snapshotPull(pair.writer);
+  const tJob = snapshotPull(pair.tester);
+  const haveW = Boolean(status.writer);
+  const haveT = Boolean(status.tester);
+  const missing = missingPairInstall(pair, haveW, haveT);
+  const wPct = haveW ? 100 : wJob?.percent ?? 0;
+  const tPct = haveT ? 100 : tJob?.percent ?? 0;
+  const installing =
+    wJob?.status === "running" ||
+    tJob?.status === "running" ||
+    wJob?.status === "done" ||
+    tJob?.status === "done";
+  const stillPulling = wJob?.status === "running" || tJob?.status === "running";
 
   useEffect(() => {
-    return () => {
-      abortRef.current.w?.abort();
-      abortRef.current.t?.abort();
-    };
-  }, []);
-
-  async function pullOne(
-    which: "w" | "t",
-    id: string,
-    host: string,
-  ): Promise<"ok" | "cancelled" | "failed"> {
-    const ac = abortRef.current[which] ?? new AbortController();
-    abortRef.current[which] = ac;
-    if (ac.signal.aborted) return "cancelled";
-    try {
-      const ok = await pullOllamaModel(
-        host,
-        id,
-        (p) =>
-          setPct((cur) =>
-            which === "w" ? { w: p, t: cur?.t ?? 1 } : { w: cur?.w ?? 100, t: p },
-          ),
-        ac.signal,
-      );
-      return ok ? "ok" : ac.signal.aborted ? "cancelled" : "failed";
-    } catch (err) {
-      if (isAbortError(err) || ac.signal.aborted) {
-        toast.message(t(locale, "pairStopped", { id }));
-        return "cancelled";
-      }
-      throw err;
-    }
-  }
+    if (wJob?.status !== "done" && tJob?.status !== "done") return;
+    void onRefreshLocal?.();
+  }, [wJob?.status, tJob?.status, onRefreshLocal]);
 
   async function installBoth() {
     const host = useChatStore.getState().settings.ollamaHost;
-    const haveW = Boolean(findLocalModel(models, pair.writer));
-    const haveT = Boolean(findLocalModel(models, pair.tester));
-    abortRef.current = { w: new AbortController(), t: new AbortController() };
-    setPct({ w: haveW ? 100 : 1, t: haveT ? 100 : 1 });
-    toast.message(t(locale, "pairInstalling", { writer: pair.writer, tester: pair.tester }));
+    toast.message(
+      missing
+        ? t(locale, "pairInstallingOne", { id: missing })
+        : t(locale, "pairInstalling", { writer: pair.writer, tester: pair.tester }),
+    );
     try {
-      if (!haveW) {
-        const result = await pullOne("w", pair.writer, host);
-        if (result === "failed") throw new Error(t(locale, "pairInstallFailed"));
-      }
-      if (!haveT && pair.tester !== pair.writer) {
-        const result = await pullOne("t", pair.tester, host);
-        if (result === "failed") throw new Error(t(locale, "pairInstallFailed"));
-      }
+      const result = await installPairModels(host, pair.writer, pair.tester, {
+        writer: haveW,
+        tester: haveT,
+      });
       const fresh = (await onRefreshLocal?.()) ?? models;
       const writer = findLocalModel(fresh, pair.writer);
       const tester = findLocalModel(fresh, pair.tester);
       if (writer && tester) {
-        applyReadyPair(writer, tester, taskName);
-        onUsed?.();
-      } else if (writer || tester) {
-        toast.message(t(locale, "pairOneReady"));
-        if (writer) adoptModel(writer);
-        if (tester) useChatStore.getState().setTesterKey(`${tester.provider}:${tester.id}`);
-      } else {
-        toast.message(t(locale, "pairCancelled"));
+        toast.success(t(locale, "pairReadyBg", { task: taskName, writer: writer.name, tester: tester.name }));
+        return;
       }
+      if (result.writerOk || result.testerOk) toast.message(t(locale, "pairOneReady"));
+      else if (!result.writerOk && !result.testerOk) toast.message(t(locale, "pairCancelled"));
     } catch (err) {
       if (!isAbortError(err)) {
         toast.error(err instanceof Error ? err.message : t(locale, "pairInstallFailed"));
         onBrowse?.();
       }
-    } finally {
-      setPct(null);
     }
   }
 
@@ -320,18 +299,22 @@ function PairLane({
         {t(locale, "tester")} {pair.tester}
       </p>
       <div className="mt-2">
-        {installing ? (
+        {stillPulling || (installing && !status.ready && (wJob || tJob)) ? (
           <div className="space-y-2">
-            <PullBar
-              label={pair.writer}
-              pct={pct.w}
-              onCancel={pct.w < 100 ? () => abortRef.current.w?.abort() : undefined}
-            />
-            <PullBar
-              label={pair.tester}
-              pct={pct.t}
-              onCancel={pct.t < 100 ? () => abortRef.current.t?.abort() : undefined}
-            />
+            {!haveW && wJob ? (
+              <PullBar
+                label={pair.writer}
+                pct={wPct}
+                onCancel={wJob.status === "running" ? () => cancelPull(pair.writer) : undefined}
+              />
+            ) : null}
+            {!haveT && tJob ? (
+              <PullBar
+                label={pair.tester}
+                pct={tPct}
+                onCancel={tJob.status === "running" ? () => cancelPull(pair.tester) : undefined}
+              />
+            ) : null}
           </div>
         ) : status.ready && status.writer && status.tester ? (
           <Button
@@ -345,8 +328,12 @@ function PairLane({
             {t(locale, "useThisPair")}
           </Button>
         ) : (
-          <Button size="sm" className="min-h-11 md:h-8" onClick={() => void installBoth()}>
-            {t(locale, "installBoth")}
+          <Button
+            size="sm"
+            className="min-h-11 max-w-full whitespace-normal text-start md:h-8"
+            onClick={() => void installBoth()}
+          >
+            {missing ? t(locale, "installNamed", { id: missing }) : t(locale, "installBoth")}
           </Button>
         )}
       </div>
@@ -369,23 +356,32 @@ export function PairBar({
   const close = () => setOpenId(null);
   const rootRef = useDismiss(Boolean(openId), close);
   const locale = useChatStore((s) => s.settings.locale);
+  usePullVersion();
   const open = PAIR_TASKS.find((t) => t.id === openId);
   return (
     <div ref={rootRef} className={cn("hidden border-b border-border px-3 py-2 md:block", className)}>
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="text-xs text-muted-foreground">{t(locale, "reviewPairs")}</span>
-        {PAIR_TASKS.map((task) => (
-          <Button
-            key={task.id}
-            size="sm"
-            variant={openId === task.id ? "secondary" : "ghost"}
-            className={cn("min-h-11 px-2.5 text-xs md:h-7 md:min-h-0 md:px-2", openId === task.id && "bg-secondary")}
-            aria-expanded={openId === task.id}
-            onClick={() => setOpenId((cur) => (cur === task.id ? null : task.id))}
-          >
-            {task.task}
-          </Button>
-        ))}
+        {PAIR_TASKS.map((task) => {
+          const busy = pairLanes(task).some(
+            (lane) =>
+              snapshotPull(lane.pair.writer)?.status === "running" ||
+              snapshotPull(lane.pair.tester)?.status === "running",
+          );
+          return (
+            <Button
+              key={task.id}
+              size="sm"
+              variant={openId === task.id ? "secondary" : "ghost"}
+              className={cn("min-h-11 px-2.5 text-xs md:h-7 md:min-h-0 md:px-2", openId === task.id && "bg-secondary")}
+              aria-expanded={openId === task.id}
+              onClick={() => setOpenId((cur) => (cur === task.id ? null : task.id))}
+            >
+              {task.task}
+              {busy ? "…" : ""}
+            </Button>
+          );
+        })}
       </div>
       {open ? (
         <PairTaskBody
@@ -396,6 +392,24 @@ export function PairBar({
           onUsed={close}
         />
       ) : null}
+    </div>
+  );
+}
+
+/** Progress for installs that keep running after the pair window is closed. */
+export function BackgroundPulls({ className }: { className?: string }) {
+  usePullVersion();
+  const locale = useChatStore((s) => s.settings.locale);
+  const jobs = runningPulls();
+  if (jobs.length === 0) return null;
+  return (
+    <div className={cn("mx-auto w-full max-w-3xl px-3 pb-2 md:px-4", className)}>
+      <p className="mb-1 text-[11px] text-muted-foreground">{t(locale, "pairKeepsRunning")}</p>
+      <div className="space-y-1 rounded-xl border border-border bg-card px-3 py-2">
+        {jobs.map((job) => (
+          <PullBar key={job.id} label={job.id} pct={job.percent} onCancel={() => cancelPull(job.id)} />
+        ))}
+      </div>
     </div>
   );
 }

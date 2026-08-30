@@ -259,3 +259,13 @@ export function pairStatus(models: ModelRef[], pair: ReviewPair) {
     ready: Boolean(writer && tester),
   };
 }
+
+/** Which side of a pair is still missing, or null if both or neither are installed. */
+export function missingPairInstall(
+  pair: ReviewPair,
+  haveWriter: boolean,
+  haveTester: boolean,
+): string | null {
+  if (haveWriter === haveTester) return null;
+  return haveWriter ? pair.tester : pair.writer;
+}
