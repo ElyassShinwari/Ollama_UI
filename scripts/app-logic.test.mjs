@@ -17,16 +17,33 @@ test("reviewSatisfied accepts a tester that is done", () => {
 });
 
 test("handoffs pass the latest answer, not an empty shell", () => {
-  const toTester = cloud.handoffToTester("Grok", "function add(a,b){return a+b}", 2, 5);
+  const toTester = cloud.handoffToTester("Grok", 2, 5);
   assert.match(toTester, /Grok/);
-  assert.match(toTester, /function add/);
+  assert.match(toTester, /tester/i);
+  assert.match(toTester, /2\/5/);
+  assert.match(toTester, /cannot/);
   const toWriter = cloud.handoffToWriter("ChatGPT", "Fix the name.");
   assert.match(toWriter, /ChatGPT/);
   assert.match(toWriter, /Fix the name/);
-  const last = cloud.finalHandoff("Grok", "function add(){}");
+  assert.match(toWriter, /entire deliverable|full code|not a patch/i);
+  const last = cloud.finalHandoff("Grok", "function add(){}", "missing tests");
   assert.match(last, /yourself/);
   assert.match(last, /function add/);
+  assert.match(last, /missing tests/);
   assert.match(cloud.FINAL_REVIEW_SYSTEM, /yourself/i);
+  assert.match(cloud.WRITER_SYSTEM, /never the tester/i);
+  assert.match(cloud.WRITER_SYSTEM, /SATISFIED/);
+  assert.match(cloud.REVIEW_SYSTEM, /Only you can accept/i);
+});
+
+test("review cycle only lets the tester accept, and the last cycle finishes the work", async () => {
+  const fs = await import("node:fs");
+  const view = fs.readFileSync(new URL("../src/components/chat/chat-view.tsx", import.meta.url), "utf8");
+  assert.match(view, /WRITER_SYSTEM/);
+  assert.match(view, /handoffToTester\(/);
+  assert.match(view, /finalHandoff\(author\.name, lastProject, lastReview\)/);
+  assert.match(view, /reviewSatisfied\(review\)/);
+  assert.equal(view.includes("reviewSatisfied(written)"), false);
 });
 
 test("isChatGptOAuth distinguishes JWT sign-in from API keys", () => {

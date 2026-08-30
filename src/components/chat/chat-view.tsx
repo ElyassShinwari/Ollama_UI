@@ -38,8 +38,10 @@ import {
   FINAL_REVIEW_SYSTEM,
   REVIEW_SELF_SYSTEM,
   REVIEW_SYSTEM,
+  WRITER_SYSTEM,
   cloudSecret,
   finalHandoff,
+  handoffToTester,
   handoffToWriter,
   providerLabel,
   reviewSatisfied,
@@ -551,7 +553,7 @@ export function ChatView({
                   ? [{ role: "user", content: clipTurn(handoffToWriter(reviewer.name, lastReview)) }]
                   : []),
               ];
-        const written = await runCompletion(conversationId, writerTurns, parentId, author);
+        const written = await runCompletion(conversationId, writerTurns, parentId, author, WRITER_SYSTEM);
         if (cancelledRef.current) {
           setCycleNote(t(locale, "cycleStopped"));
           break;
@@ -577,7 +579,7 @@ export function ChatView({
       const testerTurns: ChatTurn[] = [
         i === 1 ? originalWithMedia : originalText,
         { role: "assistant", content: clipTurn(lastProject) },
-        { role: "user", content: `Test the answer above. If it is good, start with SATISFIED.` },
+        { role: "user", content: clipTurn(handoffToTester(author.name, i, max)) },
       ];
       const review = await runCompletion(
         conversationId,
@@ -627,7 +629,7 @@ export function ChatView({
           [
             originalText,
             { role: "assistant", content: clipTurn(lastProject) },
-            { role: "user", content: clipTurn(finalHandoff(author.name, lastProject)) },
+            { role: "user", content: clipTurn(finalHandoff(author.name, lastProject, lastReview)) },
           ],
           wrap.user.id,
           reviewer,

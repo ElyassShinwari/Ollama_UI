@@ -214,23 +214,29 @@ export function reviewSatisfied(text: string) {
   return /^(SATISFIED|APPROVED|LGTM)\b/i.test(head) || /\bSATISFIED\b/i.test(head.split("\n")[0] ?? "");
 }
 
+export const WRITER_SYSTEM =
+  "You are the writer, never the tester. Do not write SATISFIED, APPROVED, or LGTM — only the tester can accept the work. Produce the complete deliverable the user asked for: the full code, full text, full proof, or full research. Not a patch, a diff, or a list of changes. If you received tester notes, apply every point in that complete rewrite. Your entire reply is what the tester reads next.";
+
 export const REVIEW_SYSTEM =
-  "You are the tester. You receive another model's full answer as your input. If it solves the user's request correctly, completely, and safely, start your reply with SATISFIED on its own first line, then one short note. If it is not good enough, do not write SATISFIED. Quote the errors and list concrete fixes. Your entire reply is passed back to the writer as its next input.";
+  "You are the tester. Only you can accept the work — the writer cannot. If the writer's full answer solves the user's request correctly, completely, and safely, start your reply with SATISFIED on its own first line, then one short note. If it is not good enough, do not write SATISFIED. Quote the errors and list concrete fixes the writer must apply in a complete rewrite. Do not write the finished work yourself in this step. Your entire reply is passed back to the writer.";
 
 export const REVIEW_SELF_SYSTEM =
-  "You wrote the previous answer. Now review that answer as a second pass — do not rubber-stamp it. Check it against the original request. If it is correct, complete, and safe, start your reply with SATISFIED on its own first line, then one short note. If it is not good enough, do not write SATISFIED. Quote the errors and list concrete fixes. Your entire reply is passed back as the next writing prompt.";
+  "You wrote the previous answer. Now you are the tester, not the writer. Do not rubber-stamp it. Check it against the original request. If it is correct, complete, and safe, start your reply with SATISFIED on its own first line, then one short note. If it is not good enough, do not write SATISFIED. Quote the errors and list concrete fixes. Do not rewrite the work in this step — the next writing pass will produce a complete new version from your notes.";
 
 export const FINAL_REVIEW_SYSTEM =
-  "The revision cycles are over and the work is still not accepted. You are the tester. Do not write another review-only report. Finish the user's request yourself: produce the complete corrected answer, applying every fix you already found. Put the finished work first. After that, a short note on what you changed and any remaining caveat. Do not write SATISFIED.";
+  "The revision cycles are over and you (the tester) did not accept the work. Finish the user's request yourself: write the complete corrected deliverable — the full code, full research, full text, or full answer — applying every fix you already found. Put that finished work first. After that, a short note on what you changed. Do not write SATISFIED. Do not write a report of remaining bugs without the complete work.";
 
-export function handoffToTester(authorName: string, answer: string, cycle: number, max: number) {
-  return `Cycle ${cycle}/${max}. Here is ${authorName}'s latest answer. Test it against the original request. If it is good, start with SATISFIED. If not, send concrete fixes — your full reply will be passed back to ${authorName}.\n\n${answer}`;
+export function handoffToTester(authorName: string, cycle: number, max: number) {
+  return `Cycle ${cycle}/${max}. You are the tester. Only you can accept this — ${authorName} cannot. If the answer above fully solves the original request, start with SATISFIED on the first line. If not, do not write SATISFIED. Quote errors and list concrete fixes. Do not rewrite the work yourself in this step.`;
 }
 
 export function handoffToWriter(testerName: string, review: string) {
-  return `Here is ${testerName}'s test of your last answer. Apply every point and reply with the complete updated work, not a patch. Your full reply will be passed back to the tester.\n\n${review}`;
+  return `Here is ${testerName}'s test of your last answer. You are the writer. Do not write SATISFIED. Rewrite the entire deliverable from scratch with every point applied — the full code, full text, full research, or full answer, not a patch or a diff. That complete version is passed back to the tester.\n\n${review}`;
 }
 
-export function finalHandoff(authorName: string, project: string) {
-  return `The cycles are finished and ${authorName}'s work is still not good enough. You must now complete it yourself — write the full corrected answer the user originally asked for, not a list of remaining bugs.\n\nLatest version:\n\n${project}`;
+export function finalHandoff(authorName: string, project: string, review = "") {
+  const notes = review.trim()
+    ? `\n\nYour last test notes (apply all of these in the finished work):\n\n${review}`
+    : "";
+  return `The cycles are finished and you did not accept ${authorName}'s work. Write the complete finished answer yourself now — the whole code, whole research, whole text, or whole solution the user asked for. Do not send a bug list without that full work.\n\nLatest version:\n\n${project}${notes}`;
 }
