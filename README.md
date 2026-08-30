@@ -112,7 +112,7 @@ ollama list
 
 ## Use it
 
-1. Open Ollama_UI. If Ollama is not running, a large **Start Ollama** button is in the middle of the first screen — tap it. If Ollama is not installed, that button installs it. Cloud models can still be used without it.
+1. Open Ollama_UI. If Ollama is not running, a large **Start Ollama** button is in the middle of the first screen — tap it. If Ollama is not installed, that button installs it. Cloud models can still be used without it. After Ollama is installed (or started) successfully, a **New chat** opens on its own — you do not have to create one. Pick a model from the header menu (or from the list that opens if none are installed yet).
 2. Pick a model from the library, from Hugging Face GGUF, from this computer, or from ChatGPT / Claude / Grok / Kimi. Search suggests names as you type (`qwen` lists every available Qwen, not only ones already installed). Open the model menu to search and scroll the full list, or use the arrows to step through every available model. The tester menu in a review works the same way.
 3. Chat. Type, or tap the **mic** and speak — words land in the box so you can edit them, then send. Tokens appear as Ollama writes them — the same speed as `ollama run` in a terminal. The app does not reload the model or force a huge context window on every send. Switch models from the header — the previous local model is unloaded first so two models are not held in RAM at once. The full conversation is sent to the new model, and the context meter updates to that model's own window (read from the model; if a model never published one, the app estimates from its parameter size). Delete a chat from the trash in the sidebar history, or from **⋯ → Delete**. Confirm, and it is removed from this browser.
 4. If the new model’s window is smaller than this chat, you get a warning: answers may be unexpected or inaccurate while the window is full. You can still continue, or start a new chat.
@@ -261,10 +261,10 @@ Vision models cannot be trained here. Advisor lists which model to pull for chat
 Ollama_UI skips a busy port. To force another: `PORT=3000 make run`.
 
 **Install Ollama failed**  
-The app needs permission to install software. Use the manual steps above, then click **Start Ollama**.
+The app needs permission to install software. Use the manual steps above, then click **Start Ollama**. After a successful install or start, a New chat opens so you can pick a model.
 
 **No local models listed**  
-Install one from the library search (`smollm2:135m`). If Ollama is on another machine, set the host in Settings (`http://127.0.0.1:11434` by default).
+Install one from the library search (`smollm2:135m`). If Ollama is on another machine, set the host in Settings (`http://127.0.0.1:11434` by default). After Ollama is running, a New chat is created for you — choose a model from the header, or from the list if none are installed yet.
 
 **ChatGPT / Claude / Grok / Kimi / DeepSeek missing**  
 Open **Studio → Cloud base** (or Settings). ChatGPT, Grok, and Kimi: click **Sign in**. If ChatGPT talks about enabling device-code in Security Settings, close that tab and use **Sign in** again — this app uses the normal ChatGPT login, not device-code. Claude and DeepSeek need an API key from their console. For a model on your own server or another cloud, fill **Remote APIs** (base URL, optional key, model name). The server must speak the OpenAI chat API.

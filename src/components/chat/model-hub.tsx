@@ -37,6 +37,7 @@ export function ModelHub({
   initialQuery = "",
   hideStart = false,
   hideLocal = false,
+  onOllamaReady,
 }: {
   host: string;
   localModels: ModelRef[];
@@ -45,6 +46,7 @@ export function ModelHub({
   initialQuery?: string;
   hideStart?: boolean;
   hideLocal?: boolean;
+  onOllamaReady?: (ready: boolean) => Promise<unknown> | void;
 }) {
   const [status, setStatus] = useState<SetupStatus | null>(null);
   const [query, setQuery] = useState(initialQuery);
@@ -118,10 +120,13 @@ export function ModelHub({
     setLog(["Installing Ollama…"]);
     try {
       const ok = await readSetupStream("/api/setup-install", pushLog, { method: "POST" });
-      await refreshStatus();
+      const next = await refreshStatus();
+      const ready = Boolean(ok && next.running);
       if (ok) pushLog("Ollama is ready.");
+      await onOllamaReady?.(ready);
     } catch (err) {
       pushLog(err instanceof Error ? err.message : "Install failed");
+      await onOllamaReady?.(false);
     } finally {
       setBusy(null);
     }
@@ -131,10 +136,13 @@ export function ModelHub({
     setBusy("start");
     setLog(["Starting Ollama…"]);
     try {
-      await readSetupStream("/api/setup-start", pushLog, { method: "POST" });
-      await refreshStatus();
+      const ok = await readSetupStream("/api/setup-start", pushLog, { method: "POST" });
+      const next = await refreshStatus();
+      const ready = Boolean(ok && next.running);
+      await onOllamaReady?.(ready);
     } catch (err) {
       pushLog(err instanceof Error ? err.message : "Could not start Ollama");
+      await onOllamaReady?.(false);
     } finally {
       setBusy(null);
     }

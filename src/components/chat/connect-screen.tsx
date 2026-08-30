@@ -19,6 +19,7 @@ export function ConnectScreen({
   onRefresh,
   onChoose,
   onOpenSidebar,
+  onOllamaReady,
 }: {
   catalog: ModelCatalog;
   host: string;
@@ -26,6 +27,7 @@ export function ConnectScreen({
   onRefresh: () => Promise<ModelRef[] | void> | void;
   onChoose: (model: ModelRef) => void;
   onOpenSidebar?: () => void;
+  onOllamaReady?: (ready: boolean) => Promise<unknown> | void;
 }) {
   const [hostDraft, setHostDraft] = useState(host);
   const [query, setQuery] = useState("");
@@ -87,8 +89,9 @@ export function ConnectScreen({
 
         <OllamaLaunch
           host={host}
-          onReady={async () => {
-            await onRefresh();
+          onReady={async (ready) => {
+            if (onOllamaReady) await onOllamaReady(ready);
+            else await onRefresh();
           }}
         />
 
@@ -162,6 +165,7 @@ export function ConnectScreen({
             const result = await onRefresh();
             return result;
           }}
+          onOllamaReady={onOllamaReady}
         />
 
         <form

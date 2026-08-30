@@ -13,7 +13,7 @@ export function OllamaLaunch({
   variant = "hero",
 }: {
   host: string;
-  onReady?: () => Promise<unknown> | void;
+  onReady?: (ready: boolean) => Promise<unknown> | void;
   variant?: "hero" | "page";
 }) {
   const locale = useChatStore((s) => s.settings.locale);
@@ -49,12 +49,10 @@ export function OllamaLaunch({
         { method: "POST" },
       );
       const next = await refresh();
-      await onReady?.();
-      if (ok && next.running) {
-        toast.success(t(locale, "ollamaRunningToast"));
-      } else if (!ok) {
-        toast.error(kind === "install" ? t(locale, "ollamaInstallFailed") : t(locale, "ollamaStartFailed"));
-      }
+      const ready = Boolean(ok && next.running);
+      if (ready) toast.success(t(locale, "ollamaRunningToast"));
+      else if (!ok) toast.error(kind === "install" ? t(locale, "ollamaInstallFailed") : t(locale, "ollamaStartFailed"));
+      await onReady?.(ready);
     } catch (err) {
       const msg =
         err instanceof Error

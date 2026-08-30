@@ -20,6 +20,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { estimateTokens, isContextOverflowError } from "@/lib/utils";
 import { greetingKey, t } from "@/lib/i18n";
 import { selectActiveConversation, chatPersist, useChatStore } from "@/lib/chat/store";
+import { isPlaceholderModel } from "@/lib/chat/starter";
 import { siblingsOf, visibleMessages, isNoteMessage, chatTurnsOf } from "@/lib/chat/tree";
 import { adoptModel, streamChat } from "@/lib/llm/catalog";
 import { endpointForModel, remoteIdFromCustom } from "@/lib/llm/custom";
@@ -240,7 +241,7 @@ export function ChatView({
     extraSystem?: string,
   ): Promise<string> {
     const model = using ?? useChatStore.getState().selectedModel;
-    if (!model) {
+    if (!model || isPlaceholderModel(model)) {
       toast.error(t(useChatStore.getState().settings.locale, "chooseModelFirstToast"));
       return "";
     }
@@ -392,6 +393,7 @@ export function ChatView({
   }
 
   function writerLabel(model: ModelRef) {
+    if (isPlaceholderModel(model)) return t(locale, "chooseModel");
     const kind = model.provider === "ollama" ? "Ollama" : providerLabel(model.provider);
     return `${model.name} · ${kind}`;
   }
@@ -413,7 +415,7 @@ export function ChatView({
   }
 
   async function send(text: string, extraFiles: PendingFile[] = files) {
-    if (!useChatStore.getState().selectedModel) {
+    if (!useChatStore.getState().selectedModel || isPlaceholderModel(useChatStore.getState().selectedModel)) {
       toast.error(t(useChatStore.getState().settings.locale, "chooseModelFirstToast"));
       return;
     }
@@ -449,7 +451,7 @@ export function ChatView({
     }
     const author = useChatStore.getState().selectedModel;
     const reviewer = modelFromKey(testerKey ?? "");
-    if (!author) {
+    if (!author || isPlaceholderModel(author)) {
       toast.error(t(locale, "chooseChatModelFirst"));
       return;
     }
@@ -860,7 +862,7 @@ export function ChatView({
             variant="ghost"
             className="min-h-11 shrink-0 px-2.5 md:hidden"
             onClick={() => setReviewOpen(true)}
-            disabled={!selectedModel}
+            disabled={!selectedModel || isPlaceholderModel(selectedModel)}
           >
             {t(locale, "review")}
           </Button>
@@ -874,7 +876,7 @@ export function ChatView({
             {t(locale, "stop")}
           </Button>
         ) : (
-          <Button size="sm" onClick={() => void startReview()} disabled={!selectedModel}>
+          <Button size="sm" onClick={() => void startReview()} disabled={!selectedModel || isPlaceholderModel(selectedModel)}>
             {t(locale, "startReview")}
           </Button>
         )}
@@ -999,7 +1001,7 @@ export function ChatView({
               </div>
             </div>
             <Button
-              disabled={!selectedModel || Boolean(streamingId)}
+              disabled={!selectedModel || isPlaceholderModel(selectedModel) || Boolean(streamingId)}
               className="min-h-11"
               onClick={() => {
                 setReviewOpen(false);
@@ -1033,16 +1035,21 @@ export function ChatView({
           <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-center px-4 py-10">
             <h1 className="font-serif text-4xl tracking-tight md:text-5xl">{greeting}</h1>
             <p className="mt-3 max-w-md text-muted-foreground">
-              {selectedModel
+              {selectedModel && !isPlaceholderModel(selectedModel)
                 ? t(locale, "talkingWith", { name: selectedModel.name })
                 : t(locale, "chooseModelFirst")}
             </p>
+            {isPlaceholderModel(selectedModel) && onBrowseModels ? (
+              <Button className="mt-6 min-h-11 self-start" onClick={() => onBrowseModels()}>
+                {t(locale, "chooseModel")}
+              </Button>
+            ) : null}
             <div className="mt-8 grid gap-2 sm:grid-cols-2">
               {SUGGESTION_KEYS.map((key) => (
                 <button
                   key={key}
                   type="button"
-                  disabled={!selectedModel}
+                  disabled={!selectedModel || isPlaceholderModel(selectedModel)}
                   className="rounded-xl border border-border bg-card px-4 py-3 text-start text-sm leading-6 transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
                   onClick={() => void send(t(locale, key))}
                 >
@@ -1154,9 +1161,11 @@ export function ChatView({
         onSend={() => send(draft)}
         onStop={stop}
         streaming={thisStreaming}
-        disabled={!selectedModel}
+        disabled={!selectedModel || isPlaceholderModel(selectedModel)}
         placeholder={
-          selectedModel ? t(locale, "messagePh", { name: selectedModel.name }) : t(locale, "chooseModelFirst")
+          selectedModel && !isPlaceholderModel(selectedModel)
+            ? t(locale, "messagePh", { name: selectedModel.name })
+            : t(locale, "chooseModelFirst")
         }
         files={files}
         onRemoveFile={(id) => setFiles((cur) => cur.filter((f) => f.id !== id))}

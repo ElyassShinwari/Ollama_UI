@@ -24,7 +24,7 @@ import { applyTheme, resolvedTheme } from "@/lib/theme";
 import { applyLocale, localeInfo, t } from "@/lib/i18n";
 import { useHistoryBack } from "@/lib/history-back";
 import { useAppViewport } from "@/lib/viewport";
-import { useChatStore } from "@/lib/chat/store";
+import { useChatStore, ensureStarterChat } from "@/lib/chat/store";
 import { syncStudio } from "@/lib/studio/store";
 import type { ModelCatalog, ModelRef } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
@@ -85,6 +85,11 @@ export function ChatApp() {
         (m) => m.id === current.id && m.provider === current.provider,
       );
       if (match) setSelectedModel(match);
+    }
+    const state = useChatStore.getState();
+    if (!state.selectedModel && state.conversations.length === 0 && ollamaIsUp(next.status)) {
+      const starter = ensureStarterChat(next.models);
+      if (starter.needsModel) setHubOpen(true);
     }
     return next.models;
   }, [setSelectedModel]);
@@ -161,6 +166,13 @@ export function ChatApp() {
     const state = useChatStore.getState();
     if (!state.activeId) state.newChat();
     setHubOpen(false);
+  }
+
+  async function afterOllamaReady(ready: boolean) {
+    const models = (await refresh()) ?? [];
+    if (!ready) return;
+    const starter = ensureStarterChat(models);
+    if (starter.needsModel) setHubOpen(true);
   }
 
   // Phone / browser Back peels News, Studio, Models, Settings, or the menu
@@ -248,7 +260,7 @@ export function ChatApp() {
               <OllamaLaunch
                 host={settings.ollamaHost}
                 variant="page"
-                onReady={() => refresh()}
+                onReady={(ready) => afterOllamaReady(ready)}
               />
             </div>
           ) : selectedModel ? (
@@ -274,6 +286,7 @@ export function ChatApp() {
               onRefresh={() => refresh()}
               onChoose={chooseModel}
               onOpenSidebar={() => setMobileOpen(true)}
+              onOllamaReady={afterOllamaReady}
             />
           )}
         </main>
@@ -299,6 +312,7 @@ export function ChatApp() {
             onChoose={chooseModel}
             onRefreshLocal={() => refresh()}
             initialQuery={hubQuery}
+            onOllamaReady={afterOllamaReady}
           />
         </DialogContent>
       </Dialog>

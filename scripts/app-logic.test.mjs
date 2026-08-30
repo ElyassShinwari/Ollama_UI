@@ -591,6 +591,21 @@ test("locales cover the requested languages including Dari and Pashto", () => {
   assert.equal(i18n.t("pt", "remoteGroup"), "Remote");
 });
 
+test("first visit picks a local model or a choose-a-model placeholder", async () => {
+  const starter = await import("../src/lib/chat/starter.ts");
+  assert.equal(starter.isPlaceholderModel(null), true);
+  assert.equal(starter.isPlaceholderModel({ id: "pending", name: "Choose a model", provider: "ollama", transport: "server" }), true);
+  assert.equal(
+    starter.isPlaceholderModel({ id: "smollm2:135m", name: "smollm2:135m", provider: "ollama", transport: "server" }),
+    false,
+  );
+  assert.equal(starter.pickStarterModel([]), null);
+  const llama = { id: "llama3.2:1b", name: "llama3.2:1b", provider: "ollama", transport: "server" };
+  const gpt = { id: "gpt-5.4", name: "GPT-5.4", provider: "openai", transport: "server" };
+  assert.equal(starter.pickStarterModel([gpt, llama])?.id, "llama3.2:1b");
+  assert.equal(starter.pickStarterModel([gpt])?.id, "gpt-5.4");
+});
+
 test("/api/chat and other host routes sanitize Ollama hosts", async () => {
   const fs = await import("node:fs");
   const routes = [

@@ -3,6 +3,7 @@ import { persist, type PersistStorage } from "zustand/middleware";
 import { t, detectLocale, isLocaleId } from "@/lib/i18n";
 import { linkLinearMessages, visibleMessages } from "./tree";
 import type { Conversation, Message, ModelRef, Settings, TokenUsage } from "./types";
+import { isPlaceholderModel, pickStarterModel } from "./starter";
 
 const defaultSettings: Settings = {
   ollamaHost: "http://127.0.0.1:11434",
@@ -48,13 +49,29 @@ function normalizeConversation(c: Conversation): Conversation {
   };
 }
 
-function pendingModel(): ModelRef {
+function placeholderModel(locale?: string): ModelRef {
   return {
     id: "pending",
-    name: "Choose a model",
+    name: t(locale, "chooseModel"),
     provider: "ollama",
     transport: "server",
   };
+}
+
+export { isPlaceholderModel, pickStarterModel } from "./starter";
+
+/** First visit or after Ollama is installed: a New chat is already open. */
+export function ensureStarterChat(models: ModelRef[] = []): { needsModel: boolean } {
+  const store = useChatStore.getState();
+  if (!store.activeId || store.conversations.length === 0) store.newChat();
+  if (!isPlaceholderModel(store.selectedModel)) return { needsModel: false };
+  const pick = pickStarterModel(models);
+  if (pick) {
+    store.setSelectedModel(pick);
+    return { needsModel: false };
+  }
+  store.setSelectedModel(placeholderModel(store.settings.locale));
+  return { needsModel: true };
 }
 
 function selectOnParent(messages: Message[], parentId: string | null, childId: string): Message[] {
@@ -201,7 +218,7 @@ export const useChatStore = create<ChatState>()(
         const conversation: Conversation = {
           id: uid(),
           title: t(get().settings.locale, "newChat"),
-          model: model ?? pendingModel(),
+          model: model ?? placeholderModel(get().settings.locale),
           messages: [],
           createdAt: now,
           updatedAt: now,
