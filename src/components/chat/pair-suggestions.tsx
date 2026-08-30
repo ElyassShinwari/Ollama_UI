@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { PAIR_TASKS, findLocalModel, missingPairInstall, pairLanes, pairStatus, type PairTask, type ReviewPair } from "@/lib/llm/pairs";
 import { isAbortError } from "@/lib/llm/setup";
 import { adoptModel } from "@/lib/llm/catalog";
-import { cancelPull, installPairModels, runningPulls, snapshotPull, usePullVersion } from "@/lib/llm/pull-jobs";
+import { cancelPull, hydratePulls, installPairModels, runningPulls, snapshotPull, usePullVersion } from "@/lib/llm/pull-jobs";
 import { useChatStore } from "@/lib/chat/store";
 import type { ModelRef } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
@@ -400,6 +400,12 @@ export function PairBar({
 export function BackgroundPulls({ className }: { className?: string }) {
   usePullVersion();
   const locale = useChatStore((s) => s.settings.locale);
+  const host = useChatStore((s) => s.settings.ollamaHost);
+  useEffect(() => {
+    void hydratePulls(host);
+    const id = window.setInterval(() => void hydratePulls(host), 8000);
+    return () => window.clearInterval(id);
+  }, [host]);
   const jobs = runningPulls();
   if (jobs.length === 0) return null;
   return (

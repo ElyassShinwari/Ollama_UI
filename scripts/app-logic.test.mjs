@@ -639,16 +639,26 @@ test("startPull reuses an in-flight job; only cancel stops it", async () => {
   const jobs = fs.readFileSync(new URL("../src/lib/llm/pull-jobs.ts", import.meta.url), "utf8");
   assert.match(jobs, /if \(existing\?\.status === "running"\) return existing/);
   assert.match(jobs, /Closing a sheet does not cancel it/);
-  assert.match(jobs, /if \(!have\.writer\) writerOk = await startPull/);
-  assert.match(jobs, /if \(!have\.tester && tester !== writer\) testerOk = await startPull/);
+  assert.match(jobs, /userCancel/);
+  assert.match(jobs, /hydratePulls/);
+  assert.match(jobs, /Promise\.all/);
   const hub = fs.readFileSync(new URL("../src/components/chat/model-hub.tsx", import.meta.url), "utf8");
   assert.match(hub, /startPull\(/);
   assert.match(hub, /pullPercents\(/);
+  assert.match(hub, /hydratePulls\(/);
   assert.equal(hub.includes("abortRef"), false);
   assert.match(hub, /cancelPull\(/);
   const pairsUi = fs.readFileSync(new URL("../src/components/chat/pair-suggestions.tsx", import.meta.url), "utf8");
   assert.match(pairsUi, /missingPairInstall/);
   assert.match(pairsUi, /installNamed/);
+  assert.match(pairsUi, /hydratePulls/);
+  const pullRoute = fs.readFileSync(new URL("../src/routes/api/pull.ts", import.meta.url), "utf8");
+  assert.equal(pullRoute.includes("signal: request.signal"), false);
+  assert.match(pullRoute, /cancelServerPull/);
+  assert.match(pullRoute, /startServerPull/);
+  const server = fs.readFileSync(new URL("../src/lib/llm/pull-jobs.server.ts", import.meta.url), "utf8");
+  assert.match(server, /signal: job\.abort\.signal/);
+  assert.match(server, /Closing a browser window must not abort Ollama/);
 });
 
 test("installPairModels skips a model that is already installed", async () => {

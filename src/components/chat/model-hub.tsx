@@ -21,7 +21,7 @@ import {
 } from "@/lib/llm/library";
 import { fetchSetup, listHfQuants, readSetupStream, searchLibrary, type SetupStatus } from "@/lib/llm/setup";
 import { PairSuggestions, PullBar } from "@/components/chat/pair-suggestions";
-import { cancelPull, pullPercents, runningPulls, snapshotPull, startPull, usePullVersion } from "@/lib/llm/pull-jobs";
+import { cancelPull, hydratePulls, pullPercents, runningPulls, snapshotPull, startPull, usePullVersion } from "@/lib/llm/pull-jobs";
 import type { ModelRef } from "@/lib/chat/types";
 import { cn, formatBytes, formatContextWindow } from "@/lib/utils";
 import { t } from "@/lib/i18n";
@@ -36,9 +36,12 @@ function pullPercentOf(pulls: Record<string, number>, id: string): number | unde
   return hit?.[1];
 }
 
-function HubPulls() {
+function HubPulls({ host }: { host: string }) {
   usePullVersion();
   const locale = useChatStore((s) => s.settings.locale);
+  useEffect(() => {
+    void hydratePulls(host);
+  }, [host]);
   const jobs = runningPulls();
   if (jobs.length === 0) return null;
   return (
@@ -111,7 +114,11 @@ export function ModelHub({
 
   useEffect(() => {
     void refreshStatus();
-    const id = window.setInterval(() => void refreshStatus(), 8000);
+    void hydratePulls(host);
+    const id = window.setInterval(() => {
+      void refreshStatus();
+      void hydratePulls(host);
+    }, 8000);
     return () => window.clearInterval(id);
   }, [host]);
 
@@ -282,6 +289,8 @@ export function ModelHub({
       </div>
       ) : null}
 
+      <HubPulls host={host} />
+
       {!hideLocal && localFiltered.length > 0 ? (
         <section>
           <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
@@ -410,8 +419,6 @@ export function ModelHub({
           ))}
         </div>
       ) : null}
-
-      <HubPulls />
 
       <PairSuggestions
         models={localModels}

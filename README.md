@@ -64,11 +64,11 @@ Ollama_UI is not limited to the official Ollama catalog. With Ollama running, se
 
 Type `qwen` (you do not need the exact tag). Suggestions appear before you finish the word. The list includes Qwen2.5, Qwen2.5-Coder, Qwen3, Hugging Face GGUF builds, and more. Pick a size, or on Hugging Face use **More sizes** for extra quants such as Q4_K_M.
 
-While a model downloads, the percent stays in the log at the top. The shadow line and percent fill only that exact size (for example `smollm2:135m`, not the whole SmolLM2 group), so you can install 135m and 360m at the same time and see each one. At 100% that size’s label changes color.
+While a model downloads, the percent stays in the log at the top and in an **Installing** list when you reopen **Install or remove models**. Closing that window does not stop the download. The shadow line and percent fill only that exact size (for example `smollm2:135m`, not the whole SmolLM2 group), so you can install 135m and 360m at the same time and see each one. At 100% that size’s label changes color.
 
 The runtime is still Ollama: Hugging Face GGUF files are downloaded through it and then chat like any other local model.
 
-**Review pairs** (Coding, Writing, Math, Science, Translation, Research, Everyday chat, Images) suggest two local models: a writer and a tester. Each job has four sizes — **very light**, **light**, **medium**, **heavy** — plus **Same model**, so the writer can review its own work. Tap **Install both** to download the pair (Ollama must be running). If one of the two is already on this computer, the button names the missing model instead — for example **Install deepseek-coder:1.3b**. Closing the pair list or **Install or remove models** does not stop the download; it keeps going in the background. Open **Install or remove models** (or the pair again) to see how far it has gone. The **×** on a downloading model stops only that install. If the tester is still not satisfied on the last cycle, that tester finishes the answer itself.
+**Review pairs** (Coding, Writing, Math, Science, Translation, Research, Everyday chat, Images) suggest two local models: a writer and a tester. Each job has four sizes — **very light**, **light**, **medium**, **heavy** — plus **Same model**, so the writer can review its own work. Tap **Install both** to download the pair (Ollama must be running). If one of the two is already on this computer, the button names the missing model instead — for example **Install deepseek-coder:1.3b**. Closing the pair list or **Install or remove models** does **not** stop the download — it keeps going on this computer in the background, and you can keep chatting with other models. Open **Install or remove models** again to see a live percent for each model still installing (also shown above the message box while you chat). The **×** on a downloading model stops only that install. If the tester is still not satisfied on the last cycle, that tester finishes the answer itself.
 
 ## Install Ollama by hand (optional)
 
@@ -177,7 +177,7 @@ Signed-in accounts, keys, and remote URLs stay in this browser. Review cycles ca
 7. If the tester starts with `SATISFIED`, the loop stops. **Stop** cancels the rest of the run.
 8. If the cycles finish and the tester is still not satisfied, the tester writes a **final report** that includes the current project and the remaining errors.
 
-Replies are labeled with the model that wrote them. In **Install or remove models**, **Review pairs** install only the models you still need. Closing that window does not cancel the download.
+Replies are labeled with the model that wrote them. In **Install or remove models**, **Review pairs** install only the models you still need. Closing that window does not cancel the download — it keeps running, and the next time you open **Install or remove models** you see how far each model has gone.
 
 ## Studio
 
